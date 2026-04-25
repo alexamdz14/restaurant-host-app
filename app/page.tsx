@@ -8,186 +8,71 @@ type Guest = {
   name: string;
   guests: number;
   type: "Reservation" | "Waitlist";
-  pager?: string;
-};
-
-type Server = {
-  name: string;
 };
 
 type Table = {
   number: string;
   seats: number;
+  section: string;
   status: TableStatus;
   guest?: string;
   server?: string;
 };
 
 export default function HomePage() {
-  const [servers, setServers] = useState<Server[]>([
-    { name: "Server 1" },
-    { name: "Server 2" },
-    { name: "Server 3" },
-  ]);
+  const [activeTab, setActiveTab] = useState<"map" | "book">("map");
 
-  const [selectedServerIndex, setSelectedServerIndex] = useState(0);
-  const [newServerName, setNewServerName] = useState("");
-
-  const [reservations, setReservations] = useState<Guest[]>([
-    { name: "Smith", guests: 2, type: "Reservation" },
-    { name: "Garcia", guests: 4, type: "Reservation" },
-  ]);
-
-  const [waitlist, setWaitlist] = useState<Guest[]>([]);
+  const [reservations, setReservations] = useState<Guest[]>([]);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
 
-  const [newName, setNewName] = useState("");
-  const [newGuests, setNewGuests] = useState("");
-
-  const [waitName, setWaitName] = useState("");
-  const [waitGuests, setWaitGuests] = useState("");
-  const [waitPager, setWaitPager] = useState("");
+  const [name, setName] = useState("");
+  const [guests, setGuests] = useState("");
 
   const [tables, setTables] = useState<Table[]>([
-    { number: "L1", seats: 4, status: "Open" },
-    { number: "L2", seats: 4, status: "Open" },
-    { number: "L3", seats: 4, status: "Open" },
-    { number: "L4", seats: 6, status: "Open" },
-    { number: "L5", seats: 8, status: "Open" },
-    { number: "L6", seats: 4, status: "Open" },
-    { number: "L7", seats: 4, status: "Open" },
-    { number: "L8", seats: 4, status: "Open" },
-    { number: "L9", seats: 2, status: "Open" },
-    { number: "L10", seats: 6, status: "Open" },
+    { number: "L1", seats: 4, section: "Lounge", status: "Open" },
+    { number: "L2", seats: 4, section: "Lounge", status: "Open" },
+    { number: "L3", seats: 4, section: "Lounge", status: "Open" },
+    { number: "L4", seats: 6, section: "Lounge", status: "Open" },
 
-    { number: "1", seats: 4, status: "Open" },
-    { number: "2", seats: 4, status: "Open" },
-    { number: "3", seats: 2, status: "Open" },
-    { number: "4", seats: 2, status: "Open" },
-    { number: "5", seats: 2, status: "Open" },
-    { number: "6", seats: 4, status: "Open" },
-    { number: "7", seats: 4, status: "Open" },
-    { number: "9", seats: 4, status: "Open" },
-    { number: "10", seats: 4, status: "Open" },
-    { number: "11", seats: 4, status: "Open" },
-    { number: "12", seats: 7, status: "Open" },
-    { number: "13", seats: 4, status: "Open" },
-    { number: "14", seats: 4, status: "Open" },
-    { number: "15", seats: 4, status: "Open" },
-    { number: "16", seats: 4, status: "Open" },
-    { number: "17", seats: 4, status: "Open" },
-    { number: "18", seats: 5, status: "Open" },
-    { number: "19", seats: 5, status: "Open" },
-    { number: "20", seats: 4, status: "Open" },
-    { number: "21", seats: 4, status: "Open" },
-    { number: "22", seats: 4, status: "Open" },
-    { number: "23", seats: 4, status: "Open" },
-    { number: "24", seats: 4, status: "Open" },
-    { number: "26", seats: 4, status: "Open" },
-    { number: "27", seats: 4, status: "Open" },
-    { number: "28", seats: 4, status: "Open" },
-    { number: "29", seats: 4, status: "Open" },
-    { number: "30", seats: 5, status: "Open" },
-    { number: "31", seats: 5, status: "Open" },
-    { number: "32", seats: 4, status: "Open" },
-    { number: "33", seats: 4, status: "Open" },
-    { number: "34", seats: 6, status: "Open" },
-    { number: "35", seats: 6, status: "Open" },
-    { number: "36", seats: 6, status: "Open" },
-    { number: "37", seats: 5, status: "Open" },
-    { number: "38", seats: 7, status: "Open" },
+    { number: "1", seats: 4, section: "Dining", status: "Open" },
+    { number: "2", seats: 4, section: "Dining", status: "Open" },
+    { number: "3", seats: 2, section: "Dining", status: "Open" },
+    { number: "4", seats: 2, section: "Dining", status: "Open" },
 
-    { number: "Casa 1", seats: 4, status: "Open" },
-    { number: "Casa 2", seats: 4, status: "Open" },
-    { number: "Casa 3", seats: 4, status: "Open" },
-    { number: "Casa 4", seats: 4, status: "Open" },
-    { number: "Casa 5", seats: 4, status: "Open" },
-    { number: "Casa 6", seats: 4, status: "Open" },
-    { number: "Casa 7", seats: 4, status: "Open" },
-    { number: "Casa 8", seats: 4, status: "Open" },
-    { number: "Casa 9", seats: 4, status: "Open" },
-    { number: "Casa 10", seats: 4, status: "Open" },
+    { number: "Patio 1", seats: 4, section: "Patio", status: "Open" },
+    { number: "Patio 2", seats: 4, section: "Patio", status: "Open" },
 
-    { number: "San Miguel 1", seats: 12, status: "Open" },
-    { number: "San Miguel 2", seats: 12, status: "Open" },
+    { number: "Casa 1", seats: 4, section: "Casa", status: "Open" },
+    { number: "Casa 2", seats: 4, section: "Casa", status: "Open" },
 
-    { number: "Patio 1", seats: 4, status: "Open" },
-    { number: "Patio 2", seats: 4, status: "Open" },
-    { number: "Patio 3", seats: 4, status: "Open" },
-    { number: "Patio 4", seats: 4, status: "Open" },
-    { number: "Patio 5", seats: 4, status: "Open" },
-    { number: "Patio 6", seats: 4, status: "Open" },
-    { number: "Patio 7", seats: 4, status: "Open" },
-    { number: "Patio 8", seats: 6, status: "Open" },
+    { number: "San Miguel 1", seats: 12, section: "San Miguel", status: "Open" },
   ]);
 
-  function addServer() {
-    if (!newServerName) return;
-    setServers([...servers, { name: newServerName }]);
-    setNewServerName("");
-  }
-
-  function getNextServerIndex() {
-    if (servers.length === 0) return 0;
-    return (selectedServerIndex + 1) % servers.length;
-  }
-
   function addReservation() {
-    if (!newName || !newGuests) return;
+    if (!name || !guests) return;
 
     setReservations([
       ...reservations,
-      { name: newName, guests: Number(newGuests), type: "Reservation" },
+      { name, guests: Number(guests), type: "Reservation" },
     ]);
 
-    setNewName("");
-    setNewGuests("");
-  }
-
-  function addWaitlistGuest() {
-    if (!waitName || !waitGuests) return;
-
-    setWaitlist([
-      ...waitlist,
-      {
-        name: waitName,
-        guests: Number(waitGuests),
-        pager: waitPager,
-        type: "Waitlist",
-      },
-    ]);
-
-    setWaitName("");
-    setWaitGuests("");
-    setWaitPager("");
+    setName("");
+    setGuests("");
   }
 
   function seatGuest(index: number) {
     if (!selectedGuest) return;
 
-    const serverName = servers[selectedServerIndex]?.name || "Unassigned";
-
     setTables(
       tables.map((t, i) =>
         i === index
-          ? {
-              ...t,
-              status: "Seated",
-              guest: selectedGuest.name,
-              server: serverName,
-            }
+          ? { ...t, status: "Seated", guest: selectedGuest.name }
           : t
       )
     );
 
-    if (selectedGuest.type === "Reservation") {
-      setReservations(reservations.filter((r) => r !== selectedGuest));
-    } else {
-      setWaitlist(waitlist.filter((w) => w !== selectedGuest));
-    }
-
+    setReservations(reservations.filter((r) => r !== selectedGuest));
     setSelectedGuest(null);
-    setSelectedServerIndex(getNextServerIndex());
   }
 
   function nextStatus(status: TableStatus): TableStatus {
@@ -206,14 +91,7 @@ export default function HomePage() {
     setTables(
       tables.map((t, i) =>
         i === index
-          ? {
-              ...t,
-              status: nextStatus(t.status),
-              guest:
-                nextStatus(t.status) === "Seated" ? t.guest : undefined,
-              server:
-                nextStatus(t.status) === "Seated" ? t.server : undefined,
-            }
+          ? { ...t, status: nextStatus(t.status), guest: undefined }
           : t
       )
     );
@@ -226,157 +104,103 @@ export default function HomePage() {
     return "#dbeafe";
   }
 
-  function serverCount(serverName: string) {
-    return tables.filter(
-      (table) => table.server === serverName && table.status === "Seated"
-    ).length;
+  function renderSection(section: string) {
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <h3>{section}</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+          {tables
+            .filter((t) => t.section === section)
+            .map((table, i) => {
+              const index = tables.indexOf(table);
+              return (
+                <button
+                  key={table.number}
+                  onClick={() => updateTable(index)}
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    background: statusColor(table.status),
+                    border: "1px solid #ccc",
+                  }}
+                >
+                  <strong>{table.number}</strong>
+                  <br />
+                  {table.seats} seats
+                  <br />
+                  {table.status}
+                  {table.guest && <div>👤 {table.guest}</div>}
+                </button>
+              );
+            })}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <main style={{ padding: 20, fontFamily: "Arial", background: "#f5f7fb" }}>
+    <main style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>Enrique’s Host Stand</h1>
 
-      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
-        <h2>Server Rotation</h2>
-
-        <p>
-          Current next server:{" "}
-          <strong>{servers[selectedServerIndex]?.name || "No server"}</strong>
-        </p>
-
-        <div style={{ marginBottom: 10 }}>
-          {servers.map((server, i) => (
-            <button
-              key={i}
-              onClick={() => setSelectedServerIndex(i)}
-              style={{
-                margin: 5,
-                padding: 10,
-                borderRadius: 10,
-                border: "1px solid #ccc",
-                background: selectedServerIndex === i ? "#93c5fd" : "#fff",
-              }}
-            >
-              {server.name} — {serverCount(server.name)} tables
-            </button>
-          ))}
-        </div>
-
-        <input
-          placeholder="Add server name"
-          value={newServerName}
-          onChange={(e) => setNewServerName(e.target.value)}
-        />
-        <button onClick={addServer}>Add Server</button>
-      </section>
-
-      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
-        <h2>Add Reservation</h2>
-        <input
-          placeholder="Name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-        />
-        <input
-          placeholder="Guests"
-          value={newGuests}
-          onChange={(e) => setNewGuests(e.target.value)}
-        />
-        <button onClick={addReservation}>Add Reservation</button>
-      </section>
-
-      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
-        <h2>Reservations</h2>
-        {reservations.map((r, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedGuest(r)}
-            style={{
-              margin: 5,
-              padding: 10,
-              background: selectedGuest === r ? "#93c5fd" : "#fff",
-              border: "1px solid #ccc",
-              borderRadius: 10,
-            }}
-          >
-            {r.name} ({r.guests})
-          </button>
-        ))}
-      </section>
-
-      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
-        <h2>Add Waitlist Guest</h2>
-        <input
-          placeholder="Name"
-          value={waitName}
-          onChange={(e) => setWaitName(e.target.value)}
-        />
-        <input
-          placeholder="Guests"
-          value={waitGuests}
-          onChange={(e) => setWaitGuests(e.target.value)}
-        />
-        <input
-          placeholder="Pager #"
-          value={waitPager}
-          onChange={(e) => setWaitPager(e.target.value)}
-        />
-        <button onClick={addWaitlistGuest}>Add to Waitlist</button>
-      </section>
-
-      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
-        <h2>Waitlist</h2>
-        {waitlist.length === 0 && <p>No guests waiting.</p>}
-        {waitlist.map((w, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedGuest(w)}
-            style={{
-              display: "block",
-              marginBottom: 8,
-              padding: 10,
-              background: selectedGuest === w ? "#93c5fd" : "#fff",
-              border: "1px solid #ccc",
-              borderRadius: 10,
-            }}
-          >
-            {w.name} ({w.guests}) {w.pager ? `— Pager ${w.pager}` : ""}
-          </button>
-        ))}
-      </section>
-
-      <h2>Table Map</h2>
-      <p>
-        Tap a reservation or waitlist guest, then tap a table to seat them.
-        The server rotation will move to the next server automatically.
-      </p>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 10,
-        }}
-      >
-        {tables.map((table, i) => (
-          <button
-            key={i}
-            onClick={() => updateTable(i)}
-            style={{
-              border: "1px solid #ccc",
-              borderRadius: 10,
-              padding: 10,
-              background: statusColor(table.status),
-            }}
-          >
-            <h3>{table.number}</h3>
-            <p>{table.seats} seats</p>
-            <strong>{table.status}</strong>
-            {table.guest && <p>👤 {table.guest}</p>}
-            {table.server && <p>Server: {table.server}</p>}
-          </button>
-        ))}
+      {/* Tabs */}
+      <div style={{ marginBottom: 20 }}>
+        <button onClick={() => setActiveTab("map")}>Host Map</button>
+        <button onClick={() => setActiveTab("book")}>Reservation Book</button>
       </div>
+
+      {/* Reservation Book */}
+      {activeTab === "book" && (
+        <>
+          <h2>Reservation Book</h2>
+
+          <input
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            placeholder="Guests"
+            value={guests}
+            onChange={(e) => setGuests(e.target.value)}
+          />
+          <button onClick={addReservation}>Add</button>
+
+          <div style={{ marginTop: 20 }}>
+            {reservations.map((r, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setSelectedGuest(r);
+                  setActiveTab("map");
+                }}
+                style={{
+                  display: "block",
+                  marginBottom: 10,
+                  padding: 10,
+                  border: "1px solid #ccc",
+                  borderRadius: 10,
+                }}
+              >
+                {r.name} — {r.guests}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Host Map */}
+      {activeTab === "map" && (
+        <>
+          <h2>Host Map</h2>
+          <p>Tap reservation → tap table to seat</p>
+
+          {renderSection("Lounge")}
+          {renderSection("Dining")}
+          {renderSection("Patio")}
+          {renderSection("Casa")}
+          {renderSection("San Miguel")}
+        </>
+      )}
     </main>
   );
 }
