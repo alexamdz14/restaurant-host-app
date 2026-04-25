@@ -4,9 +4,11 @@ import { useState } from "react";
 
 type TableStatus = "Open" | "Seated" | "Dirty" | "Ready";
 
-type Reservation = {
+type Guest = {
   name: string;
   guests: number;
+  type: "Reservation" | "Waitlist";
+  pager?: string;
 };
 
 type Table = {
@@ -17,12 +19,17 @@ type Table = {
 };
 
 export default function HomePage() {
-  const [reservations, setReservations] = useState<Reservation[]>([
-    { name: "Smith", guests: 2 },
-    { name: "Garcia", guests: 4 },
+  const [reservations, setReservations] = useState<Guest[]>([
+    { name: "Smith", guests: 2, type: "Reservation" },
+    { name: "Garcia", guests: 4, type: "Reservation" },
   ]);
 
-  const [selectedGuest, setSelectedGuest] = useState<Reservation | null>(null);
+  const [waitlist, setWaitlist] = useState<Guest[]>([]);
+  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+
+  const [waitName, setWaitName] = useState("");
+  const [waitGuests, setWaitGuests] = useState("");
+  const [waitPager, setWaitPager] = useState("");
 
   const [tables, setTables] = useState<Table[]>([
     { number: "L1", seats: 4, status: "Open" },
@@ -97,6 +104,24 @@ export default function HomePage() {
     { number: "Patio 8", seats: 6, status: "Open" },
   ]);
 
+  function addWaitlistGuest() {
+    if (!waitName || !waitGuests) return;
+
+    setWaitlist([
+      ...waitlist,
+      {
+        name: waitName,
+        guests: Number(waitGuests),
+        pager: waitPager,
+        type: "Waitlist",
+      },
+    ]);
+
+    setWaitName("");
+    setWaitGuests("");
+    setWaitPager("");
+  }
+
   function seatGuest(index: number) {
     if (!selectedGuest) return;
 
@@ -108,7 +133,12 @@ export default function HomePage() {
       )
     );
 
-    setReservations(reservations.filter(r => r !== selectedGuest));
+    if (selectedGuest.type === "Reservation") {
+      setReservations(reservations.filter((r) => r !== selectedGuest));
+    } else {
+      setWaitlist(waitlist.filter((w) => w !== selectedGuest));
+    }
+
     setSelectedGuest(null);
   }
 
@@ -145,26 +175,79 @@ export default function HomePage() {
     <main style={{ padding: 20 }}>
       <h1>Enrique’s Host Stand</h1>
 
-      <h2>Reservations</h2>
-      {reservations.map((r, i) => (
-        <button
-          key={i}
-          onClick={() => setSelectedGuest(r)}
-          style={{
-            margin: 5,
-            padding: 10,
-            background: selectedGuest?.name === r.name ? "#93c5fd" : "#fff",
-            border: "1px solid #ccc",
-            borderRadius: 10,
-          }}
-        >
-          {r.name} ({r.guests})
-        </button>
-      ))}
+      <section style={{ marginBottom: 20 }}>
+        <h2>Reservations</h2>
+        {reservations.map((r, i) => (
+          <button
+            key={i}
+            onClick={() => setSelectedGuest(r)}
+            style={{
+              margin: 5,
+              padding: 10,
+              background: selectedGuest === r ? "#93c5fd" : "#fff",
+              border: "1px solid #ccc",
+              borderRadius: 10,
+            }}
+          >
+            {r.name} ({r.guests})
+          </button>
+        ))}
+      </section>
+
+      <section style={{ marginBottom: 20 }}>
+        <h2>Add Waitlist Guest</h2>
+        <input
+          placeholder="Name"
+          value={waitName}
+          onChange={(e) => setWaitName(e.target.value)}
+        />
+        <input
+          placeholder="Guests"
+          value={waitGuests}
+          onChange={(e) => setWaitGuests(e.target.value)}
+        />
+        <input
+          placeholder="Pager #"
+          value={waitPager}
+          onChange={(e) => setWaitPager(e.target.value)}
+        />
+        <button onClick={addWaitlistGuest}>Add to Waitlist</button>
+      </section>
+
+      <section style={{ marginBottom: 20 }}>
+        <h2>Waitlist</h2>
+        {waitlist.length === 0 && <p>No guests waiting.</p>}
+        {waitlist.map((w, i) => (
+          <button
+            key={i}
+            onClick={() => setSelectedGuest(w)}
+            style={{
+              display: "block",
+              marginBottom: 8,
+              padding: 10,
+              background: selectedGuest === w ? "#93c5fd" : "#fff",
+              border: "1px solid #ccc",
+              borderRadius: 10,
+            }}
+          >
+            {w.name} ({w.guests}) {w.pager ? `— Pager ${w.pager}` : ""}
+          </button>
+        ))}
+      </section>
 
       <h2>Table Map</h2>
+      <p>
+        Tap a reservation or waitlist guest, then tap a table to seat them.
+        Without a selected guest, tapping cycles table status.
+      </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 10,
+        }}
+      >
         {tables.map((table, i) => (
           <button
             key={i}
