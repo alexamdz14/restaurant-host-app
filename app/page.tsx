@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 
+type TableStatus = "Open" | "Seated" | "Dirty" | "Ready";
+
 type RestaurantTable = {
   number: string;
   seats: number;
-  status: "Open" | "Seated";
+  status: TableStatus;
 };
 
 export default function HomePage() {
@@ -82,26 +84,50 @@ export default function HomePage() {
     { number: "Patio 8", seats: 6, status: "Open" },
   ]);
 
+  function nextStatus(status: TableStatus): TableStatus {
+    if (status === "Open") return "Seated";
+    if (status === "Seated") return "Dirty";
+    if (status === "Dirty") return "Ready";
+    return "Open";
+  }
+
+  function statusColor(status: TableStatus) {
+    if (status === "Open") return "#d4edda";
+    if (status === "Seated") return "#f8d7da";
+    if (status === "Dirty") return "#e5e7eb";
+    return "#dbeafe";
+  }
+
+  function updateTable(index: number) {
+    setTables(
+      tables.map((table, i) =>
+        i === index ? { ...table, status: nextStatus(table.status) } : table
+      )
+    );
+  }
+
   return (
-    <main style={{ padding: 20 }}>
-      <h1>Table Map</h1>
+    <main style={{ padding: 20, fontFamily: "Arial" }}>
+      <h1>Enrique’s Host Stand</h1>
+      <p>Tap a table to change: Open → Seated → Dirty → Ready → Open</p>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
         {tables.map((table, i) => (
-          <div
-            key={i}
+          <button
+            key={table.number}
+            onClick={() => updateTable(i)}
             style={{
               border: "1px solid #ccc",
               borderRadius: 10,
               padding: 10,
               textAlign: "center",
-              background: table.status === "Open" ? "#d4edda" : "#f8d7da",
+              background: statusColor(table.status),
             }}
           >
             <h3>{table.number}</h3>
             <p>{table.seats} seats</p>
-            <p>{table.status}</p>
-          </div>
+            <strong>{table.status}</strong>
+          </button>
         ))}
       </div>
     </main>
