@@ -27,6 +27,9 @@ export default function HomePage() {
   const [waitlist, setWaitlist] = useState<Guest[]>([]);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
 
+  const [newName, setNewName] = useState("");
+  const [newGuests, setNewGuests] = useState("");
+
   const [waitName, setWaitName] = useState("");
   const [waitGuests, setWaitGuests] = useState("");
   const [waitPager, setWaitPager] = useState("");
@@ -104,6 +107,18 @@ export default function HomePage() {
     { number: "Patio 8", seats: 6, status: "Open" },
   ]);
 
+  function addReservation() {
+    if (!newName || !newGuests) return;
+
+    setReservations([
+      ...reservations,
+      { name: newName, guests: Number(newGuests), type: "Reservation" },
+    ]);
+
+    setNewName("");
+    setNewGuests("");
+  }
+
   function addWaitlistGuest() {
     if (!waitName || !waitGuests) return;
 
@@ -172,8 +187,23 @@ export default function HomePage() {
   }
 
   return (
-    <main style={{ padding: 20 }}>
+    <main style={{ padding: 20, fontFamily: "Arial" }}>
       <h1>Enrique’s Host Stand</h1>
+
+      <section style={{ marginBottom: 20 }}>
+        <h2>Add Reservation</h2>
+        <input
+          placeholder="Name"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+        />
+        <input
+          placeholder="Guests"
+          value={newGuests}
+          onChange={(e) => setNewGuests(e.target.value)}
+        />
+        <button onClick={addReservation}>Add Reservation</button>
+      </section>
 
       <section style={{ marginBottom: 20 }}>
         <h2>Reservations</h2>
