@@ -11,14 +11,28 @@ type Guest = {
   pager?: string;
 };
 
+type Server = {
+  name: string;
+};
+
 type Table = {
   number: string;
   seats: number;
   status: TableStatus;
   guest?: string;
+  server?: string;
 };
 
 export default function HomePage() {
+  const [servers, setServers] = useState<Server[]>([
+    { name: "Server 1" },
+    { name: "Server 2" },
+    { name: "Server 3" },
+  ]);
+
+  const [selectedServerIndex, setSelectedServerIndex] = useState(0);
+  const [newServerName, setNewServerName] = useState("");
+
   const [reservations, setReservations] = useState<Guest[]>([
     { name: "Smith", guests: 2, type: "Reservation" },
     { name: "Garcia", guests: 4, type: "Reservation" },
@@ -107,6 +121,17 @@ export default function HomePage() {
     { number: "Patio 8", seats: 6, status: "Open" },
   ]);
 
+  function addServer() {
+    if (!newServerName) return;
+    setServers([...servers, { name: newServerName }]);
+    setNewServerName("");
+  }
+
+  function getNextServerIndex() {
+    if (servers.length === 0) return 0;
+    return (selectedServerIndex + 1) % servers.length;
+  }
+
   function addReservation() {
     if (!newName || !newGuests) return;
 
@@ -140,10 +165,17 @@ export default function HomePage() {
   function seatGuest(index: number) {
     if (!selectedGuest) return;
 
+    const serverName = servers[selectedServerIndex]?.name || "Unassigned";
+
     setTables(
       tables.map((t, i) =>
         i === index
-          ? { ...t, status: "Seated", guest: selectedGuest.name }
+          ? {
+              ...t,
+              status: "Seated",
+              guest: selectedGuest.name,
+              server: serverName,
+            }
           : t
       )
     );
@@ -155,6 +187,7 @@ export default function HomePage() {
     }
 
     setSelectedGuest(null);
+    setSelectedServerIndex(getNextServerIndex());
   }
 
   function nextStatus(status: TableStatus): TableStatus {
@@ -173,7 +206,14 @@ export default function HomePage() {
     setTables(
       tables.map((t, i) =>
         i === index
-          ? { ...t, status: nextStatus(t.status), guest: undefined }
+          ? {
+              ...t,
+              status: nextStatus(t.status),
+              guest:
+                nextStatus(t.status) === "Seated" ? t.guest : undefined,
+              server:
+                nextStatus(t.status) === "Seated" ? t.server : undefined,
+            }
           : t
       )
     );
@@ -186,11 +226,51 @@ export default function HomePage() {
     return "#dbeafe";
   }
 
+  function serverCount(serverName: string) {
+    return tables.filter(
+      (table) => table.server === serverName && table.status === "Seated"
+    ).length;
+  }
+
   return (
-    <main style={{ padding: 20, fontFamily: "Arial" }}>
+    <main style={{ padding: 20, fontFamily: "Arial", background: "#f5f7fb" }}>
       <h1>Enrique’s Host Stand</h1>
 
-      <section style={{ marginBottom: 20 }}>
+      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
+        <h2>Server Rotation</h2>
+
+        <p>
+          Current next server:{" "}
+          <strong>{servers[selectedServerIndex]?.name || "No server"}</strong>
+        </p>
+
+        <div style={{ marginBottom: 10 }}>
+          {servers.map((server, i) => (
+            <button
+              key={i}
+              onClick={() => setSelectedServerIndex(i)}
+              style={{
+                margin: 5,
+                padding: 10,
+                borderRadius: 10,
+                border: "1px solid #ccc",
+                background: selectedServerIndex === i ? "#93c5fd" : "#fff",
+              }}
+            >
+              {server.name} — {serverCount(server.name)} tables
+            </button>
+          ))}
+        </div>
+
+        <input
+          placeholder="Add server name"
+          value={newServerName}
+          onChange={(e) => setNewServerName(e.target.value)}
+        />
+        <button onClick={addServer}>Add Server</button>
+      </section>
+
+      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
         <h2>Add Reservation</h2>
         <input
           placeholder="Name"
@@ -205,7 +285,7 @@ export default function HomePage() {
         <button onClick={addReservation}>Add Reservation</button>
       </section>
 
-      <section style={{ marginBottom: 20 }}>
+      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
         <h2>Reservations</h2>
         {reservations.map((r, i) => (
           <button
@@ -224,7 +304,7 @@ export default function HomePage() {
         ))}
       </section>
 
-      <section style={{ marginBottom: 20 }}>
+      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
         <h2>Add Waitlist Guest</h2>
         <input
           placeholder="Name"
@@ -244,7 +324,7 @@ export default function HomePage() {
         <button onClick={addWaitlistGuest}>Add to Waitlist</button>
       </section>
 
-      <section style={{ marginBottom: 20 }}>
+      <section style={{ marginBottom: 20, background: "white", padding: 12, borderRadius: 12 }}>
         <h2>Waitlist</h2>
         {waitlist.length === 0 && <p>No guests waiting.</p>}
         {waitlist.map((w, i) => (
@@ -268,7 +348,7 @@ export default function HomePage() {
       <h2>Table Map</h2>
       <p>
         Tap a reservation or waitlist guest, then tap a table to seat them.
-        Without a selected guest, tapping cycles table status.
+        The server rotation will move to the next server automatically.
       </p>
 
       <div
@@ -293,6 +373,7 @@ export default function HomePage() {
             <p>{table.seats} seats</p>
             <strong>{table.status}</strong>
             {table.guest && <p>👤 {table.guest}</p>}
+            {table.server && <p>Server: {table.server}</p>}
           </button>
         ))}
       </div>
