@@ -16,6 +16,14 @@ type WaitlistGuest = {
   quotedWait: string;
 };
 
+type TableStatus = "Open" | "Seated" | "Dirty" | "Ready";
+
+type RestaurantTable = {
+  number: string;
+  seats: number;
+  status: TableStatus;
+};
+
 export default function HomePage() {
   const [reservations, setReservations] = useState<Reservation[]>([
     { name: "Smith", time: "6:00 PM", guests: 2 },
@@ -23,6 +31,28 @@ export default function HomePage() {
   ]);
 
   const [waitlist, setWaitlist] = useState<WaitlistGuest[]>([]);
+
+  const [tables, setTables] = useState<RestaurantTable[]>([
+    { number: "1", seats: 4, status: "Open" },
+    { number: "2", seats: 4, status: "Open" },
+    { number: "3", seats: 2, status: "Open" },
+    { number: "4", seats: 2, status: "Open" },
+    { number: "5", seats: 2, status: "Open" },
+    { number: "6", seats: 4, status: "Open" },
+    { number: "7", seats: 4, status: "Open" },
+    { number: "8", seats: 4, status: "Open" },
+    { number: "9", seats: 4, status: "Open" },
+    { number: "10", seats: 4, status: "Open" },
+    { number: "11", seats: 4, status: "Open" },
+    { number: "12", seats: 7, status: "Open" },
+    { number: "L1", seats: 4, status: "Open" },
+    { number: "L2", seats: 4, status: "Open" },
+    { number: "L3", seats: 4, status: "Open" },
+    { number: "L4", seats: 6, status: "Open" },
+    { number: "L5", seats: 8, status: "Open" },
+    { number: "L9", seats: 2, status: "Open" },
+    { number: "L10", seats: 6, status: "Open" },
+  ]);
 
   const [reservationName, setReservationName] = useState("");
   const [reservationTime, setReservationTime] = useState("");
@@ -76,8 +106,39 @@ export default function HomePage() {
     setWaitlist(waitlist.filter((_, i) => i !== index));
   }
 
+  function nextTableStatus(status: TableStatus): TableStatus {
+    if (status === "Open") return "Seated";
+    if (status === "Seated") return "Dirty";
+    if (status === "Dirty") return "Ready";
+    return "Open";
+  }
+
+  function updateTableStatus(index: number) {
+    setTables(
+      tables.map((table, i) =>
+        i === index
+          ? { ...table, status: nextTableStatus(table.status) }
+          : table
+      )
+    );
+  }
+
+  function statusColor(status: TableStatus) {
+    if (status === "Open") return "#dcfce7";
+    if (status === "Seated") return "#fecaca";
+    if (status === "Dirty") return "#e5e7eb";
+    return "#dbeafe";
+  }
+
   return (
-    <main style={{ padding: 20, fontFamily: "Arial", background: "#f5f7fb", minHeight: "100vh" }}>
+    <main
+      style={{
+        padding: 20,
+        fontFamily: "Arial",
+        background: "#f5f7fb",
+        minHeight: "100vh",
+      }}
+    >
       <h1>Enrique’s Host Stand</h1>
 
       <section style={{ background: "white", padding: 16, borderRadius: 12, marginBottom: 20 }}>
@@ -100,6 +161,40 @@ export default function HomePage() {
         <input placeholder="Quoted Wait ex: 25 min" value={quotedWait} onChange={(e) => setQuotedWait(e.target.value)} />
 
         <button onClick={addWaitlistGuest}>Add to Waitlist</button>
+      </section>
+
+      <section style={{ background: "white", padding: 16, borderRadius: 12, marginBottom: 20 }}>
+        <h2>Table Map</h2>
+        <p>Tap a table to change status: Open → Seated → Dirty → Ready → Open</p>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))",
+            gap: 10,
+          }}
+        >
+          {tables.map((table, i) => (
+            <button
+              key={table.number}
+              onClick={() => updateTableStatus(i)}
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid #cbd5e1",
+                background: statusColor(table.status),
+                minHeight: 80,
+                cursor: "pointer",
+              }}
+            >
+              <strong>Table {table.number}</strong>
+              <br />
+              {table.seats} seats
+              <br />
+              <span>{table.status}</span>
+            </button>
+          ))}
+        </div>
       </section>
 
       <section style={{ background: "white", padding: 16, borderRadius: 12, marginBottom: 20 }}>
