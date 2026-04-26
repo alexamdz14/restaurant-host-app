@@ -102,9 +102,9 @@ export default function HomePage() {
     T("L6", 4, 550, 920, 50, 75),
     T("L5", 8, 675, 920, 82, 70),
 
-    T("Casa 8", 4, 830, 775, 50, 82),
-    T("Casa 1", 4, 950, 775, 50, 82),
-    T("Casa 2", 4, 1035, 775, 50, 82),
+    T("Casa 8", 4, 850, 780, 50, 82),
+    T("Casa 1", 4, 970, 780, 50, 82),
+    T("Casa 2", 4, 1050, 780, 50, 82),
     T("Casa 7", 4, 820, 875, 80, 42),
     T("Casa 9", 4, 905, 875, 80, 42),
     T("Casa 10", 4, 995, 875, 80, 42),
@@ -164,16 +164,25 @@ export default function HomePage() {
               border: "4px solid #111827",
               borderRadius: 8,
               overflow: "hidden",
-              transform: "scale(0.72)",
+              transform: "scale(0.68)",
               transformOrigin: "top left",
-              marginBottom: -285,
+              marginBottom: -320,
             }}
           >
-            {/* Top patio wall */}
-            <div style={{ position: "absolute", left: 0, top: 105, width: 1080, height: 5, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 0, top: 105, width: 1100, height: 5, background: "#111827" }} />
 
-            {/* Right board */}
-            <div style={{ position: "absolute", left: 1080, top: 0, width: 320, height: 1030, borderLeft: "5px solid #111827", background: "#fffdf7" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: 1100,
+                top: 0,
+                width: 300,
+                height: 615,
+                borderLeft: "5px solid #111827",
+                borderBottom: "5px solid #111827",
+                background: "#fffdf7",
+              }}
+            >
               <div style={{ height: 110, padding: 12, borderBottom: "5px solid #111827", fontWeight: "bold", fontSize: 18 }}>
                 PODIUM:
                 <br />SEATER 1:
@@ -185,49 +194,43 @@ export default function HomePage() {
                 San Miguel
               </div>
 
-              <div style={{ height: 300, padding: 12, borderBottom: "4px solid #111827", fontSize: 17 }}>
+              <div style={{ height: 300, padding: 12, borderBottom: "4px solid #111827", fontSize: 17, position: "relative" }}>
                 GUEST NAME:
                 <br /><br />
                 ARRIVAL TIME:
                 <br /><br />
                 GUESTS:
-                <div style={{ position: "absolute", left: 50, top: 250, width: 220, height: 80, border: "2px solid #111827", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                <div style={{ position: "absolute", left: 40, top: 120, width: 220, height: 80, border: "2px solid #111827", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
                   San Miguel
                 </div>
-                <div style={{ position: "absolute", left: 50, top: 380, width: 220, height: 80, border: "2px solid #111827", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                <div style={{ position: "absolute", left: 40, top: 230, width: 220, height: 80, border: "2px solid #111827", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
                   San Miguel
                 </div>
               </div>
 
-              <div style={{ height: 150, padding: 12, borderBottom: "4px solid #111827", fontSize: 17 }}>
+              <div style={{ height: 150, padding: 12, fontSize: 17 }}>
                 GUEST NAME:
                 <br /><br />
                 ARRIVAL TIME:
                 <br />
                 GUEST COUNT:
               </div>
-
-              <div style={{ padding: 12, fontWeight: "bold", fontSize: 18 }}>
-                Notes
-              </div>
             </div>
 
-            {/* Main black walls */}
             <div style={{ position: "absolute", left: 0, top: 330, width: 255, height: 7, background: "#111827" }} />
             <div style={{ position: "absolute", left: 310, top: 330, width: 330, height: 7, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 760, top: 330, width: 320, height: 7, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 760, top: 330, width: 340, height: 7, background: "#111827" }} />
 
             <div style={{ position: "absolute", left: 0, top: 555, width: 255, height: 8, background: "#111827" }} />
             <div style={{ position: "absolute", left: 305, top: 555, width: 340, height: 8, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 760, top: 555, width: 320, height: 8, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 760, top: 555, width: 340, height: 8, background: "#111827" }} />
 
             <div style={{ position: "absolute", left: 300, top: 740, width: 475, height: 8, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 800, top: 740, width: 280, height: 8, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 800, top: 740, width: 300, height: 8, background: "#111827" }} />
 
             <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 1080, top: 740, width: 8, height: 290, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 1100, top: 740, width: 8, height: 290, background: "#111827" }} />
 
-            {/* Labels */}
             <div style={{ position: "absolute", left: 120, top: 600, fontSize: 24, fontStyle: "italic", fontWeight: "bold" }}>Waiting Area</div>
             <div style={{ position: "absolute", left: 210, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold" }}>Take-Out</div>
             <div style={{ position: "absolute", left: 145, top: 760, fontSize: 16 }}>Diamante</div>
@@ -236,12 +239,10 @@ export default function HomePage() {
               CASA 1884
             </div>
 
-            {/* Do not block labels */}
             <div style={{ position: "absolute", left: 410, top: 215, color: "#9a3412", fontSize: 22, fontWeight: "bold" }}>DO NOT BLOCK</div>
             <div style={{ position: "absolute", left: 400, top: 375, color: "#9a3412", fontSize: 22, fontWeight: "bold" }}>DO NOT BLOCK</div>
             <div style={{ position: "absolute", left: 420, top: 595, color: "#9a3412", fontSize: 22, fontWeight: "bold" }}>DO NOT BLOCK</div>
 
-            {/* Bar */}
             <div
               style={{
                 position: "absolute",
@@ -262,7 +263,6 @@ export default function HomePage() {
               BAR
             </div>
 
-            {/* Buffet */}
             <div style={{ position: "absolute", left: 780, top: 560, width: 270, height: 55, background: "white", border: "3px solid #111827", textAlign: "center", paddingTop: 8, fontWeight: "bold" }}>
               Buffet
             </div>
@@ -271,7 +271,6 @@ export default function HomePage() {
               Friday Lunch Buffet 11 - 2 pm
             </div>
 
-            {/* Tables */}
             {tables.map((table, index) => (
               <button
                 key={table.id}
