@@ -241,19 +241,10 @@ export default function HomePage() {
 
           <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827" }} />
           <div style={{ position: "absolute", left: 1080, top: 740, width: 8, height: 290, background: "#111827" }} />
-
           {/* Labels */}
-          <div style={{ position: "absolute", left: 120, top: 600, fontSize: 24, fontStyle: "italic", fontWeight: "bold" }}>
-            Waiting Area
-          </div>
-          <div style={{ position: "absolute", left: 210, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold" }}>
+          <div style={{ position: "absolute", left: 210, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold" }}
             Take-Out
           </div>
-          <div style={{ position: "absolute", left: 145, top: 760, fontSize: 16 }}>Diamante</div>
-          <div style={{ position: "absolute", left: 155, top: 815, fontSize: 16, writingMode: "vertical-rl" }}>
-            Lounge Furniture
-          </div>
-          <div
             style={{
               position: "absolute",
               left: 1125,
@@ -272,18 +263,6 @@ export default function HomePage() {
           >
             CASA 1884
           </div>
-
-          {/* Do Not Block */}
-          <div style={{ position: "absolute", left: 410, top: 215, color: "#9a3412", fontSize: 22, fontWeight: "bold" }}>
-            DO NOT BLOCK
-          </div>
-          <div style={{ position: "absolute", left: 400, top: 375, color: "#9a3412", fontSize: 22, fontWeight: "bold" }}>
-            DO NOT BLOCK
-          </div>
-          <div style={{ position: "absolute", left: 420, top: 595, color: "#9a3412", fontSize: 22, fontWeight: "bold" }}>
-            DO NOT BLOCK
-          </div>
-
           {/* Bar */}
           <div
             style={{
