@@ -12,6 +12,7 @@ type Table = {
   w: number;
   h: number;
   status: Status;
+  boxes: boolean;
 };
 
 const T = (
@@ -29,6 +30,7 @@ const T = (
   w,
   h,
   status: "Open",
+  boxes: false,
 });
 
 export default function HomePage() {
@@ -110,7 +112,7 @@ export default function HomePage() {
     T("Casa 7", 4, 820, 875, 80, 42),
     T("Casa 9", 4, 905, 875, 80, 42),
     T("Casa 10", 4, 995, 875, 80, 42),
-    T("Casa 3", 4, 1075, 875, 50, 42),
+    T("Casa 3", 4, 1070, 875, 50, 42),
     T("Casa 6", 4, 845, 960, 50, 42),
     T("Casa 5", 4, 935, 960, 50, 42),
     T("Casa 4", 4, 1025, 960, 50, 42),
@@ -141,6 +143,14 @@ export default function HomePage() {
     );
   }
 
+  function toggleBoxes(index: number) {
+    setTables((prev) =>
+      prev.map((table, i) =>
+        i === index ? { ...table, boxes: !table.boxes } : table
+      )
+    );
+  }
+
   return (
     <main style={{ padding: 8, fontFamily: "Arial", background: "#f3f4f6" }}>
       <div style={{ width: "100%", overflowX: "auto" }}>
@@ -157,7 +167,6 @@ export default function HomePage() {
             marginBottom: -285,
           }}
         >
-          {/* right board */}
           <div
             style={{
               position: "absolute",
@@ -228,7 +237,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* walls */}
           <div style={{ position: "absolute", left: 0, top: 105, width: 1080, height: 5, background: "#111827" }} />
           <div style={{ position: "absolute", left: 0, top: 330, width: 255, height: 7, background: "#111827" }} />
           <div style={{ position: "absolute", left: 310, top: 330, width: 330, height: 7, background: "#111827" }} />
@@ -246,7 +254,6 @@ export default function HomePage() {
           <div style={{ position: "absolute", left: 0, top: 0, width: 5, height: 1030, background: "#111827" }} />
           <div style={{ position: "absolute", left: 0, top: 1025, width: 1400, height: 5, background: "#111827" }} />
 
-          {/* words from your map */}
           <div style={{ position: "absolute", left: 120, top: 600, fontSize: 24, fontStyle: "italic", fontWeight: "bold" }}>
             Waiting Area
           </div>
@@ -264,7 +271,7 @@ export default function HomePage() {
           <div
             style={{
               position: "absolute",
-              left: 1125,
+              left: 1140,
               top: 705,
               height: 280,
               width: 35,
@@ -293,7 +300,6 @@ export default function HomePage() {
             DO NOT BLOCK
           </div>
 
-          {/* bar */}
           <div
             style={{
               position: "absolute",
@@ -314,7 +320,6 @@ export default function HomePage() {
             BAR
           </div>
 
-          {/* buffet */}
           <div
             style={{
               position: "absolute",
@@ -349,11 +354,14 @@ export default function HomePage() {
             Friday Lunch Buffet 11 - 2 pm
           </div>
 
-          {/* tables */}
           {tables.map((table, index) => (
             <button
               key={table.id}
               onClick={() => updateTable(index)}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                toggleBoxes(index);
+              }}
               style={{
                 position: "absolute",
                 left: table.x,
@@ -361,7 +369,7 @@ export default function HomePage() {
                 width: table.w,
                 height: table.h,
                 background: color(table.status),
-                border: "2px solid #334155",
+                border: table.boxes ? "4px solid #f59e0b" : "2px solid #334155",
                 borderRadius: 8,
                 color: "#006ee6",
                 fontWeight: "bold",
@@ -370,6 +378,7 @@ export default function HomePage() {
                 overflow: "hidden",
               }}
             >
+              {table.boxes && <div style={{ fontSize: 13 }}>📦</div>}
               {table.id}
               <br />
               {table.seats > 0 ? table.seats : "Couch"}
@@ -378,6 +387,10 @@ export default function HomePage() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 14 }}>
+        Tap a table to change status. Double-tap a table to mark/unmark boxes 📦.
       </div>
     </main>
   );
