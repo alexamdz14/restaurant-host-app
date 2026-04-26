@@ -14,7 +14,14 @@ type Table = {
   status: Status;
 };
 
-const T = (id: string, seats: number, x: number, y: number, w: number, h: number): Table => ({
+const T = (
+  id: string,
+  seats: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): Table => ({
   id,
   seats,
   x,
@@ -28,14 +35,14 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<"map" | "book">("map");
 
   const [tables, setTables] = useState<Table[]>([
-    T("P1", 4, 55, 24, 52, 56),
-    T("P2", 4, 135, 24, 52, 56),
-    T("P3", 4, 310, 24, 52, 56),
-    T("P4", 4, 395, 24, 52, 56),
-    T("P5", 4, 565, 24, 52, 56),
-    T("P6", 4, 645, 24, 52, 56),
-    T("P7", 4, 805, 24, 52, 56),
-    T("P8", 6, 885, 24, 52, 56),
+    T("P1", 4, 40, 24, 52, 56),
+    T("P2", 4, 115, 24, 52, 56),
+    T("P3", 4, 280, 24, 52, 56),
+    T("P4", 4, 355, 24, 52, 56),
+    T("P5", 4, 515, 24, 52, 56),
+    T("P6", 4, 590, 24, 52, 56),
+    T("P7", 4, 740, 24, 52, 56),
+    T("P8", 6, 815, 24, 52, 56),
 
     T("19", 5, 35, 135, 56, 105),
     T("20", 4, 175, 135, 78, 42),
@@ -70,8 +77,8 @@ export default function HomePage() {
 
     T("32", 4, 730, 235, 48, 90),
     T("33", 4, 730, 340, 48, 90),
-    T("31", 5, 825, 300, 90, 48),
-    T("30", 5, 915, 300, 90, 48),
+    T("31", 5, 780, 300, 90, 48),
+    T("30", 5, 865, 300, 90, 48),
 
     T("34", 6, 730, 455, 48, 90),
     T("35", 6, 815, 455, 48, 90),
@@ -113,8 +120,8 @@ export default function HomePage() {
     T("Casa 5", 4, 935, 960, 50, 42),
     T("Casa 4", 4, 1025, 960, 50, 42),
 
-    T("San Miguel 1", 12, 1155, 260, 185, 82),
-    T("San Miguel 2", 12, 1155, 390, 185, 82),
+    T("San Miguel 1", 12, 1005, 260, 150, 82),
+    T("San Miguel 2", 12, 1005, 390, 150, 82),
   ]);
 
   function nextStatus(status: Status): Status {
@@ -158,59 +165,127 @@ export default function HomePage() {
           <div
             style={{
               position: "relative",
-              width: 1400,
-              height: 1030,
+              width: 1200,
+              height: 900,
               background: "#fbfaf5",
               border: "4px solid #111827",
               borderRadius: 8,
               overflow: "hidden",
-              transform: "scale(0.68)",
+              transform: "scale(0.75)",
               transformOrigin: "top left",
-              marginBottom: -320,
+              marginBottom: -220,
             }}
           >
-            <div style={{ position: "absolute", left: 0, top: 105, width: 1100, height: 5, background: "#111827" }} />
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 105,
+                width: 900,
+                height: 5,
+                background: "#111827",
+              }}
+            />
 
             <div
               style={{
                 position: "absolute",
-                left: 1100,
+                left: 900,
                 top: 0,
                 width: 300,
-                height: 615,
+                height: 600,
                 borderLeft: "5px solid #111827",
                 borderBottom: "5px solid #111827",
                 background: "#fffdf7",
               }}
             >
-              <div style={{ height: 110, padding: 12, borderBottom: "5px solid #111827", fontWeight: "bold", fontSize: 18 }}>
+              <div
+                style={{
+                  height: 110,
+                  padding: 12,
+                  borderBottom: "5px solid #111827",
+                  fontWeight: "bold",
+                  fontSize: 18,
+                }}
+              >
                 PODIUM:
-                <br />SEATER 1:
-                <br />SEATER 2:
-                <br />SEATER 3:
+                <br />
+                SEATER 1:
+                <br />
+                SEATER 2:
+                <br />
+                SEATER 3:
               </div>
 
-              <div style={{ background: "#111827", color: "white", textAlign: "center", padding: 8, fontSize: 22, fontWeight: "bold" }}>
+              <div
+                style={{
+                  background: "#111827",
+                  color: "white",
+                  textAlign: "center",
+                  padding: 8,
+                  fontSize: 22,
+                  fontWeight: "bold",
+                }}
+              >
                 San Miguel
               </div>
 
-              <div style={{ height: 300, padding: 12, borderBottom: "4px solid #111827", fontSize: 17, position: "relative" }}>
+              <div
+                style={{
+                  height: 300,
+                  padding: 12,
+                  borderBottom: "4px solid #111827",
+                  fontSize: 17,
+                  position: "relative",
+                }}
+              >
                 GUEST NAME:
-                <br /><br />
+                <br />
+                <br />
                 ARRIVAL TIME:
-                <br /><br />
+                <br />
+                <br />
                 GUESTS:
-                <div style={{ position: "absolute", left: 40, top: 120, width: 220, height: 80, border: "2px solid #111827", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 25,
+                    top: 120,
+                    width: 220,
+                    height: 80,
+                    border: "2px solid #111827",
+                    background: "#dbeafe",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: "bold",
+                  }}
+                >
                   San Miguel
                 </div>
-                <div style={{ position: "absolute", left: 40, top: 230, width: 220, height: 80, border: "2px solid #111827", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 25,
+                    top: 230,
+                    width: 220,
+                    height: 80,
+                    border: "2px solid #111827",
+                    background: "#dbeafe",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: "bold",
+                  }}
+                >
                   San Miguel
                 </div>
               </div>
 
               <div style={{ height: 150, padding: 12, fontSize: 17 }}>
                 GUEST NAME:
-                <br /><br />
+                <br />
+                <br />
                 ARRIVAL TIME:
                 <br />
                 GUEST COUNT:
@@ -219,23 +294,39 @@ export default function HomePage() {
 
             <div style={{ position: "absolute", left: 0, top: 330, width: 255, height: 7, background: "#111827" }} />
             <div style={{ position: "absolute", left: 310, top: 330, width: 330, height: 7, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 760, top: 330, width: 340, height: 7, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 760, top: 330, width: 140, height: 7, background: "#111827" }} />
 
             <div style={{ position: "absolute", left: 0, top: 555, width: 255, height: 8, background: "#111827" }} />
             <div style={{ position: "absolute", left: 305, top: 555, width: 340, height: 8, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 760, top: 555, width: 340, height: 8, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 760, top: 555, width: 140, height: 8, background: "#111827" }} />
 
             <div style={{ position: "absolute", left: 300, top: 740, width: 475, height: 8, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 800, top: 740, width: 300, height: 8, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 800, top: 740, width: 100, height: 8, background: "#111827" }} />
 
-            <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827" }} />
-            <div style={{ position: "absolute", left: 1100, top: 740, width: 8, height: 290, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 160, background: "#111827" }} />
+            <div style={{ position: "absolute", left: 900, top: 740, width: 8, height: 160, background: "#111827" }} />
 
             <div style={{ position: "absolute", left: 120, top: 600, fontSize: 24, fontStyle: "italic", fontWeight: "bold" }}>Waiting Area</div>
             <div style={{ position: "absolute", left: 210, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold" }}>Take-Out</div>
             <div style={{ position: "absolute", left: 145, top: 760, fontSize: 16 }}>Diamante</div>
             <div style={{ position: "absolute", left: 155, top: 815, fontSize: 16, writingMode: "vertical-rl" }}>Lounge Furniture</div>
-            <div style={{ position: "absolute", left: 1140, top: 705, height: 280, width: 35, background: "#111827", color: "white", display: "flex", alignItems: "center", justifyContent: "center", writingMode: "vertical-rl", letterSpacing: 8, fontSize: 22 }}>
+            <div
+              style={{
+                position: "absolute",
+                left: 920,
+                top: 705,
+                height: 190,
+                width: 35,
+                background: "#111827",
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                writingMode: "vertical-rl",
+                letterSpacing: 8,
+                fontSize: 22,
+              }}
+            >
               CASA 1884
             </div>
 
@@ -263,12 +354,38 @@ export default function HomePage() {
               BAR
             </div>
 
-            <div style={{ position: "absolute", left: 780, top: 560, width: 270, height: 55, background: "white", border: "3px solid #111827", textAlign: "center", paddingTop: 8, fontWeight: "bold" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: 780,
+                top: 560,
+                width: 120,
+                height: 55,
+                background: "white",
+                border: "3px solid #111827",
+                textAlign: "center",
+                paddingTop: 8,
+                fontWeight: "bold",
+              }}
+            >
               Buffet
             </div>
 
-            <div style={{ position: "absolute", left: 810, top: 675, width: 220, height: 45, background: "#dbeafe", border: "1px solid #64748b", textAlign: "center", paddingTop: 8, fontSize: 13 }}>
-              Friday Lunch Buffet 11 - 2 pm
+            <div
+              style={{
+                position: "absolute",
+                left: 810,
+                top: 675,
+                width: 90,
+                height: 45,
+                background: "#dbeafe",
+                border: "1px solid #64748b",
+                textAlign: "center",
+                paddingTop: 8,
+                fontSize: 11,
+              }}
+            >
+              Friday Lunch
             </div>
 
             {tables.map((table, index) => (
