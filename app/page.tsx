@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Status = "Open" | "Seated" | "Dirty" | "Ready";
+type Status = "Open" | "Seated" | "Boxed" | "Dirty";
 
 type Table = {
   id: string;
@@ -12,7 +12,6 @@ type Table = {
   w: number;
   h: number;
   status: Status;
-  boxes: boolean;
 };
 
 const T = (
@@ -30,7 +29,6 @@ const T = (
   w,
   h,
   status: "Open",
-  boxes: false,
 });
 
 export default function HomePage() {
@@ -106,47 +104,39 @@ export default function HomePage() {
     T("L6", 4, 550, 920, 50, 75),
     T("L5", 8, 675, 920, 82, 70),
 
-    T("Casa 8", 4, 830, 775, 50, 82),
-    T("Casa 1", 4, 950, 775, 50, 82),
-    T("Casa 2", 4, 1035, 775, 50, 82),
+    T("Casa 8", 4, 840, 775, 50, 82),
+    T("Casa 1", 4, 960, 775, 50, 82),
+    T("Casa 2", 4, 1060, 775, 50, 82),
     T("Casa 7", 4, 820, 875, 80, 42),
-    T("Casa 9", 4, 905, 875, 80, 42),
-    T("Casa 10", 4, 995, 875, 80, 42),
-    T("Casa 3", 4, 1070, 875, 50, 42),
+    T("Casa 9", 4, 910, 875, 80, 42),
+    T("Casa 10", 4, 1000, 875, 80, 42),
+    T("Casa 3", 4, 1090, 875, 50, 42),
     T("Casa 6", 4, 845, 960, 50, 42),
-    T("Casa 5", 4, 935, 960, 50, 42),
-    T("Casa 4", 4, 1025, 960, 50, 42),
+    T("Casa 5", 4, 940, 960, 50, 42),
+    T("Casa 4", 4, 1035, 960, 50, 42),
 
-    T("San Miguel 1", 12, 1160, 270, 180, 80),
-    T("San Miguel 2", 12, 1160, 390, 180, 80),
+    T("San Miguel 1", 12, 1165, 280, 150, 62),
+    T("San Miguel 2", 12, 1165, 405, 150, 62),
   ]);
 
   function nextStatus(status: Status): Status {
     if (status === "Open") return "Seated";
-    if (status === "Seated") return "Dirty";
-    if (status === "Dirty") return "Ready";
+    if (status === "Seated") return "Boxed";
+    if (status === "Boxed") return "Dirty";
     return "Open";
   }
 
   function color(status: Status) {
     if (status === "Open") return "#d8f5df";
     if (status === "Seated") return "#f8caca";
-    if (status === "Dirty") return "#e5e7eb";
-    return "#bfdbfe";
+    if (status === "Boxed") return "#fde68a";
+    return "#e5e7eb";
   }
 
   function updateTable(index: number) {
     setTables((prev) =>
       prev.map((table, i) =>
         i === index ? { ...table, status: nextStatus(table.status) } : table
-      )
-    );
-  }
-
-  function toggleBoxes(index: number) {
-    setTables((prev) =>
-      prev.map((table, i) =>
-        i === index ? { ...table, boxes: !table.boxes } : table
       )
     );
   }
@@ -237,6 +227,7 @@ export default function HomePage() {
             </div>
           </div>
 
+          {/* walls */}
           <div style={{ position: "absolute", left: 0, top: 105, width: 1080, height: 5, background: "#111827" }} />
           <div style={{ position: "absolute", left: 0, top: 330, width: 255, height: 7, background: "#111827" }} />
           <div style={{ position: "absolute", left: 310, top: 330, width: 330, height: 7, background: "#111827" }} />
@@ -247,13 +238,14 @@ export default function HomePage() {
           <div style={{ position: "absolute", left: 760, top: 555, width: 320, height: 8, background: "#111827" }} />
 
           <div style={{ position: "absolute", left: 300, top: 740, width: 475, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 800, top: 740, width: 280, height: 8, background: "#111827" }} />
+          <div style={{ position: "absolute", left: 800, top: 740, width: 360, height: 8, background: "#111827" }} />
           <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 1080, top: 740, width: 8, height: 290, background: "#111827" }} />
+          <div style={{ position: "absolute", left: 1160, top: 740, width: 8, height: 290, background: "#111827" }} />
 
           <div style={{ position: "absolute", left: 0, top: 0, width: 5, height: 1030, background: "#111827" }} />
           <div style={{ position: "absolute", left: 0, top: 1025, width: 1400, height: 5, background: "#111827" }} />
 
+          {/* labels */}
           <div style={{ position: "absolute", left: 120, top: 600, fontSize: 24, fontStyle: "italic", fontWeight: "bold" }}>
             Waiting Area
           </div>
@@ -271,7 +263,7 @@ export default function HomePage() {
           <div
             style={{
               position: "absolute",
-              left: 1140,
+              left: 1168,
               top: 705,
               height: 280,
               width: 35,
@@ -300,6 +292,7 @@ export default function HomePage() {
             DO NOT BLOCK
           </div>
 
+          {/* bar */}
           <div
             style={{
               position: "absolute",
@@ -320,6 +313,7 @@ export default function HomePage() {
             BAR
           </div>
 
+          {/* buffet */}
           <div
             style={{
               position: "absolute",
@@ -354,14 +348,11 @@ export default function HomePage() {
             Friday Lunch Buffet 11 - 2 pm
           </div>
 
+          {/* tables */}
           {tables.map((table, index) => (
             <button
               key={table.id}
               onClick={() => updateTable(index)}
-              onDoubleClick={(e) => {
-                e.preventDefault();
-                toggleBoxes(index);
-              }}
               style={{
                 position: "absolute",
                 left: table.x,
@@ -369,7 +360,10 @@ export default function HomePage() {
                 width: table.w,
                 height: table.h,
                 background: color(table.status),
-                border: table.boxes ? "4px solid #f59e0b" : "2px solid #334155",
+                border:
+                  table.status === "Boxed"
+                    ? "4px solid #f59e0b"
+                    : "2px solid #334155",
                 borderRadius: 8,
                 color: "#006ee6",
                 fontWeight: "bold",
@@ -378,19 +372,18 @@ export default function HomePage() {
                 overflow: "hidden",
               }}
             >
-              {table.boxes && <div style={{ fontSize: 13 }}>📦</div>}
               {table.id}
               <br />
               {table.seats > 0 ? table.seats : "Couch"}
               <br />
-              {table.status}
+              {table.status === "Boxed" ? "📦 Boxed" : table.status}
             </button>
           ))}
         </div>
       </div>
 
       <div style={{ marginTop: 10, fontSize: 14 }}>
-        Tap a table to change status. Double-tap a table to mark/unmark boxes 📦.
+        Tap a table to cycle: Seated → Boxed 📦 → Dirty → Open
       </div>
     </main>
   );
