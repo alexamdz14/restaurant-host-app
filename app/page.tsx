@@ -138,8 +138,8 @@ export default function HomePage() {
   }
 
   return (
-    <main style={{ padding: 8, fontFamily: "Arial", background: "#f3f4f6" }}>
-      <div style={{ width: "100%", overflowX: "auto" }}>
+    <main style={{ padding: 8 }}>
+      <div style={{ overflowX: "auto" }}>
         <div
           style={{
             position: "relative",
@@ -147,179 +147,45 @@ export default function HomePage() {
             height: 1030,
             background: "#fbfaf5",
             border: "4px solid #111827",
-            borderRadius: 8,
-            overflow: "hidden",
             transform: "scale(0.72)",
             transformOrigin: "top left",
-            marginBottom: -285,
           }}
         >
-          {/* Right information panel */}
-          <div
-            style={{
-              position: "absolute",
-              left: 1080,
-              top: 0,
-              width: 320,
-              height: 640,
-              borderLeft: "5px solid #111827",
-              borderBottom: "5px solid #111827",
-              background: "#fffdf7",
-            }}
-          >
-            <div
-              style={{
-                height: 110,
-                padding: 12,
-                borderBottom: "5px solid #111827",
-                fontWeight: "bold",
-                fontSize: 18,
-              }}
-            >
-              PODIUM:
-              <br />
-              SEATER 1:
-              <br />
-              SEATER 2:
-              <br />
-              SEATER 3:
-            </div>
-
-            <div
-              style={{
-                background: "#111827",
-                color: "white",
-                textAlign: "center",
-                padding: 8,
-                fontSize: 22,
-                fontWeight: "bold",
-              }}
-            >
-              San Miguel
-            </div>
-
-            <div
-              style={{
-                height: 320,
-                padding: 12,
-                borderBottom: "4px solid #111827",
-                fontSize: 17,
-                position: "relative",
-              }}
-            >
-              GUEST NAME:
-              <br />
-              <br />
-              ARRIVAL TIME:
-              <br />
-              <br />
-              GUESTS:
-            </div>
-
-            <div style={{ height: 150, padding: 12, fontSize: 17 }}>
-              GUEST NAME:
-              <br />
-              <br />
-              ARRIVAL TIME:
-              <br />
-              GUEST COUNT:
-            </div>
-          </div>
-
-          {/* Main walls */}
-          <div style={{ position: "absolute", left: 0, top: 105, width: 1080, height: 5, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 0, top: 330, width: 255, height: 7, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 310, top: 330, width: 330, height: 7, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 760, top: 330, width: 320, height: 7, background: "#111827" }} />
-
-          <div style={{ position: "absolute", left: 0, top: 555, width: 255, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 305, top: 555, width: 340, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 760, top: 555, width: 320, height: 8, background: "#111827" }} />
-
-          <div style={{ position: "absolute", left: 300, top: 740, width: 475, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 800, top: 740, width: 280, height: 8, background: "#111827" }} />
-
-          <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 1080, top: 740, width: 8, height: 290, background: "#111827" }} />
-          {/* Labels */}
-          <div style={{ position: "absolute", left: 210, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold" }}
-            Take-Out
-          </div>
-            style={{
-              position: "absolute",
-              left: 1125,
-              top: 705,
-              height: 280,
-              width: 35,
-              background: "#111827",
-              color: "white",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              writingMode: "vertical-rl",
-              letterSpacing: 8,
-              fontSize: 22,
-            }}
-          >
-            CASA 1884
-          </div>
-          {/* Bar */}
-          <div
-            style={{
-              position: "absolute",
-              left: 300,
-              top: 625,
-              width: 330,
-              height: 85,
-              borderRadius: 20,
-              border: "5px solid #64748b",
-              background: "#dbeafe",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 34,
-              fontWeight: "bold",
-            }}
-          >
+          {/* BAR */}
+          <div style={{
+            position: "absolute",
+            left: 300,
+            top: 625,
+            width: 330,
+            height: 85,
+            borderRadius: 20,
+            border: "5px solid #64748b",
+            background: "#dbeafe",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 34,
+            fontWeight: "bold",
+          }}>
             BAR
           </div>
 
-          {/* Buffet */}
-          <div
-            style={{
-              position: "absolute",
-              left: 780,
-              top: 560,
-              width: 270,
-              height: 55,
-              background: "white",
-              border: "3px solid #111827",
-              textAlign: "center",
-              paddingTop: 8,
-              fontWeight: "bold",
-            }}
-          >
+          {/* BUFFET */}
+          <div style={{
+            position: "absolute",
+            left: 780,
+            top: 560,
+            width: 270,
+            height: 55,
+            border: "3px solid black",
+            textAlign: "center",
+            paddingTop: 8,
+            fontWeight: "bold"
+          }}>
             Buffet
           </div>
 
-          <div
-            style={{
-              position: "absolute",
-              left: 810,
-              top: 675,
-              width: 220,
-              height: 45,
-              background: "#dbeafe",
-              border: "1px solid #64748b",
-              textAlign: "center",
-              paddingTop: 8,
-              fontSize: 13,
-            }}
-          >
-            Friday Lunch Buffet 11 - 2 pm
-          </div>
-
-          {/* Tables */}
+          {/* TABLES */}
           {tables.map((table, index) => (
             <button
               key={table.id}
@@ -336,8 +202,6 @@ export default function HomePage() {
                 color: "#006ee6",
                 fontWeight: "bold",
                 fontSize: 11,
-                lineHeight: 1.05,
-                overflow: "hidden",
               }}
             >
               {table.id}
