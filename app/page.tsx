@@ -108,8 +108,8 @@ export default function HomePage() {
     T("Casa 5", 4, 940, 960, 50, 42),
     T("Casa 4", 4, 1035, 960, 50, 42),
 
-    T("San Miguel 1", 12, 1165, 280, 150, 62),
-    T("San Miguel 2", 12, 1165, 405, 150, 62),
+    T("San Miguel 1", 12, 1165, 285, 150, 58),
+    T("San Miguel 2", 12, 1165, 410, 150, 58),
   ]);
 
   function nextStatus(status: Status): Status {
@@ -150,17 +150,18 @@ export default function HomePage() {
             marginBottom: -285,
           }}
         >
-          {/* Right San Miguel board */}
+          {/* San Miguel board */}
           <div
             style={{
               position: "absolute",
               left: 1080,
               top: 0,
               width: 320,
-              height: 640,
+              height: 520,
               borderLeft: "5px solid #111827",
               borderBottom: "5px solid #111827",
               background: "#fffdf7",
+              zIndex: 2,
             }}
           >
             <div
@@ -194,14 +195,7 @@ export default function HomePage() {
               San Miguel
             </div>
 
-            <div
-              style={{
-                height: 320,
-                padding: 12,
-                borderBottom: "4px solid #111827",
-                fontSize: 17,
-              }}
-            >
+            <div style={{ height: 335, padding: 12, fontSize: 17 }}>
               GUEST NAME:
               <br />
               <br />
@@ -209,50 +203,47 @@ export default function HomePage() {
               <br />
               <br />
               GUESTS:
-            </div>
-
-            <div style={{ height: 150, padding: 12, fontSize: 17 }}>
-              GUEST NAME:
               <br />
               <br />
-              ARRIVAL TIME:
-              <br />
-              GUEST COUNT:
+              SERVER:
             </div>
           </div>
 
-          {/* Main walls */}
-          <div style={{ position: "absolute", left: 0, top: 105, width: 1080, height: 5, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 0, top: 330, width: 255, height: 7, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 310, top: 330, width: 330, height: 7, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 760, top: 330, width: 320, height: 7, background: "#111827" }} />
+          {/* Walls adjusted so they do not run under tables */}
+          <div style={{ position: "absolute", left: 0, top: 105, width: 1080, height: 5, background: "#111827", zIndex: 1 }} />
 
-          <div style={{ position: "absolute", left: 0, top: 555, width: 255, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 305, top: 555, width: 340, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 760, top: 555, width: 320, height: 8, background: "#111827" }} />
+          <div style={{ position: "absolute", left: 0, top: 330, width: 245, height: 7, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 305, top: 330, width: 270, height: 7, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 750, top: 330, width: 330, height: 7, background: "#111827", zIndex: 1 }} />
 
-          <div style={{ position: "absolute", left: 300, top: 740, width: 475, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 800, top: 740, width: 365, height: 8, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 1165, top: 740, width: 8, height: 290, background: "#111827" }} />
+          <div style={{ position: "absolute", left: 0, top: 555, width: 255, height: 8, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 300, top: 555, width: 340, height: 8, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 755, top: 555, width: 325, height: 8, background: "#111827", zIndex: 1 }} />
 
-          <div style={{ position: "absolute", left: 0, top: 0, width: 5, height: 1030, background: "#111827" }} />
-          <div style={{ position: "absolute", left: 0, top: 1025, width: 1400, height: 5, background: "#111827" }} />
+          <div style={{ position: "absolute", left: 300, top: 740, width: 470, height: 8, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 795, top: 740, width: 370, height: 8, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 1165, top: 740, width: 8, height: 290, background: "#111827", zIndex: 1 }} />
+
+          <div style={{ position: "absolute", left: 0, top: 0, width: 5, height: 1030, background: "#111827", zIndex: 1 }} />
+          <div style={{ position: "absolute", left: 0, top: 1025, width: 1400, height: 5, background: "#111827", zIndex: 1 }} />
 
           {/* Labels */}
-          <div style={{ position: "absolute", left: 140, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold" }}>
+          <div style={{ position: "absolute", left: 130, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold", zIndex: 2 }}>
             Take-Out
           </div>
 
+          {/* Casa board */}
           <div
             style={{
               position: "absolute",
-              left: 1175,
+              left: 1180,
               top: 705,
               height: 280,
-              width: 150,
+              width: 145,
               border: "4px solid #111827",
               background: "#fffdf7",
+              zIndex: 2,
             }}
           >
             <div
@@ -275,6 +266,9 @@ export default function HomePage() {
               <br />
               <br />
               GUEST COUNT:
+              <br />
+              <br />
+              SERVER:
             </div>
           </div>
 
@@ -294,6 +288,7 @@ export default function HomePage() {
               justifyContent: "center",
               fontSize: 34,
               fontWeight: "bold",
+              zIndex: 2,
             }}
           >
             BAR
@@ -312,6 +307,7 @@ export default function HomePage() {
               textAlign: "center",
               paddingTop: 8,
               fontWeight: "bold",
+              zIndex: 2,
             }}
           >
             Buffet
@@ -329,12 +325,12 @@ export default function HomePage() {
               textAlign: "center",
               paddingTop: 8,
               fontSize: 13,
+              zIndex: 2,
             }}
           >
             Friday Lunch Buffet 11 - 2 pm
           </div>
 
-          {/* Tables */}
           {tables.map((table, index) => (
             <button
               key={table.id}
@@ -356,6 +352,7 @@ export default function HomePage() {
                 fontSize: 11,
                 lineHeight: 1.05,
                 overflow: "hidden",
+                zIndex: 5,
               }}
             >
               {table.id}
