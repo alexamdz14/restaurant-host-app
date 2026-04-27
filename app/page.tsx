@@ -2,372 +2,252 @@
 
 import { useState } from "react";
 
-type Status = "Open" | "Seated" | "Boxed" | "Dirty";
+type Status = "open" | "seated" | "boxed" | "dirty";
 
-type Table = {
-  id: string;
+const statusCycle: Status[] = ["seated", "boxed", "dirty", "open"];
+
+function Table({
+  name,
+  seats,
+  x,
+  y,
+  w = 60,
+  h = 50,
+}: {
+  name: string;
   seats: number;
   x: number;
   y: number;
-  w: number;
-  h: number;
-  status: Status;
-};
+  w?: number;
+  h?: number;
+}) {
+  const [status, setStatus] = useState<Status>("open");
 
-const T = (id: string, seats: number, x: number, y: number, w: number, h: number): Table => ({
-  id,
-  seats,
+  const handleClick = () => {
+    const next = statusCycle[(statusCycle.indexOf(status) + 1) % statusCycle.length];
+    setStatus(next);
+  };
+
+  const getColor = () => {
+    if (status === "seated") return "#93c5fd";
+    if (status === "boxed") return "#fde68a";
+    if (status === "dirty") return "#fca5a5";
+    return "#bbf7d0";
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        width: w,
+        height: h,
+        background: getColor(),
+        border: "2px solid #1e3a8a",
+        borderRadius: 10,
+        fontSize: 12,
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        cursor: "pointer",
+      }}
+    >
+      <strong>{name}</strong>
+      <div>{seats}</div>
+      <div>{status}</div>
+    </div>
+  );
+}
+
+function Wall({
   x,
   y,
   w,
   h,
-  status: "Open",
-});
-
-export default function HomePage() {
-  const [tables, setTables] = useState<Table[]>([
-    T("P1", 4, 55, 25, 50, 55),
-    T("P2", 4, 135, 25, 50, 55),
-    T("P3", 4, 305, 25, 50, 55),
-    T("P4", 4, 390, 25, 50, 55),
-    T("P5", 4, 560, 25, 50, 55),
-    T("P6", 4, 640, 25, 50, 55),
-    T("P7", 4, 785, 25, 50, 55),
-    T("P8", 6, 865, 25, 50, 55),
-
-    T("19", 5, 35, 135, 55, 105),
-    T("20", 4, 165, 130, 78, 42),
-    T("21", 4, 250, 130, 78, 42),
-    T("22", 4, 370, 125, 45, 82),
-    T("23", 4, 425, 125, 45, 82),
-    T("24", 4, 480, 125, 45, 82),
-
-    T("26", 4, 610, 130, 78, 42),
-    T("27", 4, 695, 130, 78, 42),
-    T("28", 4, 780, 130, 70, 42),
-    T("29", 4, 855, 130, 70, 42),
-
-    T("18", 5, 45, 285, 78, 42),
-    T("17", 4, 130, 285, 78, 42),
-    T("16", 4, 215, 285, 78, 42),
-
-    T("15", 4, 335, 255, 78, 42),
-    T("14", 4, 420, 255, 78, 42),
-    T("13", 4, 505, 255, 78, 42),
-    T("9", 4, 335, 330, 78, 42),
-    T("10", 4, 420, 330, 78, 42),
-    T("11", 4, 505, 330, 78, 42),
-    T("12", 7, 595, 250, 58, 125),
-
-    T("32", 4, 690, 235, 48, 90),
-    T("33", 4, 690, 340, 48, 90),
-    T("31", 5, 790, 295, 90, 48),
-    T("30", 5, 875, 295, 90, 48),
-
-    T("34", 6, 690, 455, 48, 90),
-    T("35", 6, 775, 455, 48, 90),
-    T("36", 6, 860, 455, 48, 90),
-    T("38", 7, 1005, 225, 52, 105),
-    T("37", 5, 1005, 410, 52, 90),
-
-    T("7", 4, 365, 435, 48, 82),
-    T("6", 4, 455, 435, 48, 82),
-    T("3", 2, 330, 540, 55, 38),
-    T("4", 2, 420, 540, 55, 38),
-    T("5", 2, 510, 540, 55, 38),
-
-    T("2", 4, 135, 565, 78, 42),
-    T("1", 4, 135, 640, 70, 42),
-
-    T("DL4", 4, 40, 760, 75, 42),
-    T("DL3", 4, 40, 840, 75, 42),
-    T("DL2", 4, 40, 920, 75, 42),
-    T("DL1", 4, 145, 920, 70, 58),
-
-    T("L10", 6, 240, 800, 92, 42),
-    T("L9", 2, 240, 870, 55, 42),
-    T("L1", 4, 385, 760, 78, 42),
-    T("L2", 4, 485, 760, 78, 42),
-    T("L3", 4, 585, 760, 78, 42),
-    T("L4", 6, 690, 835, 72, 42),
-    T("L11", 0, 420, 850, 48, 44),
-    T("L12", 0, 505, 850, 48, 44),
-    T("L8", 4, 380, 920, 50, 75),
-    T("L7", 4, 465, 920, 50, 75),
-    T("L6", 4, 550, 920, 50, 75),
-    T("L5", 8, 675, 920, 82, 70),
-
-    T("Casa 8", 4, 840, 775, 50, 82),
-    T("Casa 1", 4, 960, 775, 50, 82),
-    T("Casa 2", 4, 1060, 775, 50, 82),
-    T("Casa 7", 4, 820, 875, 80, 42),
-    T("Casa 9", 4, 910, 875, 80, 42),
-    T("Casa 10", 4, 1000, 875, 80, 42),
-    T("Casa 3", 4, 1090, 875, 50, 42),
-    T("Casa 6", 4, 845, 960, 50, 42),
-    T("Casa 5", 4, 940, 960, 50, 42),
-    T("Casa 4", 4, 1035, 960, 50, 42),
-
-    T("San Miguel 1", 12, 1165, 285, 150, 58),
-    T("San Miguel 2", 12, 1165, 410, 150, 58),
-  ]);
-
-  function nextStatus(status: Status): Status {
-    if (status === "Open") return "Seated";
-    if (status === "Seated") return "Boxed";
-    if (status === "Boxed") return "Dirty";
-    return "Open";
-  }
-
-  function color(status: Status) {
-    if (status === "Open") return "#d8f5df";
-    if (status === "Seated") return "#f8caca";
-    if (status === "Boxed") return "#fde68a";
-    return "#e5e7eb";
-  }
-
-  function updateTable(index: number) {
-    setTables((prev) =>
-      prev.map((table, i) =>
-        i === index ? { ...table, status: nextStatus(table.status) } : table
-      )
-    );
-  }
-
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}) {
   return (
-    <main style={{ padding: 8, fontFamily: "Arial", background: "#f3f4f6" }}>
-      <div style={{ width: "100%", overflowX: "auto" }}>
+    <div
+      style={{
+        position: "absolute",
+        left: x,
+        top: y,
+        width: w,
+        height: h,
+        background: "#111827",
+      }}
+    />
+  );
+}
+
+export default function Page() {
+  return (
+    <div style={{ padding: 20 }}>
+      <h1 style={{ fontSize: 24, fontWeight: "bold" }}>Host Map</h1>
+
+      <div
+        style={{
+          position: "relative",
+          width: 1200,
+          height: 800,
+          border: "4px solid #111827",
+          marginTop: 20,
+        }}
+      >
+
+        {/* TOP TABLES */}
+        <Table name="P1" seats={4} x={40} y={40} />
+        <Table name="P2" seats={4} x={120} y={40} />
+        <Table name="P3" seats={4} x={260} y={40} />
+        <Table name="P4" seats={4} x={340} y={40} />
+        <Table name="P5" seats={4} x={480} y={40} />
+        <Table name="P6" seats={4} x={560} y={40} />
+        <Table name="P7" seats={4} x={700} y={40} />
+        <Table name="P8" seats={6} x={780} y={40} />
+
+        {/* MAIN TABLES */}
+        <Table name="20" seats={4} x={120} y={140} />
+        <Table name="21" seats={4} x={200} y={140} />
+        <Table name="22" seats={4} x={280} y={140} />
+        <Table name="23" seats={4} x={340} y={140} />
+        <Table name="24" seats={4} x={400} y={140} />
+
+        <Table name="26" seats={4} x={520} y={140} />
+        <Table name="27" seats={4} x={580} y={140} />
+        <Table name="28" seats={4} x={640} y={140} />
+        <Table name="29" seats={4} x={700} y={140} />
+
+        {/* MID TABLES */}
+        <Table name="15" seats={4} x={260} y={220} />
+        <Table name="14" seats={4} x={320} y={220} />
+        <Table name="13" seats={4} x={380} y={220} />
+
+        <Table name="9" seats={4} x={260} y={280} />
+        <Table name="10" seats={4} x={320} y={280} />
+        <Table name="11" seats={4} x={380} y={280} />
+
+        {/* 🔥 NEW WALL between 9-11 and 13-15 */}
+        <Wall x={250} y={260} w={200} h={6} />
+
+        {/* BAR */}
         <div
           style={{
-            position: "relative",
-            width: 1400,
-            height: 1030,
-            background: "#fbfaf5",
-            border: "4px solid #111827",
-            overflow: "hidden",
-            transform: "scale(0.72)",
-            transformOrigin: "top left",
-            marginBottom: -285,
+            position: "absolute",
+            left: 260,
+            top: 420,
+            width: 220,
+            height: 80,
+            background: "#cbd5e1",
+            borderRadius: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: "bold",
+            fontSize: 20,
           }}
         >
-          {/* San Miguel board */}
+          BAR
+        </div>
+
+        {/* DIAMANTE TABLES */}
+        <Table name="L10" seats={6} x={220} y={540} />
+        <Table name="L9" seats={2} x={220} y={600} />
+
+        {/* 🔥 FIXED WALL (LEFT of L10/L9 → DOWN to bottom wall) */}
+        <Wall x={200} y={540} w={6} h={220} />
+
+        {/* RIGHT SIDE TABLES */}
+        <Table name="31" seats={5} x={600} y={260} />
+        <Table name="30" seats={5} x={660} y={260} />
+        <Table name="32" seats={4} x={560} y={200} />
+        <Table name="33" seats={4} x={560} y={300} />
+
+        {/* BUFFET */}
+        <div
+          style={{
+            position: "absolute",
+            left: 520,
+            top: 380,
+            width: 180,
+            height: 60,
+            border: "2px solid black",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          Buffet
+        </div>
+
+        {/* SAN MIGUEL PANEL (FIXED EXACTLY HOW YOU ASKED) */}
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            top: 100,
+            width: 280,
+            height: 400,
+            borderLeft: "4px solid #111827",
+            padding: 10,
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: 10 }}>
+            PODIUM:<br />
+            SEATER 1:<br />
+            SEATER 2:<br />
+            SEATER 3:
+          </div>
+
+          {/* BOX ONLY AROUND FIELDS */}
           <div
             style={{
-              position: "absolute",
-              left: 1080,
-              top: 0,
-              width: 320,
-              height: 520,
-              borderLeft: "5px solid #111827",
-              borderBottom: "5px solid #111827",
-              background: "#fffdf7",
-              zIndex: 2,
+              border: "3px solid #111827",
+              padding: 10,
+              marginTop: 10,
             }}
           >
-            <div
-              style={{
-                height: 110,
-                padding: 12,
-                borderBottom: "5px solid #111827",
-                fontWeight: "bold",
-                fontSize: 18,
-              }}
-            >
-              PODIUM:
-              <br />
-              SEATER 1:
-              <br />
-              SEATER 2:
-              <br />
-              SEATER 3:
-            </div>
-
-            <div
-              style={{
-                background: "#111827",
-                color: "white",
-                textAlign: "center",
-                padding: 8,
-                fontSize: 22,
-                fontWeight: "bold",
-              }}
-            >
+            <div style={{ fontWeight: "bold", marginBottom: 10 }}>
               San Miguel
             </div>
 
-            <div style={{ height: 335, padding: 12, fontSize: 17 }}>
-              GUEST NAME:
-              <br />
-              <br />
-              ARRIVAL TIME:
-              <br />
-              <br />
-              GUESTS:
-              <br />
-              <br />
-              SERVER:
-            </div>
+            <div>GUEST NAME:</div>
+            <div>ARRIVAL TIME:</div>
+            <div>GUESTS:</div>
+            <div>SERVER:</div>
           </div>
 
-          {/* Walls adjusted so they do not run under tables */}
-          <div style={{ position: "absolute", left: 0, top: 105, width: 1080, height: 5, background: "#111827", zIndex: 1 }} />
+          {/* TABLES */}
+          <Table name="San Miguel 1" seats={12} x={900} y={240} w={140} h={60} />
+          <Table name="San Miguel 2" seats={12} x={900} y={320} w={140} h={60} />
+        </div>
 
-          <div style={{ position: "absolute", left: 0, top: 330, width: 245, height: 7, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 305, top: 330, width: 270, height: 7, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 750, top: 330, width: 330, height: 7, background: "#111827", zIndex: 1 }} />
-
-          <div style={{ position: "absolute", left: 0, top: 555, width: 255, height: 8, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 300, top: 555, width: 340, height: 8, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 755, top: 555, width: 325, height: 8, background: "#111827", zIndex: 1 }} />
-
-          <div style={{ position: "absolute", left: 300, top: 740, width: 470, height: 8, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 795, top: 740, width: 370, height: 8, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 775, top: 740, width: 8, height: 290, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 1165, top: 740, width: 8, height: 290, background: "#111827", zIndex: 1 }} />
-
-          <div style={{ position: "absolute", left: 0, top: 0, width: 5, height: 1030, background: "#111827", zIndex: 1 }} />
-          <div style={{ position: "absolute", left: 0, top: 1025, width: 1400, height: 5, background: "#111827", zIndex: 1 }} />
-
-          {/* Labels */}
-          <div style={{ position: "absolute", left: 130, top: 360, fontSize: 22, fontStyle: "italic", fontWeight: "bold", zIndex: 2 }}>
-            Take-Out
-          </div>
-
-          {/* Casa board */}
-          <div
-            style={{
-              position: "absolute",
-              left: 1180,
-              top: 705,
-              height: 280,
-              width: 145,
-              border: "4px solid #111827",
-              background: "#fffdf7",
-              zIndex: 2,
-            }}
-          >
-            <div
-              style={{
-                background: "#111827",
-                color: "white",
-                textAlign: "center",
-                padding: 8,
-                fontSize: 20,
-                fontWeight: "bold",
-              }}
-            >
-              Casa 1884
-            </div>
-            <div style={{ padding: 10, fontSize: 16 }}>
-              GUEST NAME:
-              <br />
-              <br />
-              ARRIVAL TIME:
-              <br />
-              <br />
-              GUEST COUNT:
-              <br />
-              <br />
-              SERVER:
-            </div>
-          </div>
-
-          {/* Bar */}
-          <div
-            style={{
-              position: "absolute",
-              left: 300,
-              top: 625,
-              width: 330,
-              height: 85,
-              borderRadius: 20,
-              border: "5px solid #64748b",
-              background: "#dbeafe",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 34,
-              fontWeight: "bold",
-              zIndex: 2,
-            }}
-          >
-            BAR
-          </div>
-
-          {/* Buffet */}
-          <div
-            style={{
-              position: "absolute",
-              left: 780,
-              top: 560,
-              width: 270,
-              height: 55,
-              background: "white",
-              border: "3px solid #111827",
-              textAlign: "center",
-              paddingTop: 8,
-              fontWeight: "bold",
-              zIndex: 2,
-            }}
-          >
-            Buffet
-          </div>
-
-          <div
-            style={{
-              position: "absolute",
-              left: 810,
-              top: 675,
-              width: 220,
-              height: 45,
-              background: "#dbeafe",
-              border: "1px solid #64748b",
-              textAlign: "center",
-              paddingTop: 8,
-              fontSize: 13,
-              zIndex: 2,
-            }}
-          >
-            Friday Lunch Buffet 11 - 2 pm
-          </div>
-
-          {tables.map((table, index) => (
-            <button
-              key={table.id}
-              onClick={() => updateTable(index)}
-              style={{
-                position: "absolute",
-                left: table.x,
-                top: table.y,
-                width: table.w,
-                height: table.h,
-                background: color(table.status),
-                border:
-                  table.status === "Boxed"
-                    ? "4px solid #f59e0b"
-                    : "2px solid #334155",
-                borderRadius: 8,
-                color: "#006ee6",
-                fontWeight: "bold",
-                fontSize: 11,
-                lineHeight: 1.05,
-                overflow: "hidden",
-                zIndex: 5,
-              }}
-            >
-              {table.id}
-              <br />
-              {table.seats > 0 ? table.seats : "Couch"}
-              <br />
-              {table.status === "Boxed" ? "📦 Boxed" : table.status}
-            </button>
-          ))}
+        {/* CASA PANEL */}
+        <div
+          style={{
+            position: "absolute",
+            right: 0,
+            bottom: 0,
+            width: 280,
+            height: 240,
+            borderLeft: "4px solid #111827",
+            borderTop: "4px solid #111827",
+            padding: 10,
+          }}
+        >
+          <div style={{ fontWeight: "bold" }}>Casa 1884</div>
+          <div>GUEST NAME:</div>
+          <div>ARRIVAL TIME:</div>
+          <div>GUEST COUNT:</div>
+          <div>SERVER:</div>
         </div>
       </div>
-
-      <div style={{ marginTop: 10, fontSize: 14 }}>
-        Tap a table to cycle: Seated → Boxed 📦 → Dirty → Open
-      </div>
-    </main>
+    </div>
   );
 }
