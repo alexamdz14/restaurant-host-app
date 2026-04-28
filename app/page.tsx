@@ -90,9 +90,9 @@ export default function Home() {
 
     makeTable("19", "5", 35, 145, 55, 105),
 
-    makeTable("20", "4", 165, 140, 80, 42),
+    makeTable("20", "4", 145, 140, 80, 42),
 
-    makeTable("21", "4", 255, 140, 80, 42),
+    makeTable("21", "4", 235, 140, 80, 42),
 
     makeTable("22", "4", 375, 130, 45, 82),
 
@@ -108,11 +108,11 @@ export default function Home() {
 
     makeTable("29", "4", 900, 140, 75, 42),
 
-    makeTable("18", "5", 45, 300, 80, 42),
+    makeTable("18", "5", 25, 300, 80, 42),
 
-    makeTable("17", "4", 135, 300, 80, 42),
+    makeTable("17", "4", 115, 300, 80, 42),
 
-    makeTable("16", "4", 225, 300, 80, 42),
+    makeTable("16", "4", 205, 300, 80, 42),
 
     makeTable("15", "4", 345, 270, 80, 42),
 
@@ -166,7 +166,7 @@ export default function Home() {
 
     makeTable("DL2", "4", 45, 950, 75, 42),
 
-    makeTable("DL1", "4", 155, 950, 70, 58),
+    makeTable("DL1", "4", 135, 950, 70, 58),
 
     makeTable("L10", "6", 245, 830, 92, 42),
 
@@ -212,9 +212,9 @@ export default function Home() {
 
     makeTable("Casa 4", "4", 1050, 980, 55, 42),
 
-    makeTable("San Miguel 1", "12", 1135, 330, 120, 55),
+    makeTable("San Miguel 1", "12", 1135, 345, 115, 52),
 
-    makeTable("San Miguel 2", "12", 1135, 445, 120, 55),
+    makeTable("San Miguel 2", "12", 1135, 445, 115, 52),
 
   ]);
 
@@ -312,7 +312,7 @@ export default function Home() {
 
           {wall(0, 560, 250, 8)}
 
-          {wall(300, 560, 330, 8)}
+          {/* Removed extra wall between tables 3,4,5 and 6,7 */}
 
           {wall(300, 755, 480, 8)}
 
@@ -334,7 +334,7 @@ export default function Home() {
 
               top: 0,
 
-              width: 270,
+              width: 255,
 
               height: 620,
 
@@ -412,15 +412,15 @@ export default function Home() {
 
               style={{
 
-                margin: 14,
+                margin: 12,
 
-                padding: 12,
+                padding: 10,
 
-                height: 300,
+                height: 250,
 
                 border: "3px solid #111827",
 
-                fontSize: 16,
+                fontSize: 15,
 
               }}
 
@@ -456,13 +456,13 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 1168,
+              left: 1158,
 
-              top: 745,
+              top: 735,
 
-              width: 175,
+              width: 185,
 
-              height: 305,
+              height: 315,
 
               border: "4px solid #111827",
 
