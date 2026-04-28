@@ -72,149 +72,143 @@ export default function Home() {
 
   const [tables, setTables] = useState<TableItem[]>([
 
-    makeTable("P1", "4", 50, 30, 50, 56),
+    makeTable("P1", "4", 55, 35, 55, 58),
 
-    makeTable("P2", "4", 130, 30, 50, 56),
+    makeTable("P2", "4", 145, 35, 55, 58),
 
-    makeTable("P3", "4", 310, 30, 50, 56),
+    makeTable("P3", "4", 380, 35, 55, 58),
 
-    makeTable("P4", "4", 395, 30, 50, 56),
+    makeTable("P4", "4", 470, 35, 55, 58),
 
-    makeTable("P5", "4", 560, 30, 50, 56),
+    makeTable("P5", "4", 665, 35, 55, 58),
 
-    makeTable("P6", "4", 645, 30, 50, 56),
+    makeTable("P6", "4", 755, 35, 55, 58),
 
-    makeTable("P7", "4", 800, 30, 50, 56),
+    makeTable("P7", "4", 965, 35, 55, 58),
 
-    makeTable("P8", "6", 880, 30, 50, 56),
+    makeTable("P8", "6", 1055, 35, 55, 58),
 
-    makeTable("19", "5", 35, 145, 55, 105),
+    makeTable("19", "5", 38, 150, 58, 110),
 
-    makeTable("20", "4", 145, 140, 80, 42),
+    makeTable("20", "4", 175, 145, 82, 42),
 
-    makeTable("21", "4", 235, 140, 80, 42),
+    makeTable("21", "4", 275, 145, 82, 42),
 
-    makeTable("22", "4", 375, 130, 45, 82),
+    makeTable("22", "4", 420, 135, 52, 84),
 
-    makeTable("23", "4", 430, 130, 45, 82),
+    makeTable("23", "4", 495, 135, 52, 84),
 
-    makeTable("24", "4", 485, 130, 45, 82),
+    makeTable("24", "4", 570, 135, 52, 84),
 
-    makeTable("26", "4", 650, 140, 80, 42),
+    makeTable("26", "4", 760, 145, 82, 42),
 
-    makeTable("27", "4", 735, 140, 80, 42),
+    makeTable("27", "4", 860, 145, 82, 42),
 
-    makeTable("28", "4", 820, 140, 75, 42),
+    makeTable("28", "4", 960, 145, 82, 42),
 
-    makeTable("29", "4", 900, 140, 75, 42),
+    makeTable("29", "4", 1060, 145, 82, 42),
 
-    makeTable("18", "5", 25, 300, 80, 42),
+    makeTable("18", "5", 45, 325, 82, 42),
 
-    makeTable("17", "4", 115, 300, 80, 42),
+    makeTable("17", "4", 140, 325, 82, 42),
 
-    makeTable("16", "4", 205, 300, 80, 42),
+    makeTable("16", "4", 235, 325, 82, 42),
 
-    makeTable("15", "4", 345, 270, 80, 42),
+    makeTable("15", "4", 395, 285, 82, 42),
 
-    makeTable("14", "4", 435, 270, 80, 42),
+    makeTable("14", "4", 500, 285, 82, 42),
 
-    makeTable("13", "4", 525, 270, 80, 42),
+    makeTable("13", "4", 605, 285, 82, 42),
 
-    makeTable("9", "4", 345, 350, 80, 42),
+    makeTable("9", "4", 395, 365, 82, 42),
 
-    makeTable("10", "4", 435, 350, 80, 42),
+    makeTable("10", "4", 500, 365, 82, 42),
 
-    makeTable("11", "4", 525, 350, 80, 42),
+    makeTable("11", "4", 605, 365, 82, 42),
 
-    makeTable("12", "7", 620, 260, 58, 125),
+    makeTable("12", "7", 720, 285, 60, 130),
 
-    makeTable("32", "4", 725, 245, 50, 90),
+    makeTable("32", "4", 825, 250, 55, 92),
 
-    makeTable("33", "4", 725, 355, 50, 90),
+    makeTable("33", "4", 825, 365, 55, 92),
 
-    makeTable("31", "5", 820, 325, 90, 48),
+    makeTable("31", "5", 960, 350, 82, 48),
 
-    makeTable("30", "5", 915, 325, 90, 48),
+    makeTable("30", "5", 1060, 350, 82, 48),
 
-    makeTable("38", "7", 1030, 230, 52, 105),
+    makeTable("38", "7", 1195, 245, 55, 105),
 
-    makeTable("37", "5", 1030, 430, 52, 90),
+    makeTable("37", "5", 1195, 445, 55, 90),
 
-    makeTable("34", "6", 765, 475, 50, 90),
+    makeTable("7", "4", 420, 465, 52, 82),
 
-    makeTable("35", "6", 855, 475, 50, 90),
+    makeTable("6", "4", 525, 465, 52, 82),
 
-    makeTable("36", "6", 945, 475, 50, 90),
+    makeTable("3", "2", 380, 575, 62, 40),
 
-    makeTable("7", "4", 375, 455, 48, 82),
+    makeTable("4", "2", 475, 575, 62, 40),
 
-    makeTable("6", "4", 470, 455, 48, 82),
+    makeTable("5", "2", 570, 575, 62, 40),
 
-    makeTable("3", "2", 340, 570, 58, 38),
+    makeTable("2", "4", 135, 590, 78, 42),
 
-    makeTable("4", "2", 430, 570, 58, 38),
+    makeTable("1", "4", 135, 665, 78, 42),
 
-    makeTable("5", "2", 520, 570, 58, 38),
+    makeTable("DL4", "4", 45, 775, 75, 42),
 
-    makeTable("2", "4", 135, 595, 78, 42),
+    makeTable("DL3", "4", 45, 860, 75, 42),
 
-    makeTable("1", "4", 135, 675, 70, 42),
+    makeTable("DL2", "4", 45, 945, 75, 42),
 
-    makeTable("DL4", "4", 45, 790, 75, 42),
+    makeTable("DL1", "4", 145, 940, 70, 58),
 
-    makeTable("DL3", "4", 45, 870, 75, 42),
+    makeTable("L10", "6", 250, 815, 92, 42),
 
-    makeTable("DL2", "4", 45, 950, 75, 42),
+    makeTable("L9", "2", 250, 885, 58, 42),
 
-    makeTable("DL1", "4", 135, 950, 70, 58),
+    makeTable("L1", "4", 390, 775, 78, 42),
 
-    makeTable("L10", "6", 245, 830, 92, 42),
+    makeTable("L2", "4", 490, 775, 78, 42),
 
-    makeTable("L9", "2", 245, 900, 58, 42),
+    makeTable("L3", "4", 590, 775, 78, 42),
 
-    makeTable("L1", "4", 385, 790, 78, 42),
+    makeTable("L4", "6", 700, 860, 75, 42),
 
-    makeTable("L2", "4", 485, 790, 78, 42),
+    makeTable("L11", "Couch", 435, 855, 58, 46),
 
-    makeTable("L3", "4", 585, 790, 78, 42),
+    makeTable("L12", "Couch", 520, 855, 58, 46),
 
-    makeTable("L4", "6", 685, 870, 75, 42),
+    makeTable("L8", "4", 385, 930, 52, 75),
 
-    makeTable("L11", "Couch", 420, 875, 55, 45),
+    makeTable("L7", "4", 475, 930, 52, 75),
 
-    makeTable("L12", "Couch", 505, 875, 55, 45),
+    makeTable("L6", "4", 565, 930, 52, 75),
 
-    makeTable("L8", "4", 380, 950, 50, 75),
+    makeTable("L5", "8", 670, 930, 82, 70),
 
-    makeTable("L7", "4", 465, 950, 50, 75),
+    makeTable("Casa 8", "4", 840, 790, 55, 82),
 
-    makeTable("L6", "4", 550, 950, 50, 75),
+    makeTable("Casa 1", "4", 955, 790, 55, 82),
 
-    makeTable("L5", "8", 670, 950, 82, 70),
+    makeTable("Casa 2", "4", 1070, 790, 55, 82),
 
-    makeTable("Casa 8", "4", 840, 800, 55, 82),
+    makeTable("Casa 7", "4", 800, 885, 80, 42),
 
-    makeTable("Casa 1", "4", 950, 800, 55, 82),
+    makeTable("Casa 9", "4", 910, 885, 80, 42),
 
-    makeTable("Casa 2", "4", 1050, 800, 55, 82),
+    makeTable("Casa 10", "4", 1020, 885, 80, 42),
 
-    makeTable("Casa 7", "4", 820, 900, 80, 42),
+    makeTable("Casa 3", "4", 1130, 885, 65, 42),
 
-    makeTable("Casa 9", "4", 910, 900, 80, 42),
+    makeTable("Casa 6", "4", 850, 960, 60, 42),
 
-    makeTable("Casa 10", "4", 1000, 900, 80, 42),
+    makeTable("Casa 5", "4", 960, 960, 60, 42),
 
-    makeTable("Casa 3", "4", 1090, 900, 55, 42),
+    makeTable("Casa 4", "4", 1070, 960, 60, 42),
 
-    makeTable("Casa 6", "4", 850, 980, 55, 42),
+    makeTable("San Miguel 1", "12", 1310, 410, 145, 60),
 
-    makeTable("Casa 5", "4", 950, 980, 55, 42),
-
-    makeTable("Casa 4", "4", 1050, 980, 55, 42),
-
-    makeTable("San Miguel 1", "12", 1135, 345, 115, 52),
-
-    makeTable("San Miguel 2", "12", 1135, 445, 115, 52),
+    makeTable("San Miguel 2", "12", 1310, 510, 145, 60),
 
   ]);
 
@@ -272,7 +266,7 @@ export default function Home() {
 
     <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
 
-      <h1 style={{ margin: "0 0 6px 0", fontSize: 28 }}>Host Map</h1>
+      <h1 style={{ margin: "0 0 8px 0", fontSize: 34 }}>Host Map</h1>
 
       <div style={{ width: "100%", overflowX: "auto" }}>
 
@@ -282,9 +276,9 @@ export default function Home() {
 
             position: "relative",
 
-            width: 1400,
+            width: 1500,
 
-            height: 1060,
+            height: 1040,
 
             background: "#fbfaf5",
 
@@ -292,41 +286,35 @@ export default function Home() {
 
             overflow: "hidden",
 
-            transform: "scale(0.64)",
+            transform: "scale(0.74)",
 
             transformOrigin: "top left",
 
-            marginBottom: -375,
+            marginBottom: -270,
 
           }}
 
         >
 
-          {wall(0, 105, 1080, 5)}
+          {wall(0, 105, 1240, 5)}
 
-          {wall(0, 345, 250, 7)}
+          {wall(0, 360, 270, 7)}
 
-          {wall(300, 345, 310, 7)}
+          {wall(380, 325, 320, 7)}
 
-          {/* Wall between 13/14/15 and 9/10/11 */}
-
-          {wall(345, 330, 250, 6)}
-
-          {/* Wall above 3/4/5 and underneath 6/7 */}
-
-          {wall(345, 540, 250, 7)}
+          {wall(380, 540, 290, 7)}
 
           {wall(0, 560, 250, 8)}
 
-          {wall(300, 755, 480, 8)}
+          {wall(300, 755, 460, 8)}
 
-          {wall(800, 755, 360, 8)}
+          {wall(780, 755, 400, 8)}
 
-          {wall(780, 755, 8, 305)}
+          {wall(220, 815, 8, 225)}
 
-          {wall(1160, 755, 8, 305)}
+          {wall(760, 755, 8, 285)}
 
-          {wall(220, 830, 8, 230)}
+          {wall(1180, 755, 8, 285)}
 
           <div
 
@@ -334,13 +322,13 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 1080,
+              left: 1240,
 
               top: 0,
 
-              width: 255,
+              width: 260,
 
-              height: 620,
+              height: 650,
 
               borderLeft: "5px solid #111827",
 
@@ -360,9 +348,7 @@ export default function Home() {
 
                 height: 110,
 
-                padding: 12,
-
-                borderBottom: "5px solid #111827",
+                padding: 14,
 
                 fontWeight: "bold",
 
@@ -404,6 +390,8 @@ export default function Home() {
 
                 fontWeight: "bold",
 
+                margin: "0 20px",
+
               }}
 
             >
@@ -416,11 +404,11 @@ export default function Home() {
 
               style={{
 
-                margin: 12,
+                margin: "14px 22px",
 
-                padding: 10,
+                padding: 12,
 
-                height: 250,
+                height: 165,
 
                 border: "3px solid #111827",
 
@@ -460,13 +448,13 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 1158,
+              left: 1215,
 
               top: 735,
 
-              width: 185,
+              width: 255,
 
-              height: 315,
+              height: 290,
 
               border: "4px solid #111827",
 
@@ -502,7 +490,7 @@ export default function Home() {
 
             </div>
 
-            <div style={{ padding: 12, fontSize: 16 }}>
+            <div style={{ padding: 16, fontSize: 16 }}>
 
               GUEST NAME:
 
@@ -534,11 +522,11 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 130,
+              left: 120,
 
-              top: 375,
+              top: 405,
 
-              fontSize: 22,
+              fontSize: 25,
 
               fontStyle: "italic",
 
@@ -560,11 +548,11 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 300,
+              left: 310,
 
-              top: 640,
+              top: 625,
 
-              width: 330,
+              width: 335,
 
               height: 85,
 
@@ -580,7 +568,7 @@ export default function Home() {
 
               justifyContent: "center",
 
-              fontSize: 34,
+              fontSize: 36,
 
               fontWeight: "bold",
 
@@ -600,13 +588,13 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 780,
+              left: 810,
 
-              top: 575,
+              top: 600,
 
-              width: 270,
+              width: 275,
 
-              height: 55,
+              height: 48,
 
               background: "white",
 
@@ -614,9 +602,11 @@ export default function Home() {
 
               textAlign: "center",
 
-              paddingTop: 8,
+              paddingTop: 10,
 
               fontWeight: "bold",
+
+              fontSize: 18,
 
               zIndex: 2,
 
@@ -634,9 +624,9 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 810,
+              left: 835,
 
-              top: 690,
+              top: 675,
 
               width: 220,
 
@@ -648,7 +638,7 @@ export default function Home() {
 
               textAlign: "center",
 
-              paddingTop: 8,
+              paddingTop: 10,
 
               fontSize: 13,
 
