@@ -308,11 +308,15 @@ export default function Home() {
 
           {wall(300, 345, 310, 7)}
 
+          {/* Wall between 13/14/15 and 9/10/11 */}
+
           {wall(345, 330, 250, 6)}
 
-          {wall(0, 560, 250, 8)}
+          {/* Wall above 3/4/5 and underneath 6/7 */}
 
-          {/* Removed extra wall between tables 3,4,5 and 6,7 */}
+          {wall(345, 540, 250, 7)}
+
+          {wall(0, 560, 250, 8)}
 
           {wall(300, 755, 480, 8)}
 
