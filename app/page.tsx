@@ -72,8 +72,6 @@ export default function Home() {
 
   const [tables, setTables] = useState<TableItem[]>([
 
-    // Patio
-
     makeTable("P1", "4", 55, 35, 55, 58),
 
     makeTable("P2", "4", 145, 35, 55, 58),
@@ -142,8 +140,6 @@ export default function Home() {
 
     makeTable("37", "5", 1195, 445, 55, 90),
 
-    // Center
-
     makeTable("7", "4", 420, 465, 52, 82),
 
     makeTable("6", "4", 525, 465, 52, 82),
@@ -154,15 +150,11 @@ export default function Home() {
 
     makeTable("5", "2", 570, 575, 62, 40),
 
-    // 🔥 FIXED TABLES (back in place)
-
     makeTable("34", "6", 825, 505, 55, 88),
 
     makeTable("35", "6", 920, 505, 55, 88),
 
     makeTable("36", "6", 1015, 505, 55, 88),
-
-    // Bar area
 
     makeTable("2", "4", 135, 590, 78, 42),
 
@@ -200,8 +192,6 @@ export default function Home() {
 
     makeTable("L5", "8", 670, 930, 82, 70),
 
-    // Casa
-
     makeTable("Casa 8", "4", 840, 790, 55, 82),
 
     makeTable("Casa 1", "4", 955, 790, 55, 82),
@@ -232,13 +222,19 @@ export default function Home() {
 
     setTables((prev) =>
 
-      prev.map((t, i) =>
+      prev.map((table, i) =>
 
         i === index
 
-          ? { ...t, status: cycle[(cycle.indexOf(t.status) + 1) % 4] }
+          ? {
 
-          : t
+              ...table,
+
+              status: cycle[(cycle.indexOf(table.status) + 1) % cycle.length],
+
+            }
+
+          : table
 
       )
 
@@ -278,7 +274,7 @@ export default function Home() {
 
       <h1 style={{ margin: "0 0 8px 0", fontSize: 34 }}>Host Map</h1>
 
-      <div style={{ overflowX: "auto" }}>
+      <div style={{ width: "100%", overflowX: "auto" }}>
 
         <div
 
@@ -294,11 +290,17 @@ export default function Home() {
 
             border: "4px solid #111827",
 
+            overflow: "hidden",
+
+            transform: "scale(0.74)",
+
+            transformOrigin: "top left",
+
+            marginBottom: -270,
+
           }}
 
         >
-
-          {/* WALLS (fixed + visible) */}
 
           {wall(0, 105, 1240, 6)}
 
@@ -320,19 +322,351 @@ export default function Home() {
 
           {wall(1180, 755, 8, 285)}
 
-          {/* 🔥 Buffet / 34-36 wall */}
-
           {wall(800, 585, 360, 8)}
 
-          {/* Everything else unchanged */}
+          <div
 
-          {tables.map((table, i) => (
+            style={{
+
+              position: "absolute",
+
+              left: 1240,
+
+              top: 0,
+
+              width: 260,
+
+              height: 650,
+
+              borderLeft: "5px solid #111827",
+
+              borderBottom: "5px solid #111827",
+
+              background: "#fffdf7",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            <div
+
+              style={{
+
+                height: 110,
+
+                padding: 14,
+
+                fontWeight: "bold",
+
+                fontSize: 18,
+
+              }}
+
+            >
+
+              PODIUM:
+
+              <br />
+
+              SEATER 1:
+
+              <br />
+
+              SEATER 2:
+
+              <br />
+
+              SEATER 3:
+
+            </div>
+
+            <div
+
+              style={{
+
+                background: "#111827",
+
+                color: "white",
+
+                textAlign: "center",
+
+                padding: 8,
+
+                fontSize: 22,
+
+                fontWeight: "bold",
+
+                margin: "0 20px",
+
+              }}
+
+            >
+
+              San Miguel
+
+            </div>
+
+            <div
+
+              style={{
+
+                margin: "14px 22px",
+
+                padding: 12,
+
+                height: 165,
+
+                border: "3px solid #111827",
+
+                fontSize: 15,
+
+              }}
+
+            >
+
+              GUEST NAME:
+
+              <br />
+
+              <br />
+
+              ARRIVAL TIME:
+
+              <br />
+
+              <br />
+
+              GUESTS:
+
+              <br />
+
+              <br />
+
+              SERVER:
+
+            </div>
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 1215,
+
+              top: 735,
+
+              width: 255,
+
+              height: 290,
+
+              border: "4px solid #111827",
+
+              background: "#fffdf7",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            <div
+
+              style={{
+
+                background: "#111827",
+
+                color: "white",
+
+                textAlign: "center",
+
+                padding: 8,
+
+                fontSize: 20,
+
+                fontWeight: "bold",
+
+              }}
+
+            >
+
+              Casa 1884
+
+            </div>
+
+            <div style={{ padding: 16, fontSize: 16 }}>
+
+              GUEST NAME:
+
+              <br />
+
+              <br />
+
+              ARRIVAL TIME:
+
+              <br />
+
+              <br />
+
+              GUEST COUNT:
+
+              <br />
+
+              <br />
+
+              SERVER:
+
+            </div>
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 120,
+
+              top: 405,
+
+              fontSize: 25,
+
+              fontStyle: "italic",
+
+              fontWeight: "bold",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            Take-Out
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 310,
+
+              top: 625,
+
+              width: 335,
+
+              height: 85,
+
+              borderRadius: 20,
+
+              border: "5px solid #64748b",
+
+              background: "#dbeafe",
+
+              display: "flex",
+
+              alignItems: "center",
+
+              justifyContent: "center",
+
+              fontSize: 36,
+
+              fontWeight: "bold",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            BAR
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 810,
+
+              top: 600,
+
+              width: 275,
+
+              height: 48,
+
+              background: "white",
+
+              border: "3px solid #111827",
+
+              textAlign: "center",
+
+              paddingTop: 10,
+
+              fontWeight: "bold",
+
+              fontSize: 18,
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            Buffet
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 835,
+
+              top: 675,
+
+              width: 220,
+
+              height: 45,
+
+              background: "#dbeafe",
+
+              border: "1px solid #64748b",
+
+              textAlign: "center",
+
+              paddingTop: 10,
+
+              fontSize: 13,
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            Friday Lunch Buffet 11 - 2 pm
+
+          </div>
+
+          {tables.map((table, index) => (
 
             <button
 
               key={table.id}
 
-              onClick={() => updateTable(i)}
+              onClick={() => updateTable(index)}
 
               style={{
 
@@ -364,6 +698,10 @@ export default function Home() {
 
                 fontSize: 10,
 
+                lineHeight: 1.05,
+
+                overflow: "hidden",
+
                 zIndex: 5,
 
               }}
@@ -378,7 +716,7 @@ export default function Home() {
 
               <br />
 
-              {table.status}
+              {table.status === "Boxed" ? "📦 Boxed" : table.status}
 
             </button>
 
@@ -387,6 +725,12 @@ export default function Home() {
         </div>
 
       </div>
+
+      <p style={{ marginTop: 8, fontSize: 14 }}>
+
+        Tap table to cycle: Seated → Boxed 📦 → Dirty → Open
+
+      </p>
 
     </main>
 
