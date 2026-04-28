@@ -140,21 +140,21 @@ export default function Home() {
 
     makeTable("37", "5", 1195, 445, 55, 90),
 
-    makeTable("7", "4", 420, 465, 52, 82),
+    makeTable("7", "4", 420, 440, 52, 82),
 
-    makeTable("6", "4", 525, 465, 52, 82),
+    makeTable("6", "4", 525, 440, 52, 82),
 
-    makeTable("3", "2", 380, 575, 62, 40),
+    makeTable("3", "2", 380, 580, 62, 40),
 
-    makeTable("4", "2", 475, 575, 62, 40),
+    makeTable("4", "2", 475, 580, 62, 40),
 
-    makeTable("5", "2", 570, 575, 62, 40),
+    makeTable("5", "2", 570, 580, 62, 40),
 
-    makeTable("34", "6", 825, 505, 55, 88),
+    makeTable("34", "6", 825, 455, 55, 88),
 
-    makeTable("35", "6", 920, 505, 55, 88),
+    makeTable("35", "6", 920, 455, 55, 88),
 
-    makeTable("36", "6", 1015, 505, 55, 88),
+    makeTable("36", "6", 1015, 455, 55, 88),
 
     makeTable("2", "4", 135, 590, 78, 42),
 
@@ -178,7 +178,7 @@ export default function Home() {
 
     makeTable("L3", "4", 590, 775, 78, 42),
 
-    makeTable("L4", "6", 700, 860, 75, 42),
+    makeTable("L4", "6", 670, 860, 75, 42),
 
     makeTable("L11", "Couch", 435, 855, 58, 46),
 
@@ -204,7 +204,7 @@ export default function Home() {
 
     makeTable("Casa 10", "4", 1020, 885, 80, 42),
 
-    makeTable("Casa 3", "4", 1130, 885, 65, 42),
+    makeTable("Casa 3", "4", 1110, 885, 65, 42),
 
     makeTable("Casa 6", "4", 850, 960, 60, 42),
 
@@ -314,15 +314,15 @@ export default function Home() {
 
           {wall(300, 755, 460, 8)}
 
-          {wall(780, 755, 400, 8)}
+          {wall(780, 755, 430, 8)}
 
           {wall(220, 815, 8, 225)}
 
           {wall(760, 755, 8, 285)}
 
-          {wall(1180, 755, 8, 285)}
+          {wall(1210, 755, 8, 285)}
 
-          {wall(800, 585, 360, 8)}
+          {wall(800, 575, 360, 8)}
 
           <div
 
@@ -350,35 +350,9 @@ export default function Home() {
 
           >
 
-            <div
+            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
 
-              style={{
-
-                height: 110,
-
-                padding: 14,
-
-                fontWeight: "bold",
-
-                fontSize: 18,
-
-              }}
-
-            >
-
-              PODIUM:
-
-              <br />
-
-              SEATER 1:
-
-              <br />
-
-              SEATER 2:
-
-              <br />
-
-              SEATER 3:
+              PODIUM:<br />SEATER 1:<br />SEATER 2:<br />SEATER 3:
 
             </div>
 
@@ -426,23 +400,11 @@ export default function Home() {
 
             >
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUESTS:
-
-              <br />
-
-              <br />
+              GUESTS:<br /><br />
 
               SERVER:
 
@@ -456,7 +418,7 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 1215,
+              left: 1225,
 
               top: 735,
 
@@ -474,25 +436,7 @@ export default function Home() {
 
           >
 
-            <div
-
-              style={{
-
-                background: "#111827",
-
-                color: "white",
-
-                textAlign: "center",
-
-                padding: 8,
-
-                fontSize: 20,
-
-                fontWeight: "bold",
-
-              }}
-
-            >
+            <div style={{ background: "#111827", color: "white", textAlign: "center", padding: 8, fontSize: 20, fontWeight: "bold" }}>
 
               Casa 1884
 
@@ -500,23 +444,11 @@ export default function Home() {
 
             <div style={{ padding: 16, fontSize: 16 }}>
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUEST COUNT:
-
-              <br />
-
-              <br />
+              GUEST COUNT:<br /><br />
 
               SERVER:
 
@@ -524,137 +456,25 @@ export default function Home() {
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 120,
-
-              top: 405,
-
-              fontSize: 25,
-
-              fontStyle: "italic",
-
-              fontWeight: "bold",
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 120, top: 405, fontSize: 25, fontStyle: "italic", fontWeight: "bold", zIndex: 2 }}>
 
             Take-Out
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 310,
-
-              top: 625,
-
-              width: 335,
-
-              height: 85,
-
-              borderRadius: 20,
-
-              border: "5px solid #64748b",
-
-              background: "#dbeafe",
-
-              display: "flex",
-
-              alignItems: "center",
-
-              justifyContent: "center",
-
-              fontSize: 36,
-
-              fontWeight: "bold",
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 310, top: 625, width: 335, height: 85, borderRadius: 20, border: "5px solid #64748b", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: "bold", zIndex: 2 }}>
 
             BAR
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 810,
-
-              top: 600,
-
-              width: 275,
-
-              height: 48,
-
-              background: "white",
-
-              border: "3px solid #111827",
-
-              textAlign: "center",
-
-              paddingTop: 10,
-
-              fontWeight: "bold",
-
-              fontSize: 18,
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 810, top: 600, width: 275, height: 48, background: "white", border: "3px solid #111827", textAlign: "center", paddingTop: 10, fontWeight: "bold", fontSize: 18, zIndex: 2 }}>
 
             Buffet
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 835,
-
-              top: 675,
-
-              width: 220,
-
-              height: 45,
-
-              background: "#dbeafe",
-
-              border: "1px solid #64748b",
-
-              textAlign: "center",
-
-              paddingTop: 10,
-
-              fontSize: 13,
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 835, top: 675, width: 220, height: 45, background: "#dbeafe", border: "1px solid #64748b", textAlign: "center", paddingTop: 10, fontSize: 13, zIndex: 2 }}>
 
             Friday Lunch Buffet 11 - 2 pm
 
@@ -708,13 +528,9 @@ export default function Home() {
 
             >
 
-              {table.id}
+              {table.id}<br />
 
-              <br />
-
-              {table.seats}
-
-              <br />
+              {table.seats}<br />
 
               {table.status === "Boxed" ? "📦 Boxed" : table.status}
 
