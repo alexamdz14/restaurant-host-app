@@ -100,13 +100,13 @@ export default function Home() {
 
     makeTable("24", "4", 485, 130, 45, 82),
 
-    makeTable("26", "4", 625, 140, 80, 42),
+    makeTable("26", "4", 650, 140, 80, 42),
 
-    makeTable("27", "4", 710, 140, 80, 42),
+    makeTable("27", "4", 735, 140, 80, 42),
 
-    makeTable("28", "4", 795, 140, 75, 42),
+    makeTable("28", "4", 820, 140, 75, 42),
 
-    makeTable("29", "4", 875, 140, 75, 42),
+    makeTable("29", "4", 900, 140, 75, 42),
 
     makeTable("18", "5", 45, 300, 80, 42),
 
@@ -136,15 +136,15 @@ export default function Home() {
 
     makeTable("30", "5", 915, 325, 90, 48),
 
-    makeTable("38", "7", 1030, 250, 52, 105),
+    makeTable("38", "7", 1030, 230, 52, 105),
 
-    makeTable("37", "5", 1030, 450, 52, 90),
+    makeTable("37", "5", 1030, 430, 52, 90),
 
-    makeTable("34", "6", 725, 500, 50, 90),
+    makeTable("34", "6", 765, 475, 50, 90),
 
-    makeTable("35", "6", 815, 500, 50, 90),
+    makeTable("35", "6", 855, 475, 50, 90),
 
-    makeTable("36", "6", 905, 500, 50, 90),
+    makeTable("36", "6", 945, 475, 50, 90),
 
     makeTable("7", "4", 375, 455, 48, 82),
 
@@ -212,9 +212,9 @@ export default function Home() {
 
     makeTable("Casa 4", "4", 1050, 980, 55, 42),
 
-    makeTable("San Miguel 1", "12", 1135, 325, 135, 55),
+    makeTable("San Miguel 1", "12", 1135, 330, 120, 55),
 
-    makeTable("San Miguel 2", "12", 1135, 435, 135, 55),
+    makeTable("San Miguel 2", "12", 1135, 445, 120, 55),
 
   ]);
 
@@ -308,15 +308,11 @@ export default function Home() {
 
           {wall(300, 345, 310, 7)}
 
-          {/* Removed wall under 30 and 31 */}
-
           {wall(345, 330, 250, 6)}
 
           {wall(0, 560, 250, 8)}
 
           {wall(300, 560, 330, 8)}
-
-          {wall(750, 560, 330, 8)}
 
           {wall(300, 755, 480, 8)}
 
@@ -338,7 +334,7 @@ export default function Home() {
 
               top: 0,
 
-              width: 320,
+              width: 270,
 
               height: 620,
 
@@ -412,7 +408,23 @@ export default function Home() {
 
             </div>
 
-            <div style={{ padding: 14, fontSize: 17 }}>
+            <div
+
+              style={{
+
+                margin: 14,
+
+                padding: 12,
+
+                height: 300,
+
+                border: "3px solid #111827",
+
+                fontSize: 16,
+
+              }}
+
+            >
 
               GUEST NAME:
 
@@ -444,13 +456,13 @@ export default function Home() {
 
               position: "absolute",
 
-              left: 1180,
+              left: 1168,
 
-              top: 755,
+              top: 745,
 
-              width: 150,
+              width: 175,
 
-              height: 280,
+              height: 305,
 
               border: "4px solid #111827",
 
@@ -486,7 +498,7 @@ export default function Home() {
 
             </div>
 
-            <div style={{ padding: 10, fontSize: 16 }}>
+            <div style={{ padding: 12, fontSize: 16 }}>
 
               GUEST NAME:
 
