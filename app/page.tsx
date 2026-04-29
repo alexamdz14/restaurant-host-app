@@ -28,6 +28,42 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
+function makeTable(
+
+  id: string,
+
+  seats: string,
+
+  x: number,
+
+  y: number,
+
+  w = 62,
+
+  h = 48
+
+): TableItem {
+
+  return {
+
+    id,
+
+    seats,
+
+    x: snap(x),
+
+    y: snap(y),
+
+    w: snap(w),
+
+    h: snap(h),
+
+    status: "Open",
+
+  };
+
+}
+
 function statusColor(status: Status) {
 
   if (status === "Open") return "#d8f5df";
@@ -36,109 +72,187 @@ function statusColor(status: Status) {
 
   if (status === "Boxed") return "#fde68a";
 
-  if (status === "Dirty") return "#f87171"; // stronger red
+  if (status === "Dirty") return "#f87171";
 
   return "#e5e7eb";
 
 }
 
+const defaultTables: TableItem[] = [
+
+  makeTable("P1", "4", 55, 35, 55, 58),
+
+  makeTable("P2", "4", 145, 35, 55, 58),
+
+  makeTable("P3", "4", 380, 35, 55, 58),
+
+  makeTable("P4", "4", 470, 35, 55, 58),
+
+  makeTable("P5", "4", 665, 35, 55, 58),
+
+  makeTable("P6", "4", 755, 35, 55, 58),
+
+  makeTable("P7", "4", 965, 35, 55, 58),
+
+  makeTable("P8", "6", 1055, 35, 55, 58),
+
+  makeTable("19", "5", 38, 150, 58, 110),
+
+  makeTable("20", "4", 175, 145, 82, 42),
+
+  makeTable("21", "4", 275, 145, 82, 42),
+
+  makeTable("22", "4", 420, 135, 52, 84),
+
+  makeTable("23", "4", 495, 135, 52, 84),
+
+  makeTable("24", "4", 570, 135, 52, 84),
+
+  makeTable("26", "4", 760, 145, 82, 42),
+
+  makeTable("27", "4", 860, 145, 82, 42),
+
+  makeTable("28", "4", 960, 145, 82, 42),
+
+  makeTable("29", "4", 1060, 145, 82, 42),
+
+  makeTable("18", "5", 45, 305, 82, 42),
+
+  makeTable("17", "4", 140, 305, 82, 42),
+
+  makeTable("16", "4", 235, 305, 82, 42),
+
+  makeTable("15", "4", 395, 265, 82, 42),
+
+  makeTable("14", "4", 500, 265, 82, 42),
+
+  makeTable("13", "4", 605, 265, 82, 42),
+
+  makeTable("9", "4", 395, 365, 82, 42),
+
+  makeTable("10", "4", 500, 365, 82, 42),
+
+  makeTable("11", "4", 605, 365, 82, 42),
+
+  makeTable("12", "7", 720, 285, 60, 130),
+
+  makeTable("32", "4", 825, 250, 55, 92),
+
+  makeTable("33", "4", 825, 365, 55, 92),
+
+  makeTable("31", "5", 960, 350, 82, 48),
+
+  makeTable("30", "5", 1060, 350, 82, 48),
+
+  makeTable("38", "7", 1165, 245, 55, 105),
+
+  makeTable("37", "5", 1165, 445, 55, 90),
+
+  makeTable("7", "4", 420, 440, 52, 82),
+
+  makeTable("6", "4", 525, 440, 52, 82),
+
+  makeTable("3", "2", 380, 580, 62, 40),
+
+  makeTable("4", "2", 475, 580, 62, 40),
+
+  makeTable("5", "2", 570, 580, 62, 40),
+
+  makeTable("34", "6", 865, 455, 55, 88),
+
+  makeTable("35", "6", 960, 455, 55, 88),
+
+  makeTable("36", "6", 1055, 455, 55, 88),
+
+  makeTable("2", "4", 135, 590, 78, 42),
+
+  makeTable("1", "4", 135, 665, 78, 42),
+
+  makeTable("DL4", "4", 45, 775, 75, 42),
+
+  makeTable("DL3", "4", 45, 860, 75, 42),
+
+  makeTable("DL2", "4", 45, 945, 75, 42),
+
+  makeTable("DL1", "4", 145, 940, 70, 58),
+
+  makeTable("L10", "6", 250, 815, 92, 42),
+
+  makeTable("L9", "2", 250, 885, 58, 42),
+
+  makeTable("L1", "4", 390, 775, 78, 42),
+
+  makeTable("L2", "4", 490, 775, 78, 42),
+
+  makeTable("L3", "4", 590, 775, 78, 42),
+
+  makeTable("L4", "6", 670, 860, 75, 42),
+
+  makeTable("L11", "Couch", 435, 855, 58, 46),
+
+  makeTable("L12", "Couch", 520, 855, 58, 46),
+
+  makeTable("L8", "4", 385, 930, 52, 75),
+
+  makeTable("L7", "4", 475, 930, 52, 75),
+
+  makeTable("L6", "4", 565, 930, 52, 75),
+
+  makeTable("L5", "8", 670, 930, 82, 70),
+
+  makeTable("Casa 8", "4", 840, 790, 55, 82),
+
+  makeTable("Casa 1", "4", 955, 790, 55, 82),
+
+  makeTable("Casa 2", "4", 1070, 790, 55, 82),
+
+  makeTable("Casa 7", "4", 800, 885, 80, 42),
+
+  makeTable("Casa 9", "4", 910, 885, 80, 42),
+
+  makeTable("Casa 10", "4", 1020, 885, 80, 42),
+
+  makeTable("Casa 3", "4", 1110, 885, 65, 42),
+
+  makeTable("Casa 6", "4", 850, 960, 60, 42),
+
+  makeTable("Casa 5", "4", 960, 960, 60, 42),
+
+  makeTable("Casa 4", "4", 1070, 960, 60, 42),
+
+  makeTable("San Miguel 1", "12", 1310, 410, 145, 60),
+
+  makeTable("San Miguel 2", "12", 1310, 510, 145, 60),
+
+];
+
 export default function Home() {
 
   const [editMode, setEditMode] = useState(false);
 
-  const [dragging, setDragging] = useState<number | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
-  const [tables, setTables] = useState<TableItem[]>([
+  const [tables, setTables] = useState<TableItem[]>(defaultTables);
 
-    { id: "P1", seats: "4", x: 60, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "P2", seats: "4", x: 150, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "P3", seats: "4", x: 380, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "P4", seats: "4", x: 470, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "P5", seats: "4", x: 660, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "P6", seats: "4", x: 750, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "P7", seats: "4", x: 960, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "P8", seats: "6", x: 1050, y: 40, w: 60, h: 60, status: "Open" },
-
-    { id: "19", seats: "5", x: 40, y: 150, w: 60, h: 110, status: "Open" },
-
-    { id: "20", seats: "4", x: 170, y: 145, w: 80, h: 40, status: "Open" },
-
-    { id: "21", seats: "4", x: 270, y: 145, w: 80, h: 40, status: "Open" },
-
-    { id: "22", seats: "4", x: 420, y: 140, w: 55, h: 85, status: "Open" },
-
-    { id: "23", seats: "4", x: 495, y: 140, w: 55, h: 85, status: "Open" },
-
-    { id: "24", seats: "4", x: 570, y: 140, w: 55, h: 85, status: "Open" },
-
-    { id: "26", seats: "4", x: 760, y: 145, w: 80, h: 40, status: "Open" },
-
-    { id: "27", seats: "4", x: 860, y: 145, w: 80, h: 40, status: "Open" },
-
-    { id: "28", seats: "4", x: 960, y: 145, w: 80, h: 40, status: "Open" },
-
-    { id: "29", seats: "4", x: 1060, y: 145, w: 80, h: 40, status: "Open" },
-
-    { id: "18", seats: "5", x: 50, y: 305, w: 80, h: 40, status: "Open" },
-
-    { id: "17", seats: "4", x: 145, y: 305, w: 80, h: 40, status: "Open" },
-
-    { id: "16", seats: "4", x: 240, y: 305, w: 80, h: 40, status: "Open" },
-
-    { id: "15", seats: "4", x: 400, y: 265, w: 80, h: 40, status: "Open" },
-
-    { id: "14", seats: "4", x: 505, y: 265, w: 80, h: 40, status: "Open" },
-
-    { id: "13", seats: "4", x: 610, y: 265, w: 80, h: 40, status: "Open" },
-
-    { id: "9", seats: "4", x: 400, y: 365, w: 80, h: 40, status: "Open" },
-
-    { id: "10", seats: "4", x: 505, y: 365, w: 80, h: 40, status: "Open" },
-
-    { id: "11", seats: "4", x: 610, y: 365, w: 80, h: 40, status: "Open" },
-
-    { id: "12", seats: "7", x: 720, y: 285, w: 60, h: 130, status: "Open" },
-
-    { id: "32", seats: "4", x: 825, y: 250, w: 60, h: 90, status: "Open" },
-
-    { id: "33", seats: "4", x: 825, y: 365, w: 60, h: 90, status: "Open" },
-
-    { id: "31", seats: "5", x: 960, y: 350, w: 80, h: 50, status: "Open" },
-
-    { id: "30", seats: "5", x: 1060, y: 350, w: 80, h: 50, status: "Open" },
-
-    { id: "38", seats: "7", x: 1165, y: 245, w: 60, h: 100, status: "Open" },
-
-    { id: "37", seats: "5", x: 1165, y: 445, w: 60, h: 90, status: "Open" },
-
-    { id: "34", seats: "6", x: 865, y: 455, w: 60, h: 90, status: "Open" },
-
-    { id: "35", seats: "6", x: 960, y: 455, w: 60, h: 90, status: "Open" },
-
-    { id: "36", seats: "6", x: 1055, y: 455, w: 60, h: 90, status: "Open" },
-
-  ]);
-
-  function updateTable(i: number) {
+  function updateTable(index: number) {
 
     if (editMode) return;
 
     setTables((prev) =>
 
-      prev.map((t, idx) =>
+      prev.map((table, i) =>
 
-        idx === i
+        i === index
 
-          ? { ...t, status: cycle[(cycle.indexOf(t.status) + 1) % 4] }
+          ? {
 
-          : t
+              ...table,
+
+              status: cycle[(cycle.indexOf(table.status) + 1) % cycle.length],
+
+            }
+
+          : table
 
       )
 
@@ -146,49 +260,145 @@ export default function Home() {
 
   }
 
-  function drag(e: any) {
+  function startDrag(index: number) {
 
-    if (dragging === null) return;
+    if (!editMode) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
+    setDraggingIndex(index);
 
-    const scale = rect.width / 1500;
+  }
 
-    const x = snap((e.clientX - rect.left) / scale - 30);
+  function dragTable(e: React.PointerEvent<HTMLDivElement>) {
 
-    const y = snap((e.clientY - rect.top) / scale - 20);
+    if (!editMode || draggingIndex === null) return;
+
+    const map = e.currentTarget.getBoundingClientRect();
+
+    const scale = map.width / 1500;
+
+    const x = snap(
+
+      (e.clientX - map.left) / scale - tables[draggingIndex].w / 2
+
+    );
+
+    const y = snap(
+
+      (e.clientY - map.top) / scale - tables[draggingIndex].h / 2
+
+    );
 
     setTables((prev) =>
 
-      prev.map((t, i) => (i === dragging ? { ...t, x, y } : t))
+      prev.map((table, i) =>
+
+        i === draggingIndex ? { ...table, x, y } : table
+
+      )
 
     );
 
   }
 
+  function stopDrag() {
+
+    setDraggingIndex(null);
+
+  }
+
+  const wall = (x: number, y: number, w: number, h: number) => (
+
+    <div
+
+      style={{
+
+        position: "absolute",
+
+        left: snap(x),
+
+        top: snap(y),
+
+        width: snap(w),
+
+        height: snap(h),
+
+        background: "#111827",
+
+        zIndex: 1,
+
+      }}
+
+    />
+
+  );
+
   return (
 
-    <main style={{ padding: 10 }}>
+    <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
 
-      <h1>Host Map</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
 
-      <button onClick={() => setEditMode(!editMode)}>
+        <h1 style={{ margin: 0, fontSize: 34 }}>Host Map</h1>
 
-        {editMode ? "Editing ON" : "Move Tables"}
+        <button
 
-      </button>
+          onClick={() => setEditMode(!editMode)}
 
-      <div
+          style={{
 
-        onPointerMove={drag}
+            padding: "8px 12px",
 
-        onPointerUp={() => setDragging(null)}
+            borderRadius: 8,
 
-        style={{ overflow: "auto" }}
+            border: "2px solid #111827",
 
-      >
+            background: editMode ? "#fde68a" : "white",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          {editMode ? "Editing ON" : "Move Tables"}
+
+        </button>
+
+        <button
+
+          onClick={() => setTables(defaultTables)}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: "#fee2e2",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          Reset
+
+        </button>
+
+      </div>
+
+      <div style={{ width: "100%", overflowX: "auto" }}>
 
         <div
+
+          onPointerMove={dragTable}
+
+          onPointerUp={stopDrag}
+
+          onPointerCancel={stopDrag}
 
           style={{
 
@@ -196,49 +406,179 @@ export default function Home() {
 
             width: 1500,
 
-            height: 1000,
+            height: 1040,
 
-            border: "4px solid black",
+            background: "#fbfaf5",
 
-            transform: "scale(0.75)",
+            border: "4px solid #111827",
+
+            overflow: "hidden",
+
+            transform: "scale(0.74)",
 
             transformOrigin: "top left",
 
-            background: "#fbfaf5",
+            marginBottom: -270,
+
+            touchAction: editMode ? "none" : "auto",
 
           }}
 
         >
 
-          {tables.map((t, i) => (
+          {wall(0, 105, 1240, 6)}
 
-            <button
+          {wall(0, 360, 270, 7)}
 
-              key={t.id}
+          {wall(380, 325, 320, 7)}
 
-              onPointerDown={() => setDragging(i)}
+          {wall(380, 540, 290, 7)}
 
-              onClick={() => updateTable(i)}
+          {wall(0, 560, 250, 8)}
+
+          {wall(300, 755, 460, 8)}
+
+          {wall(780, 755, 430, 8)}
+
+          {wall(220, 815, 8, 225)}
+
+          {wall(760, 755, 8, 285)}
+
+          {wall(1210, 755, 8, 285)}
+
+          {wall(800, 575, 360, 8)}
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 1240,
+
+              top: 0,
+
+              width: 260,
+
+              height: 650,
+
+              borderLeft: "5px solid #111827",
+
+              borderBottom: "5px solid #111827",
+
+              background: "#fffdf7",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
+
+              PODIUM:<br />
+
+              SEATER 1:<br />
+
+              SEATER 2:<br />
+
+              SEATER 3:
+
+            </div>
+
+            <div
 
               style={{
 
-                position: "absolute",
+                background: "#111827",
 
-                left: t.x,
+                color: "white",
 
-                top: t.y,
+                textAlign: "center",
 
-                width: t.w,
+                padding: 8,
 
-                height: t.h,
+                fontSize: 22,
 
-                background: statusColor(t.status),
+                fontWeight: "bold",
 
-                border: "2px solid #1e3a8a",
+                margin: "0 20px",
 
-                borderRadius: 8,
+              }}
 
-                fontSize: 11,
+            >
+
+              San Miguel
+
+            </div>
+
+            <div
+
+              style={{
+
+                margin: "14px 22px",
+
+                padding: 12,
+
+                height: 165,
+
+                border: "3px solid #111827",
+
+                fontSize: 15,
+
+              }}
+
+            >
+
+              GUEST NAME:<br /><br />
+
+              ARRIVAL TIME:<br /><br />
+
+              GUESTS:<br /><br />
+
+              SERVER:
+
+            </div>
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 1225,
+
+              top: 735,
+
+              width: 255,
+
+              height: 290,
+
+              border: "4px solid #111827",
+
+              background: "#fffdf7",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            <div
+
+              style={{
+
+                background: "#111827",
+
+                color: "white",
+
+                textAlign: "center",
+
+                padding: 8,
+
+                fontSize: 20,
 
                 fontWeight: "bold",
 
@@ -246,15 +586,233 @@ export default function Home() {
 
             >
 
-              {t.id}
+              Casa 1884
+
+            </div>
+
+            <div style={{ padding: 16, fontSize: 16 }}>
+
+              GUEST NAME:<br /><br />
+
+              ARRIVAL TIME:<br /><br />
+
+              GUEST COUNT:<br /><br />
+
+              SERVER:
+
+            </div>
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 120,
+
+              top: 405,
+
+              fontSize: 25,
+
+              fontStyle: "italic",
+
+              fontWeight: "bold",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            Take-Out
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 310,
+
+              top: 625,
+
+              width: 335,
+
+              height: 85,
+
+              borderRadius: 20,
+
+              border: "5px solid #64748b",
+
+              background: "#dbeafe",
+
+              display: "flex",
+
+              alignItems: "center",
+
+              justifyContent: "center",
+
+              fontSize: 36,
+
+              fontWeight: "bold",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            BAR
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 810,
+
+              top: 600,
+
+              width: 275,
+
+              height: 48,
+
+              background: "white",
+
+              border: "3px solid #111827",
+
+              textAlign: "center",
+
+              paddingTop: 10,
+
+              fontWeight: "bold",
+
+              fontSize: 18,
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            Buffet
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 835,
+
+              top: 675,
+
+              width: 220,
+
+              height: 45,
+
+              background: "#dbeafe",
+
+              border: "1px solid #64748b",
+
+              textAlign: "center",
+
+              paddingTop: 10,
+
+              fontSize: 13,
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            Friday Lunch Buffet 11 - 2 pm
+
+          </div>
+
+          {tables.map((table, index) => (
+
+            <button
+
+              key={table.id}
+
+              onPointerDown={(e) => {
+
+                e.preventDefault();
+
+                startDrag(index);
+
+              }}
+
+              onClick={() => updateTable(index)}
+
+              style={{
+
+                position: "absolute",
+
+                left: table.x,
+
+                top: table.y,
+
+                width: table.w,
+
+                height: table.h,
+
+                background: statusColor(table.status),
+
+                border:
+
+                  table.status === "Boxed"
+
+                    ? "4px solid #f59e0b"
+
+                    : editMode
+
+                    ? "3px dashed #111827"
+
+                    : "2px solid #1e3a8a",
+
+                borderRadius: 8,
+
+                color: "#006ee6",
+
+                fontWeight: "bold",
+
+                fontSize: 10,
+
+                lineHeight: 1.05,
+
+                overflow: "hidden",
+
+                zIndex: draggingIndex === index ? 20 : 5,
+
+                touchAction: "none",
+
+                cursor: editMode ? "grab" : "pointer",
+
+              }}
+
+            >
+
+              {table.id}
 
               <br />
 
-              {t.seats}
+              {table.seats}
 
               <br />
 
-              {t.status}
+              {table.status === "Boxed" ? "📦 Boxed" : table.status}
 
             </button>
 
@@ -263,6 +821,14 @@ export default function Home() {
         </div>
 
       </div>
+
+      <p style={{ marginTop: 8, fontSize: 14 }}>
+
+        Tap table to cycle: Seated → Boxed 📦 → Dirty → Open. Dirty is red. Turn on
+
+        “Move Tables” to drag tables.
+
+      </p>
 
     </main>
 
