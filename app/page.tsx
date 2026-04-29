@@ -14,9 +14,9 @@ type TableItem = {
 
   y: number;
 
-  w?: number;
+  w: number;
 
-  h?: number;
+  h: number;
 
   status: Status;
 
@@ -28,38 +28,6 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
-const makeTable = (
-
-  id: string,
-
-  seats: string,
-
-  x: number,
-
-  y: number,
-
-  w = 62,
-
-  h = 48
-
-): TableItem => ({
-
-  id,
-
-  seats,
-
-  x: snap(x),
-
-  y: snap(y),
-
-  w: snap(w),
-
-  h: snap(h),
-
-  status: "Open",
-
-});
-
 function statusColor(status: Status) {
 
   if (status === "Open") return "#d8f5df";
@@ -68,7 +36,7 @@ function statusColor(status: Status) {
 
   if (status === "Boxed") return "#fde68a";
 
-  if (status === "Dirty") return "#fca5a5"; // RED for dirty ✅
+  if (status === "Dirty") return "#fca5a5"; // red
 
   return "#e5e7eb";
 
@@ -78,119 +46,97 @@ export default function Home() {
 
   const [editMode, setEditMode] = useState(false);
 
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<number | null>(null);
 
   const [tables, setTables] = useState<TableItem[]>([
 
-    makeTable("P1", "4", 55, 35),
+    { id: "P1", seats: "4", x: 60, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("P2", "4", 145, 35),
+    { id: "P2", seats: "4", x: 150, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("P3", "4", 380, 35),
+    { id: "P3", seats: "4", x: 380, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("P4", "4", 470, 35),
+    { id: "P4", seats: "4", x: 470, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("P5", "4", 665, 35),
+    { id: "P5", seats: "4", x: 660, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("P6", "4", 755, 35),
+    { id: "P6", seats: "4", x: 750, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("P7", "4", 965, 35),
+    { id: "P7", seats: "4", x: 960, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("P8", "6", 1055, 35),
+    { id: "P8", seats: "6", x: 1050, y: 40, w: 60, h: 60, status: "Open" },
 
-    makeTable("19", "5", 38, 150, 58, 110),
+    { id: "19", seats: "5", x: 40, y: 150, w: 60, h: 110, status: "Open" },
 
-    makeTable("20", "4", 175, 145, 82, 42),
+    { id: "20", seats: "4", x: 170, y: 145, w: 80, h: 40, status: "Open" },
 
-    makeTable("21", "4", 275, 145, 82, 42),
+    { id: "21", seats: "4", x: 270, y: 145, w: 80, h: 40, status: "Open" },
 
-    makeTable("22", "4", 420, 135, 52, 84),
+    { id: "22", seats: "4", x: 420, y: 140, w: 55, h: 85, status: "Open" },
 
-    makeTable("23", "4", 495, 135, 52, 84),
+    { id: "23", seats: "4", x: 495, y: 140, w: 55, h: 85, status: "Open" },
 
-    makeTable("24", "4", 570, 135, 52, 84),
+    { id: "24", seats: "4", x: 570, y: 140, w: 55, h: 85, status: "Open" },
 
-    makeTable("26", "4", 760, 145, 82, 42),
+    { id: "26", seats: "4", x: 760, y: 145, w: 80, h: 40, status: "Open" },
 
-    makeTable("27", "4", 860, 145, 82, 42),
+    { id: "27", seats: "4", x: 860, y: 145, w: 80, h: 40, status: "Open" },
 
-    makeTable("28", "4", 960, 145, 82, 42),
+    { id: "28", seats: "4", x: 960, y: 145, w: 80, h: 40, status: "Open" },
 
-    makeTable("29", "4", 1060, 145, 82, 42),
+    { id: "29", seats: "4", x: 1060, y: 145, w: 80, h: 40, status: "Open" },
 
-    makeTable("18", "5", 45, 305, 82, 42),
+    { id: "18", seats: "5", x: 50, y: 305, w: 80, h: 40, status: "Open" },
 
-    makeTable("17", "4", 140, 305, 82, 42),
+    { id: "17", seats: "4", x: 145, y: 305, w: 80, h: 40, status: "Open" },
 
-    makeTable("16", "4", 235, 305, 82, 42),
+    { id: "16", seats: "4", x: 240, y: 305, w: 80, h: 40, status: "Open" },
 
-    makeTable("15", "4", 395, 265, 82, 42),
+    { id: "15", seats: "4", x: 400, y: 265, w: 80, h: 40, status: "Open" },
 
-    makeTable("14", "4", 500, 265, 82, 42),
+    { id: "14", seats: "4", x: 505, y: 265, w: 80, h: 40, status: "Open" },
 
-    makeTable("13", "4", 605, 265, 82, 42),
+    { id: "13", seats: "4", x: 610, y: 265, w: 80, h: 40, status: "Open" },
 
-    makeTable("9", "4", 395, 365, 82, 42),
+    { id: "9", seats: "4", x: 400, y: 365, w: 80, h: 40, status: "Open" },
 
-    makeTable("10", "4", 500, 365, 82, 42),
+    { id: "10", seats: "4", x: 505, y: 365, w: 80, h: 40, status: "Open" },
 
-    makeTable("11", "4", 605, 365, 82, 42),
+    { id: "11", seats: "4", x: 610, y: 365, w: 80, h: 40, status: "Open" },
 
-    makeTable("12", "7", 720, 285, 60, 130),
+    { id: "12", seats: "7", x: 720, y: 285, w: 60, h: 130, status: "Open" },
 
-    makeTable("32", "4", 825, 250, 55, 92),
+    { id: "32", seats: "4", x: 825, y: 250, w: 60, h: 90, status: "Open" },
 
-    makeTable("33", "4", 825, 365, 55, 92),
+    { id: "33", seats: "4", x: 825, y: 365, w: 60, h: 90, status: "Open" },
 
-    makeTable("31", "5", 960, 350, 82, 48),
+    { id: "31", seats: "5", x: 960, y: 350, w: 80, h: 50, status: "Open" },
 
-    makeTable("30", "5", 1060, 350, 82, 48),
+    { id: "30", seats: "5", x: 1060, y: 350, w: 80, h: 50, status: "Open" },
 
-    makeTable("38", "7", 1165, 245, 55, 105),
+    { id: "38", seats: "7", x: 1165, y: 245, w: 60, h: 100, status: "Open" },
 
-    makeTable("37", "5", 1165, 445, 55, 90),
+    { id: "37", seats: "5", x: 1165, y: 445, w: 60, h: 90, status: "Open" },
 
-    makeTable("7", "4", 420, 440, 52, 82),
+    { id: "34", seats: "6", x: 865, y: 455, w: 60, h: 90, status: "Open" },
 
-    makeTable("6", "4", 525, 440, 52, 82),
+    { id: "35", seats: "6", x: 960, y: 455, w: 60, h: 90, status: "Open" },
 
-    makeTable("3", "2", 380, 580, 62, 40),
-
-    makeTable("4", "2", 475, 580, 62, 40),
-
-    makeTable("5", "2", 570, 580, 62, 40),
-
-    makeTable("34", "6", 865, 455, 55, 88),
-
-    makeTable("35", "6", 960, 455, 55, 88),
-
-    makeTable("36", "6", 1055, 455, 55, 88),
+    { id: "36", seats: "6", x: 1055, y: 455, w: 60, h: 90, status: "Open" },
 
   ]);
 
-  // ✅ FIX FOR CRASH (TEMPORARY)
-
-  useEffect(() => {
-
-    localStorage.removeItem("floorTables");
-
-    localStorage.removeItem("waitlist");
-
-    localStorage.removeItem("serverRotation");
-
-  }, []);
-
-  function updateTable(index: number) {
+  function updateTable(i: number) {
 
     if (editMode) return;
 
     setTables((prev) =>
 
-      prev.map((t, i) =>
+      prev.map((t, idx) =>
 
-        i === index
+        idx === i
 
-          ? { ...t, status: cycle[(cycle.indexOf(t.status) + 1) % cycle.length] }
+          ? { ...t, status: cycle[(cycle.indexOf(t.status) + 1) % 4] }
 
           : t
 
@@ -200,17 +146,17 @@ export default function Home() {
 
   }
 
-  function startDrag(index: number) {
+  function startDrag(i: number) {
 
     if (!editMode) return;
 
-    setDraggingIndex(index);
+    setDragging(i);
 
   }
 
-  function dragTable(e: React.PointerEvent<HTMLDivElement>) {
+  function drag(e: any) {
 
-    if (draggingIndex === null) return;
+    if (dragging === null) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
 
@@ -222,21 +168,15 @@ export default function Home() {
 
     setTables((prev) =>
 
-      prev.map((t, i) => (i === draggingIndex ? { ...t, x, y } : t))
+      prev.map((t, i) => (i === dragging ? { ...t, x, y } : t))
 
     );
 
   }
 
-  function stopDrag() {
-
-    setDraggingIndex(null);
-
-  }
-
   return (
 
-    <main style={{ padding: 10, fontFamily: "Arial" }}>
+    <main style={{ padding: 10 }}>
 
       <h1>Host Map</h1>
 
@@ -248,75 +188,93 @@ export default function Home() {
 
       <div
 
-        onPointerMove={dragTable}
+        onPointerMove={drag}
 
-        onPointerUp={stopDrag}
+        onPointerUp={() => setDragging(null)}
 
         style={{
 
-          position: "relative",
+          width: "100%",
 
-          width: 1500,
-
-          height: 1000,
-
-          border: "3px solid black",
-
-          marginTop: 10,
+          overflow: "auto",
 
         }}
 
       >
 
-        {tables.map((t, i) => (
+        <div
 
-          <button
+          style={{
 
-            key={t.id}
+            position: "relative",
 
-            onPointerDown={() => startDrag(i)}
+            width: 1500,
 
-            onClick={() => updateTable(i)}
+            height: 1000,
 
-            style={{
+            border: "4px solid black",
 
-              position: "absolute",
+            transform: "scale(0.75)",
 
-              left: t.x,
+            transformOrigin: "top left",
 
-              top: t.y,
+            background: "#fbfaf5",
 
-              width: t.w,
+          }}
 
-              height: t.h,
+        >
 
-              background: statusColor(t.status),
+          {tables.map((t, i) => (
 
-              border: "2px solid #1e3a8a",
+            <button
 
-              borderRadius: 8,
+              key={t.id}
 
-              fontSize: 11,
+              onPointerDown={() => startDrag(i)}
 
-              fontWeight: "bold",
+              onClick={() => updateTable(i)}
 
-            }}
+              style={{
 
-          >
+                position: "absolute",
 
-            {t.id}
+                left: t.x,
 
-            <br />
+                top: t.y,
 
-            {t.seats}
+                width: t.w,
 
-            <br />
+                height: t.h,
 
-            {t.status}
+                background: statusColor(t.status),
 
-          </button>
+                border: "2px solid #1e3a8a",
 
-        ))}
+                borderRadius: 8,
+
+                fontSize: 11,
+
+                fontWeight: "bold",
+
+              }}
+
+            >
+
+              {t.id}
+
+              <br />
+
+              {t.seats}
+
+              <br />
+
+              {t.status}
+
+            </button>
+
+          ))}
+
+        </div>
 
       </div>
 
