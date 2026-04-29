@@ -74,6 +74,10 @@ function statusColor(status: Status) {
 
 export default function Home() {
 
+  const [editMode, setEditMode] = useState(false);
+
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+
   const [tables, setTables] = useState<TableItem[]>([
 
     makeTable("P1", "4", 55, 35, 55, 58),
@@ -224,6 +228,8 @@ export default function Home() {
 
   function updateTable(index: number) {
 
+    if (editMode) return;
+
     setTables((prev) =>
 
       prev.map((table, i) =>
@@ -243,6 +249,44 @@ export default function Home() {
       )
 
     );
+
+  }
+
+  function startDrag(index: number) {
+
+    if (!editMode) return;
+
+    setDraggingIndex(index);
+
+  }
+
+  function dragTable(e: React.PointerEvent<HTMLDivElement>) {
+
+    if (!editMode || draggingIndex === null) return;
+
+    const map = e.currentTarget.getBoundingClientRect();
+
+    const scale = map.width / 1500;
+
+    const x = snap((e.clientX - map.left) / scale - (tables[draggingIndex].w || 62) / 2);
+
+    const y = snap((e.clientY - map.top) / scale - (tables[draggingIndex].h || 48) / 2);
+
+    setTables((prev) =>
+
+      prev.map((table, i) =>
+
+        i === draggingIndex ? { ...table, x, y } : table
+
+      )
+
+    );
+
+  }
+
+  function stopDrag() {
+
+    setDraggingIndex(null);
 
   }
 
@@ -276,11 +320,45 @@ export default function Home() {
 
     <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
 
-      <h1 style={{ margin: "0 0 8px 0", fontSize: 34 }}>Host Map</h1>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+
+        <h1 style={{ margin: 0, fontSize: 34 }}>Host Map</h1>
+
+        <button
+
+          onClick={() => setEditMode(!editMode)}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: editMode ? "#fde68a" : "white",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          {editMode ? "Editing ON" : "Move Tables"}
+
+        </button>
+
+      </div>
 
       <div style={{ width: "100%", overflowX: "auto" }}>
 
         <div
+
+          onPointerMove={dragTable}
+
+          onPointerUp={stopDrag}
+
+          onPointerCancel={stopDrag}
 
           style={{
 
@@ -301,6 +379,8 @@ export default function Home() {
             transformOrigin: "top left",
 
             marginBottom: -270,
+
+            touchAction: editMode ? "none" : "auto",
 
           }}
 
@@ -354,33 +434,13 @@ export default function Home() {
 
           >
 
-            <div
+            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
 
-              style={{
+              PODIUM:<br />
 
-                height: 110,
+              SEATER 1:<br />
 
-                padding: 14,
-
-                fontWeight: "bold",
-
-                fontSize: 18,
-
-              }}
-
-            >
-
-              PODIUM:
-
-              <br />
-
-              SEATER 1:
-
-              <br />
-
-              SEATER 2:
-
-              <br />
+              SEATER 2:<br />
 
               SEATER 3:
 
@@ -430,23 +490,11 @@ export default function Home() {
 
             >
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUESTS:
-
-              <br />
-
-              <br />
+              GUESTS:<br /><br />
 
               SERVER:
 
@@ -478,25 +526,7 @@ export default function Home() {
 
           >
 
-            <div
-
-              style={{
-
-                background: "#111827",
-
-                color: "white",
-
-                textAlign: "center",
-
-                padding: 8,
-
-                fontSize: 20,
-
-                fontWeight: "bold",
-
-              }}
-
-            >
+            <div style={{ background: "#111827", color: "white", textAlign: "center", padding: 8, fontSize: 20, fontWeight: "bold" }}>
 
               Casa 1884
 
@@ -504,23 +534,11 @@ export default function Home() {
 
             <div style={{ padding: 16, fontSize: 16 }}>
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUEST COUNT:
-
-              <br />
-
-              <br />
+              GUEST COUNT:<br /><br />
 
               SERVER:
 
@@ -528,137 +546,25 @@ export default function Home() {
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 120,
-
-              top: 405,
-
-              fontSize: 25,
-
-              fontStyle: "italic",
-
-              fontWeight: "bold",
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 120, top: 405, fontSize: 25, fontStyle: "italic", fontWeight: "bold", zIndex: 2 }}>
 
             Take-Out
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 310,
-
-              top: 625,
-
-              width: 335,
-
-              height: 85,
-
-              borderRadius: 20,
-
-              border: "5px solid #64748b",
-
-              background: "#dbeafe",
-
-              display: "flex",
-
-              alignItems: "center",
-
-              justifyContent: "center",
-
-              fontSize: 36,
-
-              fontWeight: "bold",
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 310, top: 625, width: 335, height: 85, borderRadius: 20, border: "5px solid #64748b", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: "bold", zIndex: 2 }}>
 
             BAR
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 810,
-
-              top: 600,
-
-              width: 275,
-
-              height: 48,
-
-              background: "white",
-
-              border: "3px solid #111827",
-
-              textAlign: "center",
-
-              paddingTop: 10,
-
-              fontWeight: "bold",
-
-              fontSize: 18,
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 810, top: 600, width: 275, height: 48, background: "white", border: "3px solid #111827", textAlign: "center", paddingTop: 10, fontWeight: "bold", fontSize: 18, zIndex: 2 }}>
 
             Buffet
 
           </div>
 
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 835,
-
-              top: 675,
-
-              width: 220,
-
-              height: 45,
-
-              background: "#dbeafe",
-
-              border: "1px solid #64748b",
-
-              textAlign: "center",
-
-              paddingTop: 10,
-
-              fontSize: 13,
-
-              zIndex: 2,
-
-            }}
-
-          >
+          <div style={{ position: "absolute", left: 835, top: 675, width: 220, height: 45, background: "#dbeafe", border: "1px solid #64748b", textAlign: "center", paddingTop: 10, fontSize: 13, zIndex: 2 }}>
 
             Friday Lunch Buffet 11 - 2 pm
 
@@ -669,6 +575,14 @@ export default function Home() {
             <button
 
               key={table.id}
+
+              onPointerDown={(e) => {
+
+                e.preventDefault();
+
+                startDrag(index);
+
+              }}
 
               onClick={() => updateTable(index)}
 
@@ -692,6 +606,10 @@ export default function Home() {
 
                     ? "4px solid #f59e0b"
 
+                    : editMode
+
+                    ? "3px dashed #111827"
+
                     : "2px solid #1e3a8a",
 
                 borderRadius: 8,
@@ -706,7 +624,11 @@ export default function Home() {
 
                 overflow: "hidden",
 
-                zIndex: 5,
+                zIndex: draggingIndex === index ? 20 : 5,
+
+                touchAction: "none",
+
+                cursor: editMode ? "grab" : "pointer",
 
               }}
 
@@ -732,7 +654,7 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Tap table to cycle: Seated → Boxed 📦 → Dirty → Open
+        Tap table to cycle: Seated → Boxed 📦 → Dirty → Open. Turn on “Move Tables” to drag tables.
 
       </p>
 
