@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type Status = "Open" | "Seated" | "Boxed" | "Dirty";
 
@@ -226,37 +226,25 @@ export default function Home() {
 
   ]);
 
-  // 💾 LOAD
-
-  useEffect(() => {
-
-    const saved = localStorage.getItem("savedTables");
-
-    if (saved) setTables(JSON.parse(saved));
-
-  }, []);
-
-  // 💾 SAVE
-
-  useEffect(() => {
-
-    localStorage.setItem("savedTables", JSON.stringify(tables));
-
-  }, [tables]);
-
   function updateTable(index: number) {
 
     if (editMode) return;
 
     setTables((prev) =>
 
-      prev.map((t, i) =>
+      prev.map((table, i) =>
 
         i === index
 
-          ? { ...t, status: cycle[(cycle.indexOf(t.status) + 1) % 4] }
+          ? {
 
-          : t
+              ...table,
+
+              status: cycle[(cycle.indexOf(table.status) + 1) % cycle.length],
+
+            }
+
+          : table
 
       )
 
@@ -280,15 +268,15 @@ export default function Home() {
 
     const scale = map.width / 1500;
 
-    const x = snap((e.clientX - map.left) / scale);
+    const x = snap((e.clientX - map.left) / scale - (tables[draggingIndex].w || 62) / 2);
 
-    const y = snap((e.clientY - map.top) / scale);
+    const y = snap((e.clientY - map.top) / scale - (tables[draggingIndex].h || 48) / 2);
 
     setTables((prev) =>
 
-      prev.map((t, i) =>
+      prev.map((table, i) =>
 
-        i === draggingIndex ? { ...t, x, y } : t
+        i === draggingIndex ? { ...table, x, y } : table
 
       )
 
@@ -302,113 +290,373 @@ export default function Home() {
 
   }
 
+  const wall = (x: number, y: number, w: number, h: number) => (
+
+    <div
+
+      style={{
+
+        position: "absolute",
+
+        left: snap(x),
+
+        top: snap(y),
+
+        width: snap(w),
+
+        height: snap(h),
+
+        background: "#111827",
+
+        zIndex: 1,
+
+      }}
+
+    />
+
+  );
+
   return (
 
-    <main style={{ padding: 10, fontFamily: "Arial" }}>
+    <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
 
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
 
-        <button onClick={() => setEditMode(!editMode)}>
-
-          {editMode ? "Editing ON" : "Move Tables"}
-
-        </button>
+        <h1 style={{ margin: 0, fontSize: 34 }}>Host Map</h1>
 
         <button
 
-          onClick={() => {
+          onClick={() => setEditMode(!editMode)}
 
-            localStorage.removeItem("savedTables");
+          style={{
 
-            window.location.reload();
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: editMode ? "#fde68a" : "white",
+
+            fontWeight: "bold",
 
           }}
 
         >
 
-          Reset Layout
+          {editMode ? "Editing ON" : "Move Tables"}
 
         </button>
 
       </div>
 
-      <div
+      <div style={{ width: "100%", overflowX: "auto" }}>
 
-        onPointerMove={dragTable}
+        <div
 
-        onPointerUp={stopDrag}
+          onPointerMove={dragTable}
 
-        style={{
+          onPointerUp={stopDrag}
 
-          position: "relative",
+          onPointerCancel={stopDrag}
 
-          width: 1500,
+          style={{
 
-          height: 900,
+            position: "relative",
 
-          border: "3px solid black",
+            width: 1500,
 
-        }}
+            height: 1040,
 
-      >
+            background: "#fbfaf5",
 
-        {tables.map((table, index) => (
+            border: "4px solid #111827",
 
-          <button
+            overflow: "hidden",
 
-            key={table.id}
+            transform: "scale(0.74)",
 
-            onPointerDown={(e) => {
+            transformOrigin: "top left",
 
-              e.preventDefault();
+            marginBottom: -270,
 
-              startDrag(index);
+            touchAction: editMode ? "none" : "auto",
 
-            }}
+          }}
 
-            onClick={() => updateTable(index)}
+        >
+
+          {wall(0, 105, 1240, 6)}
+
+          {wall(0, 360, 270, 7)}
+
+          {wall(380, 325, 320, 7)}
+
+          {wall(380, 540, 290, 7)}
+
+          {wall(0, 560, 250, 8)}
+
+          {wall(300, 755, 460, 8)}
+
+          {wall(780, 755, 430, 8)}
+
+          {wall(220, 815, 8, 225)}
+
+          {wall(760, 755, 8, 285)}
+
+          {wall(1210, 755, 8, 285)}
+
+          {wall(800, 575, 360, 8)}
+
+          <div
 
             style={{
 
               position: "absolute",
 
-              left: table.x,
+              left: 1240,
 
-              top: table.y,
+              top: 0,
 
-              width: table.w,
+              width: 260,
 
-              height: table.h,
+              height: 650,
 
-              background: statusColor(table.status),
+              borderLeft: "5px solid #111827",
 
-              border: "2px solid #1e3a8a",
+              borderBottom: "5px solid #111827",
 
-              borderRadius: 8,
+              background: "#fffdf7",
 
-              fontSize: 10,
-
-              fontWeight: "bold",
+              zIndex: 2,
 
             }}
 
           >
 
-            {table.id}
+            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
 
-            <br />
+              PODIUM:<br />
 
-            {table.seats}
+              SEATER 1:<br />
 
-            <br />
+              SEATER 2:<br />
 
-            {table.status}
+              SEATER 3:
 
-          </button>
+            </div>
 
-        ))}
+            <div
+
+              style={{
+
+                background: "#111827",
+
+                color: "white",
+
+                textAlign: "center",
+
+                padding: 8,
+
+                fontSize: 22,
+
+                fontWeight: "bold",
+
+                margin: "0 20px",
+
+              }}
+
+            >
+
+              San Miguel
+
+            </div>
+
+            <div
+
+              style={{
+
+                margin: "14px 22px",
+
+                padding: 12,
+
+                height: 165,
+
+                border: "3px solid #111827",
+
+                fontSize: 15,
+
+              }}
+
+            >
+
+              GUEST NAME:<br /><br />
+
+              ARRIVAL TIME:<br /><br />
+
+              GUESTS:<br /><br />
+
+              SERVER:
+
+            </div>
+
+          </div>
+
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 1225,
+
+              top: 735,
+
+              width: 255,
+
+              height: 290,
+
+              border: "4px solid #111827",
+
+              background: "#fffdf7",
+
+              zIndex: 2,
+
+            }}
+
+          >
+
+            <div style={{ background: "#111827", color: "white", textAlign: "center", padding: 8, fontSize: 20, fontWeight: "bold" }}>
+
+              Casa 1884
+
+            </div>
+
+            <div style={{ padding: 16, fontSize: 16 }}>
+
+              GUEST NAME:<br /><br />
+
+              ARRIVAL TIME:<br /><br />
+
+              GUEST COUNT:<br /><br />
+
+              SERVER:
+
+            </div>
+
+          </div>
+
+          <div style={{ position: "absolute", left: 120, top: 405, fontSize: 25, fontStyle: "italic", fontWeight: "bold", zIndex: 2 }}>
+
+            Take-Out
+
+          </div>
+
+          <div style={{ position: "absolute", left: 310, top: 625, width: 335, height: 85, borderRadius: 20, border: "5px solid #64748b", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: "bold", zIndex: 2 }}>
+
+            BAR
+
+          </div>
+
+          <div style={{ position: "absolute", left: 810, top: 600, width: 275, height: 48, background: "white", border: "3px solid #111827", textAlign: "center", paddingTop: 10, fontWeight: "bold", fontSize: 18, zIndex: 2 }}>
+
+            Buffet
+
+          </div>
+
+          <div style={{ position: "absolute", left: 835, top: 675, width: 220, height: 45, background: "#dbeafe", border: "1px solid #64748b", textAlign: "center", paddingTop: 10, fontSize: 13, zIndex: 2 }}>
+
+            Friday Lunch Buffet 11 - 2 pm
+
+          </div>
+
+          {tables.map((table, index) => (
+
+            <button
+
+              key={table.id}
+
+              onPointerDown={(e) => {
+
+                e.preventDefault();
+
+                startDrag(index);
+
+              }}
+
+              onClick={() => updateTable(index)}
+
+              style={{
+
+                position: "absolute",
+
+                left: table.x,
+
+                top: table.y,
+
+                width: table.w,
+
+                height: table.h,
+
+                background: statusColor(table.status),
+
+                border:
+
+                  table.status === "Boxed"
+
+                    ? "4px solid #f59e0b"
+
+                    : editMode
+
+                    ? "3px dashed #111827"
+
+                    : "2px solid #1e3a8a",
+
+                borderRadius: 8,
+
+                color: "#006ee6",
+
+                fontWeight: "bold",
+
+                fontSize: 10,
+
+                lineHeight: 1.05,
+
+                overflow: "hidden",
+
+                zIndex: draggingIndex === index ? 20 : 5,
+
+                touchAction: "none",
+
+                cursor: editMode ? "grab" : "pointer",
+
+              }}
+
+            >
+
+              {table.id}
+
+              <br />
+
+              {table.seats}
+
+              <br />
+
+              {table.status === "Boxed" ? "📦 Boxed" : table.status}
+
+            </button>
+
+          ))}
+
+        </div>
 
       </div>
+
+      <p style={{ marginTop: 8, fontSize: 14 }}>
+
+        Tap table to cycle: Seated → Boxed 📦 → Dirty → Open. Turn on “Move Tables” to drag tables.
+
+      </p>
 
     </main>
 
