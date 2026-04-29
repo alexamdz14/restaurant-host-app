@@ -22,6 +22,10 @@ type TableItem = {
 
 };
 
+const GRID = 5;
+
+const snap = (n: number) => Math.round(n / GRID) * GRID;
+
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
 const makeTable = (
@@ -44,13 +48,13 @@ const makeTable = (
 
   seats,
 
-  x,
+  x: snap(x),
 
-  y,
+  y: snap(y),
 
-  w,
+  w: snap(w),
 
-  h,
+  h: snap(h),
 
   status: "Open",
 
@@ -108,18 +112,18 @@ export default function Home() {
 
     makeTable("29", "4", 1060, 145, 82, 42),
 
+    makeTable("18", "5", 45, 305, 82, 42),
+
+    makeTable("17", "4", 140, 305, 82, 42),
+
+    makeTable("16", "4", 235, 305, 82, 42),
+
     makeTable("15", "4", 395, 265, 82, 42),
 
     makeTable("14", "4", 500, 265, 82, 42),
 
     makeTable("13", "4", 605, 265, 82, 42),
 
-    makeTable("18", "5", 45, 305, 82, 42),
-
-    makeTable("17", "4", 140, 305, 82, 42),
-
-    makeTable("16", "4", 235, 305, 82, 42),
-    
     makeTable("9", "4", 395, 365, 82, 42),
 
     makeTable("10", "4", 500, 365, 82, 42),
@@ -135,11 +139,11 @@ export default function Home() {
     makeTable("31", "5", 960, 350, 82, 48),
 
     makeTable("30", "5", 1060, 350, 82, 48),
-    
+
     makeTable("38", "7", 1165, 245, 55, 105),
 
     makeTable("37", "5", 1165, 445, 55, 90),
-    
+
     makeTable("7", "4", 420, 440, 52, 82),
 
     makeTable("6", "4", 525, 440, 52, 82),
@@ -250,13 +254,13 @@ export default function Home() {
 
         position: "absolute",
 
-        left: x,
+        left: snap(x),
 
-        top: y,
+        top: snap(y),
 
-        width: w,
+        width: snap(w),
 
-        height: h,
+        height: snap(h),
 
         background: "#111827",
 
@@ -350,9 +354,35 @@ export default function Home() {
 
           >
 
-            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
+            <div
 
-              PODIUM:<br />SEATER 1:<br />SEATER 2:<br />SEATER 3:
+              style={{
+
+                height: 110,
+
+                padding: 14,
+
+                fontWeight: "bold",
+
+                fontSize: 18,
+
+              }}
+
+            >
+
+              PODIUM:
+
+              <br />
+
+              SEATER 1:
+
+              <br />
+
+              SEATER 2:
+
+              <br />
+
+              SEATER 3:
 
             </div>
 
@@ -400,11 +430,23 @@ export default function Home() {
 
             >
 
-              GUEST NAME:<br /><br />
+              GUEST NAME:
 
-              ARRIVAL TIME:<br /><br />
+              <br />
 
-              GUESTS:<br /><br />
+              <br />
+
+              ARRIVAL TIME:
+
+              <br />
+
+              <br />
+
+              GUESTS:
+
+              <br />
+
+              <br />
 
               SERVER:
 
@@ -436,7 +478,25 @@ export default function Home() {
 
           >
 
-            <div style={{ background: "#111827", color: "white", textAlign: "center", padding: 8, fontSize: 20, fontWeight: "bold" }}>
+            <div
+
+              style={{
+
+                background: "#111827",
+
+                color: "white",
+
+                textAlign: "center",
+
+                padding: 8,
+
+                fontSize: 20,
+
+                fontWeight: "bold",
+
+              }}
+
+            >
 
               Casa 1884
 
@@ -444,11 +504,23 @@ export default function Home() {
 
             <div style={{ padding: 16, fontSize: 16 }}>
 
-              GUEST NAME:<br /><br />
+              GUEST NAME:
 
-              ARRIVAL TIME:<br /><br />
+              <br />
 
-              GUEST COUNT:<br /><br />
+              <br />
+
+              ARRIVAL TIME:
+
+              <br />
+
+              <br />
+
+              GUEST COUNT:
+
+              <br />
+
+              <br />
 
               SERVER:
 
@@ -456,25 +528,137 @@ export default function Home() {
 
           </div>
 
-          <div style={{ position: "absolute", left: 120, top: 405, fontSize: 25, fontStyle: "italic", fontWeight: "bold", zIndex: 2 }}>
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 120,
+
+              top: 405,
+
+              fontSize: 25,
+
+              fontStyle: "italic",
+
+              fontWeight: "bold",
+
+              zIndex: 2,
+
+            }}
+
+          >
 
             Take-Out
 
           </div>
 
-          <div style={{ position: "absolute", left: 310, top: 625, width: 335, height: 85, borderRadius: 20, border: "5px solid #64748b", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 36, fontWeight: "bold", zIndex: 2 }}>
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 310,
+
+              top: 625,
+
+              width: 335,
+
+              height: 85,
+
+              borderRadius: 20,
+
+              border: "5px solid #64748b",
+
+              background: "#dbeafe",
+
+              display: "flex",
+
+              alignItems: "center",
+
+              justifyContent: "center",
+
+              fontSize: 36,
+
+              fontWeight: "bold",
+
+              zIndex: 2,
+
+            }}
+
+          >
 
             BAR
 
           </div>
 
-          <div style={{ position: "absolute", left: 810, top: 600, width: 275, height: 48, background: "white", border: "3px solid #111827", textAlign: "center", paddingTop: 10, fontWeight: "bold", fontSize: 18, zIndex: 2 }}>
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 810,
+
+              top: 600,
+
+              width: 275,
+
+              height: 48,
+
+              background: "white",
+
+              border: "3px solid #111827",
+
+              textAlign: "center",
+
+              paddingTop: 10,
+
+              fontWeight: "bold",
+
+              fontSize: 18,
+
+              zIndex: 2,
+
+            }}
+
+          >
 
             Buffet
 
           </div>
 
-          <div style={{ position: "absolute", left: 835, top: 675, width: 220, height: 45, background: "#dbeafe", border: "1px solid #64748b", textAlign: "center", paddingTop: 10, fontSize: 13, zIndex: 2 }}>
+          <div
+
+            style={{
+
+              position: "absolute",
+
+              left: 835,
+
+              top: 675,
+
+              width: 220,
+
+              height: 45,
+
+              background: "#dbeafe",
+
+              border: "1px solid #64748b",
+
+              textAlign: "center",
+
+              paddingTop: 10,
+
+              fontSize: 13,
+
+              zIndex: 2,
+
+            }}
+
+          >
 
             Friday Lunch Buffet 11 - 2 pm
 
@@ -528,9 +712,13 @@ export default function Home() {
 
             >
 
-              {table.id}<br />
+              {table.id}
 
-              {table.seats}<br />
+              <br />
+
+              {table.seats}
+
+              <br />
 
               {table.status === "Boxed" ? "📦 Boxed" : table.status}
 
