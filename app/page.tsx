@@ -860,6 +860,48 @@ export default function Home() {
 
   const wall = (x: number, y: number, w: number, h: number) => (
 
+  const sectionBackground = (
+
+  x: number,
+
+  y: number,
+
+  w: number,
+
+  h: number,
+
+  color: string
+
+) => (
+
+  <div
+
+    style={{
+
+      position: "absolute",
+
+      left: x,
+
+      top: y,
+
+      width: w,
+
+      height: h,
+
+      background: color,
+
+      borderRadius: 12,
+
+      zIndex: 0,
+
+      pointerEvents: "none",
+
+    }}
+
+  />
+
+);
+  
     <div
 
       style={{
@@ -1214,6 +1256,18 @@ export default function Home() {
 
         >
 
+          {sectionBackground(20, 15, 1160, 95, "rgba(34,197,94,0.08)")}   // Patio
+
+          {sectionBackground(20, 120, 1180, 470, "rgba(59,130,246,0.06)")} // Main
+
+          {sectionBackground(250, 600, 520, 150, "rgba(14,165,233,0.08)")} // Bar
+
+          {sectionBackground(20, 760, 760, 270, "rgba(168,85,247,0.07)")} // Lounge
+
+          {sectionBackground(790, 760, 420, 270, "rgba(249,115,22,0.08)")} // Casa
+
+          {sectionBackground(1240, 120, 250, 520, "rgba(239,68,68,0.07)")} // San Miguel
+         
           {wall(0, 105, 1240, 6)}
 
           {wall(0, 360, 270, 7)}
