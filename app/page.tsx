@@ -32,6 +32,10 @@ type TableItem = {
 
   server?: string;
 
+  combinedId?: string;
+
+  combinedLabel?: string;
+
 };
 
 type WaitParty = {
@@ -52,13 +56,13 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
-const STORAGE_TABLES = "hostTables_v3";
+const STORAGE_TABLES = "hostTables_v4";
 
-const STORAGE_WAITLIST = "hostWaitlist_v3";
+const STORAGE_WAITLIST = "hostWaitlist_v4";
 
-const STORAGE_ROTATION = "hostRotation_v3";
+const STORAGE_ROTATION = "hostRotation_v4";
 
-const STORAGE_SERVERS = "hostServers_v3";
+const STORAGE_SERVERS = "hostServers_v4";
 
 const defaultServers: Record<Section, string[]> = {
 
@@ -312,6 +316,10 @@ export default function Home() {
 
   const [editMode, setEditMode] = useState(false);
 
+  const [combineMode, setCombineMode] = useState(false);
+
+  const [selectedCombineIds, setSelectedCombineIds] = useState<string[]>([]);
+
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   const [tables, setTables] = useState<TableItem[]>(defaultTables);
@@ -340,21 +348,85 @@ export default function Home() {
 
       ? tables
 
-          .filter((t) => t.status === "Open" && seatNumber(t.seats) >= selectedSize)
+          .filter((t) => t.status === "Open" && availableSeats(t, tables) >= selectedSize)
 
           .sort(
 
             (a, b) =>
 
-              seatNumber(a.seats) -
+              availableSeats(a, tables) -
 
               selectedSize -
 
-              (seatNumber(b.seats) - selectedSize)
+              (availableSeats(b, tables) - selectedSize)
 
           )[0]
 
       : undefined;
+
+  function availableSeats(table: TableItem, allTables: TableItem[]) {
+
+    if (!table.combinedId) return seatNumber(table.seats);
+
+    return allTables
+
+      .filter((t) => t.combinedId === table.combinedId)
+
+      .reduce((sum, t) => sum + seatNumber(t.seats), 0);
+
+  }
+
+  function estimatedWait(size: string) {
+
+    const party = parseInt(size, 10);
+
+    if (Number.isNaN(party)) return "~?";
+
+    const openFit = tables.some(
+
+      (t) => t.status === "Open" && availableSeats(t, tables) >= party
+
+    );
+
+    if (openFit) return "now";
+
+    const seatedFits = tables
+
+      .filter((t) => t.status === "Seated" && availableSeats(t, tables) >= party)
+
+      .map((t) => {
+
+        const minsSat = t.seatedAt
+
+          ? Math.floor((Date.now() - t.seatedAt) / 60000)
+
+          : 0;
+
+        return Math.max(10, 80 - minsSat);
+
+      });
+
+    if (seatedFits.length > 0) return `~${Math.min(...seatedFits)} min`;
+
+    const dirtyFit = tables.some(
+
+      (t) => t.status === "Dirty" && availableSeats(t, tables) >= party
+
+    );
+
+    if (dirtyFit) return "~10 min";
+
+    const boxedFit = tables.some(
+
+      (t) => t.status === "Boxed" && availableSeats(t, tables) >= party
+
+    );
+
+    if (boxedFit) return "~20 min";
+
+    return "no fit";
+
+  }
 
   useEffect(() => {
 
@@ -458,35 +530,55 @@ export default function Home() {
 
     if (editMode) return;
 
+    if (combineMode) {
+
+      const id = tables[index].id;
+
+      setSelectedCombineIds((prev) =>
+
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+
+      );
+
+      return;
+
+    }
+
     if (selectedParty && tables[index].status === "Open") {
 
       const server = getNextServer(tables[index].section);
 
+      const combinedId = tables[index].combinedId;
+
       setTables((prev) =>
 
-        prev.map((table, i) =>
+        prev.map((table, i) => {
 
-          i === index
+          const sameCombo = combinedId && table.combinedId === combinedId;
 
-            ? {
+          if (i === index || sameCombo) {
 
-                ...table,
+            return {
 
-                status: "Seated",
+              ...table,
 
-                guest: selectedParty.name,
+              status: "Seated",
 
-                partySize: selectedParty.size,
+              guest: selectedParty.name,
 
-                seatedAt: Date.now(),
+              partySize: selectedParty.size,
 
-                server,
+              seatedAt: Date.now(),
 
-              }
+              server,
 
-            : table
+            };
 
-        )
+          }
+
+          return table;
+
+        })
 
       );
 
@@ -518,7 +610,17 @@ export default function Home() {
 
           partySize: nextStatus === "Open" ? undefined : table.partySize,
 
-          server: nextStatus === "Seated" ? getNextServer(table.section) : nextStatus === "Open" ? undefined : table.server,
+          server:
+
+            nextStatus === "Seated"
+
+              ? getNextServer(table.section)
+
+              : nextStatus === "Open"
+
+              ? undefined
+
+              : table.server,
 
         };
 
@@ -566,25 +668,67 @@ export default function Home() {
 
   function clearTable(index: number) {
 
+    const combinedId = tables[index].combinedId;
+
     setTables((prev) =>
 
-      prev.map((table, i) =>
+      prev.map((table, i) => {
 
-        i === index
+        const sameCombo = combinedId && table.combinedId === combinedId;
+
+        if (i === index || sameCombo) {
+
+          return {
+
+            ...table,
+
+            status: "Open",
+
+            guest: undefined,
+
+            partySize: undefined,
+
+            seatedAt: undefined,
+
+            server: undefined,
+
+          };
+
+        }
+
+        return table;
+
+      })
+
+    );
+
+  }
+
+  function combineSelectedTables() {
+
+    if (selectedCombineIds.length < 2) return;
+
+    const comboId = `combo-${Date.now()}`;
+
+    const selectedTables = tables.filter((t) => selectedCombineIds.includes(t.id));
+
+    const totalSeats = selectedTables.reduce((sum, t) => sum + seatNumber(t.seats), 0);
+
+    const label = `${selectedCombineIds.join("+")} = ${totalSeats}`;
+
+    setTables((prev) =>
+
+      prev.map((table) =>
+
+        selectedCombineIds.includes(table.id)
 
           ? {
 
               ...table,
 
-              status: "Open",
+              combinedId: comboId,
 
-              guest: undefined,
-
-              partySize: undefined,
-
-              seatedAt: undefined,
-
-              server: undefined,
+              combinedLabel: label,
 
             }
 
@@ -593,6 +737,36 @@ export default function Home() {
       )
 
     );
+
+    setSelectedCombineIds([]);
+
+  }
+
+  function uncombineSelectedTables() {
+
+    setTables((prev) =>
+
+      prev.map((table) =>
+
+        selectedCombineIds.includes(table.id)
+
+          ? {
+
+              ...table,
+
+              combinedId: undefined,
+
+              combinedLabel: undefined,
+
+            }
+
+          : table
+
+      )
+
+    );
+
+    setSelectedCombineIds([]);
 
   }
 
@@ -661,6 +835,8 @@ export default function Home() {
     setServers(defaultServers);
 
     setSelectedPartyId(null);
+
+    setSelectedCombineIds([]);
 
   }
 
@@ -755,6 +931,62 @@ export default function Home() {
           {editMode ? "Editing ON" : "Service Mode"}
 
         </button>
+
+        <button
+
+          onClick={() => setCombineMode(!combineMode)}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: combineMode ? "#c4b5fd" : "white",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          {combineMode ? "Combining ON" : "Combine Tables"}
+
+        </button>
+
+        {combineMode && (
+
+          <>
+
+            <button onClick={combineSelectedTables} style={{ padding: "8px 12px" }}>
+
+              Combine Selected
+
+            </button>
+
+            <button onClick={uncombineSelectedTables} style={{ padding: "8px 12px" }}>
+
+              Uncombine Selected
+
+            </button>
+
+            <button
+
+              onClick={() => setSelectedCombineIds([])}
+
+              style={{ padding: "8px 12px" }}
+
+            >
+
+              Clear Selection
+
+            </button>
+
+          </>
+
+        )}
 
         <button
 
@@ -920,7 +1152,9 @@ export default function Home() {
 
             >
 
-              {party.name} - {party.size} ({minutesSince(party.createdAt)})
+              {party.name} - {party.size} ({minutesSince(party.createdAt)}) | Wait{" "}
+
+              {estimatedWait(party.size)}
 
             </button>
 
@@ -931,6 +1165,18 @@ export default function Home() {
         ))}
 
       </div>
+
+      {combineMode && (
+
+        <div style={{ marginBottom: 8, fontWeight: "bold" }}>
+
+          Selected to combine:{" "}
+
+          {selectedCombineIds.length > 0 ? selectedCombineIds.join(", ") : "none"}
+
+        </div>
+
+      )}
 
       <div style={{ width: "100%", overflowX: "auto" }}>
 
@@ -1016,33 +1262,13 @@ export default function Home() {
 
           >
 
-            <div
+            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
 
-              style={{
+              PODIUM:<br />
 
-                height: 110,
+              SEATER 1:<br />
 
-                padding: 14,
-
-                fontWeight: "bold",
-
-                fontSize: 18,
-
-              }}
-
-            >
-
-              PODIUM:
-
-              <br />
-
-              SEATER 1:
-
-              <br />
-
-              SEATER 2:
-
-              <br />
+              SEATER 2:<br />
 
               SEATER 3:
 
@@ -1092,23 +1318,11 @@ export default function Home() {
 
             >
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUESTS:
-
-              <br />
-
-              <br />
+              GUESTS:<br /><br />
 
               SERVER:
 
@@ -1166,23 +1380,11 @@ export default function Home() {
 
             <div style={{ padding: 16, fontSize: 16 }}>
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUEST COUNT:
-
-              <br />
-
-              <br />
+              GUEST COUNT:<br /><br />
 
               SERVER:
 
@@ -1334,9 +1536,11 @@ export default function Home() {
 
               table.status === "Open" &&
 
-              seatNumber(table.seats) >= selectedSize;
+              availableSeats(table, tables) >= selectedSize;
 
             const isBestTable = bestTable?.id === table.id;
+
+            const isSelectedForCombine = selectedCombineIds.includes(table.id);
 
             return (
 
@@ -1356,6 +1560,8 @@ export default function Home() {
 
                 onClick={() => updateTable(index)}
 
+                title={table.combinedLabel || ""}
+
                 style={{
 
                   position: "absolute",
@@ -1368,7 +1574,11 @@ export default function Home() {
 
                   height: table.h,
 
-                  background: fitsSelectedParty
+                  background: isSelectedForCombine
+
+                    ? "#ddd6fe"
+
+                    : fitsSelectedParty
 
                     ? isBestTable
 
@@ -1380,7 +1590,15 @@ export default function Home() {
 
                   border:
 
-                    table.status === "Boxed"
+                    isSelectedForCombine
+
+                      ? "4px solid #7c3aed"
+
+                      : table.combinedId
+
+                      ? "4px solid #a855f7"
+
+                      : table.status === "Boxed"
 
                       ? "4px solid #f59e0b"
 
@@ -1420,7 +1638,15 @@ export default function Home() {
 
                 <br />
 
-                {table.guest ? `${table.guest} ${table.partySize}` : table.seats}
+                {table.guest
+
+                  ? `${table.guest} ${table.partySize}`
+
+                  : table.combinedId
+
+                  ? `${availableSeats(table, tables)} seats`
+
+                  : table.seats}
 
                 <br />
 
@@ -1450,13 +1676,11 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Service Mode: tap table to cycle status. Select a waitlist guest, then tap
+        Combine Mode: select 2+ tables, then tap Combine Selected. Waitlist shows
 
-        an open table to seat them. Green tables fit the selected party. Dark green
+        estimated wait. Green tables fit selected party. Purple border = combined
 
-        border = best table. Dirty is red. Double tap table to clear. Editing ON:
-
-        drag tables.
+        tables.
 
       </p>
 
