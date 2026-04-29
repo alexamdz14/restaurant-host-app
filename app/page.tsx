@@ -20,6 +20,22 @@ type TableItem = {
 
   status: Status;
 
+  guest?: string;
+
+  partySize?: string;
+
+  seatedAt?: number;
+
+};
+
+type WaitParty = {
+
+  id: number;
+
+  name: string;
+
+  size: string;
+
 };
 
 const GRID = 5;
@@ -69,6 +85,20 @@ function statusColor(status: Status) {
   if (status === "Boxed") return "#fde68a";
 
   return "#e5e7eb";
+
+}
+
+function elapsed(seatedAt?: number) {
+
+  if (!seatedAt) return "";
+
+  const mins = Math.floor((Date.now() - seatedAt) / 60000);
+
+  const h = Math.floor(mins / 60);
+
+  const m = mins % 60;
+
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 
 }
 
@@ -228,11 +258,25 @@ export default function Home() {
 
   const [tables, setTables] = useState<TableItem[]>(defaultTables);
 
+  const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
+
+  const [guestName, setGuestName] = useState("");
+
+  const [partySize, setPartySize] = useState("");
+
+  const [selectedPartyId, setSelectedPartyId] = useState<number | null>(null);
+
+  const [, setTick] = useState(0);
+
   useEffect(() => {
 
-    const saved = localStorage.getItem("floorTables");
+    const savedTables = localStorage.getItem("floorTables");
 
-    if (saved) setTables(JSON.parse(saved));
+    const savedWaitlist = localStorage.getItem("waitlist");
+
+    if (savedTables) setTables(JSON.parse(savedTables));
+
+    if (savedWaitlist) setWaitlist(JSON.parse(savedWaitlist));
 
   }, []);
 
@@ -242,9 +286,117 @@ export default function Home() {
 
   }, [tables]);
 
+  useEffect(() => {
+
+    localStorage.setItem("waitlist", JSON.stringify(waitlist));
+
+  }, [waitlist]);
+
+  useEffect(() => {
+
+    const timer = setInterval(() => setTick((n) => n + 1), 60000);
+
+    return () => clearInterval(timer);
+
+  }, []);
+
   function updateTable(index: number) {
 
     if (editMode) return;
+
+    const selectedParty = waitlist.find((p) => p.id === selectedPartyId);
+
+    if (selectedParty && tables[index].status === "Open") {
+
+      setTables((prev) =>
+
+        prev.map((table, i) =>
+
+          i === index
+
+            ? {
+
+                ...table,
+
+                status: "Seated",
+
+                guest: selectedParty.name,
+
+                partySize: selectedParty.size,
+
+                seatedAt: Date.now(),
+
+              }
+
+            : table
+
+        )
+
+      );
+
+      setWaitlist((prev) => prev.filter((p) => p.id !== selectedPartyId));
+
+      setSelectedPartyId(null);
+
+      return;
+
+    }
+
+    setTables((prev) =>
+
+      prev.map((table, i) => {
+
+        if (i !== index) return table;
+
+        const nextStatus = cycle[(cycle.indexOf(table.status) + 1) % cycle.length];
+
+        return {
+
+          ...table,
+
+          status: nextStatus,
+
+          seatedAt: nextStatus === "Seated" ? Date.now() : undefined,
+
+          guest: nextStatus === "Seated" ? table.guest : undefined,
+
+          partySize: nextStatus === "Seated" ? table.partySize : undefined,
+
+        };
+
+      })
+
+    );
+
+  }
+
+  function addToWaitlist() {
+
+    if (!guestName.trim() || !partySize.trim()) return;
+
+    setWaitlist((prev) => [
+
+      ...prev,
+
+      {
+
+        id: Date.now(),
+
+        name: guestName.trim(),
+
+        size: partySize.trim(),
+
+      },
+
+    ]);
+
+    setGuestName("");
+
+    setPartySize("");
+
+  }
+
+  function clearTable(index: number) {
 
     setTables((prev) =>
 
@@ -256,7 +408,13 @@ export default function Home() {
 
               ...table,
 
-              status: cycle[(cycle.indexOf(table.status) + 1) % cycle.length],
+              status: "Open",
+
+              guest: undefined,
+
+              partySize: undefined,
+
+              seatedAt: undefined,
 
             }
 
@@ -356,6 +514,8 @@ export default function Home() {
 
           marginBottom: 8,
 
+          flexWrap: "wrap",
+
         }}
 
       >
@@ -382,7 +542,7 @@ export default function Home() {
 
         >
 
-          {editMode ? "Editing ON" : "Move Tables"}
+          {editMode ? "Editing ON" : "Service Mode"}
 
         </button>
 
@@ -415,6 +575,76 @@ export default function Home() {
           Reset Layout
 
         </button>
+
+        <input
+
+          value={guestName}
+
+          onChange={(e) => setGuestName(e.target.value)}
+
+          placeholder="Guest name"
+
+          style={{ padding: 8 }}
+
+        />
+
+        <input
+
+          value={partySize}
+
+          onChange={(e) => setPartySize(e.target.value)}
+
+          placeholder="#"
+
+          style={{ padding: 8, width: 55 }}
+
+        />
+
+        <button onClick={addToWaitlist} style={{ padding: "8px 12px" }}>
+
+          Add Wait
+
+        </button>
+
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+
+        {waitlist.map((party) => (
+
+          <button
+
+            key={party.id}
+
+            onClick={() => setSelectedPartyId(party.id)}
+
+            style={{
+
+              padding: "6px 10px",
+
+              borderRadius: 8,
+
+              border:
+
+                selectedPartyId === party.id
+
+                  ? "3px solid #f59e0b"
+
+                  : "2px solid #111827",
+
+              background: selectedPartyId === party.id ? "#fde68a" : "white",
+
+              fontWeight: "bold",
+
+            }}
+
+          >
+
+            {party.name} - {party.size}
+
+          </button>
+
+        ))}
 
       </div>
 
@@ -502,33 +732,13 @@ export default function Home() {
 
           >
 
-            <div
+            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
 
-              style={{
+              PODIUM:<br />
 
-                height: 110,
+              SEATER 1:<br />
 
-                padding: 14,
-
-                fontWeight: "bold",
-
-                fontSize: 18,
-
-              }}
-
-            >
-
-              PODIUM:
-
-              <br />
-
-              SEATER 1:
-
-              <br />
-
-              SEATER 2:
-
-              <br />
+              SEATER 2:<br />
 
               SEATER 3:
 
@@ -578,23 +788,11 @@ export default function Home() {
 
             >
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUESTS:
-
-              <br />
-
-              <br />
+              GUESTS:<br /><br />
 
               SERVER:
 
@@ -652,23 +850,11 @@ export default function Home() {
 
             <div style={{ padding: 16, fontSize: 16 }}>
 
-              GUEST NAME:
+              GUEST NAME:<br /><br />
 
-              <br />
+              ARRIVAL TIME:<br /><br />
 
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUEST COUNT:
-
-              <br />
-
-              <br />
+              GUEST COUNT:<br /><br />
 
               SERVER:
 
@@ -826,6 +1012,8 @@ export default function Home() {
 
               }}
 
+              onDoubleClick={() => clearTable(index)}
+
               onClick={() => updateTable(index)}
 
               style={{
@@ -880,11 +1068,11 @@ export default function Home() {
 
               <br />
 
-              {table.seats}
+              {table.guest ? `${table.guest} ${table.partySize}` : table.seats}
 
               <br />
 
-              {table.status === "Boxed" ? "📦 Boxed" : table.status}
+              {table.status === "Seated" ? elapsed(table.seatedAt) : table.status}
 
             </button>
 
@@ -896,9 +1084,7 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Tap table to cycle: Seated → Boxed 📦 → Dirty → Open. Turn on “Move Tables”
-
-        to drag tables.
+        Service Mode: tap table to cycle status. Select a waitlist guest, then tap an open table to seat them. Double tap a table to clear it. Editing ON: drag tables.
 
       </p>
 
