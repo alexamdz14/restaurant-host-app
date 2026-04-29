@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 type Status = "Open" | "Seated" | "Boxed" | "Dirty";
 
@@ -36,7 +36,7 @@ function statusColor(status: Status) {
 
   if (status === "Boxed") return "#fde68a";
 
-  if (status === "Dirty") return "#fca5a5"; // red
+  if (status === "Dirty") return "#f87171"; // stronger red
 
   return "#e5e7eb";
 
@@ -146,14 +146,6 @@ export default function Home() {
 
   }
 
-  function startDrag(i: number) {
-
-    if (!editMode) return;
-
-    setDragging(i);
-
-  }
-
   function drag(e: any) {
 
     if (dragging === null) return;
@@ -192,13 +184,7 @@ export default function Home() {
 
         onPointerUp={() => setDragging(null)}
 
-        style={{
-
-          width: "100%",
-
-          overflow: "auto",
-
-        }}
+        style={{ overflow: "auto" }}
 
       >
 
@@ -230,7 +216,7 @@ export default function Home() {
 
               key={t.id}
 
-              onPointerDown={() => startDrag(i)}
+              onPointerDown={() => setDragging(i)}
 
               onClick={() => updateTable(i)}
 
