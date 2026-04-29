@@ -46,6 +46,8 @@ type WaitParty = {
 
   size: string;
 
+  pager?: string;
+
   createdAt: number;
 
 };
@@ -56,13 +58,13 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
-const STORAGE_TABLES = "hostTables_v4";
+const STORAGE_TABLES = "hostTables_v5";
 
-const STORAGE_WAITLIST = "hostWaitlist_v4";
+const STORAGE_WAITLIST = "hostWaitlist_v5";
 
-const STORAGE_ROTATION = "hostRotation_v4";
+const STORAGE_ROTATION = "hostRotation_v5";
 
-const STORAGE_SERVERS = "hostServers_v4";
+const STORAGE_SERVERS = "hostServers_v5";
 
 const defaultServers: Record<Section, string[]> = {
 
@@ -161,6 +163,38 @@ function seatNumber(seats: string) {
   const n = parseInt(seats, 10);
 
   return Number.isNaN(n) ? 0 : n;
+
+}
+
+const serverColors = [
+
+  "#2563eb",
+
+  "#16a34a",
+
+  "#dc2626",
+
+  "#9333ea",
+
+  "#ea580c",
+
+  "#0891b2",
+
+];
+
+function getServerColor(server?: string) {
+
+  if (!server) return "#1e3a8a";
+
+  let hash = 0;
+
+  for (let i = 0; i < server.length; i++) {
+
+    hash = server.charCodeAt(i) + ((hash << 5) - hash);
+
+  }
+
+  return serverColors[Math.abs(hash) % serverColors.length];
 
 }
 
@@ -330,6 +364,8 @@ export default function Home() {
 
   const [partySize, setPartySize] = useState("");
 
+  const [pager, setPager] = useState("");
+
   const [selectedPartyId, setSelectedPartyId] = useState<number | null>(null);
 
   const [servers, setServers] = useState<Record<Section, string[]>>(defaultServers);
@@ -341,6 +377,18 @@ export default function Home() {
   const selectedParty = waitlist.find((p) => p.id === selectedPartyId);
 
   const selectedSize = selectedParty ? parseInt(selectedParty.size, 10) : 0;
+
+  function availableSeats(table: TableItem, allTables: TableItem[]) {
+
+    if (!table.combinedId) return seatNumber(table.seats);
+
+    return allTables
+
+      .filter((t) => t.combinedId === table.combinedId)
+
+      .reduce((sum, t) => sum + seatNumber(t.seats), 0);
+
+  }
 
   const bestTable =
 
@@ -363,18 +411,6 @@ export default function Home() {
           )[0]
 
       : undefined;
-
-  function availableSeats(table: TableItem, allTables: TableItem[]) {
-
-    if (!table.combinedId) return seatNumber(table.seats);
-
-    return allTables
-
-      .filter((t) => t.combinedId === table.combinedId)
-
-      .reduce((sum, t) => sum + seatNumber(t.seats), 0);
-
-  }
 
   function estimatedWait(size: string) {
 
@@ -646,6 +682,8 @@ export default function Home() {
 
         size: partySize.trim(),
 
+        pager: pager.trim(),
+
         createdAt: Date.now(),
 
       },
@@ -655,6 +693,8 @@ export default function Home() {
     setGuestName("");
 
     setPartySize("");
+
+    setPager("");
 
   }
 
@@ -838,6 +878,12 @@ export default function Home() {
 
     setSelectedCombineIds([]);
 
+    setGuestName("");
+
+    setPartySize("");
+
+    setPager("");
+
   }
 
   function updateServerList(section: Section, value: string) {
@@ -860,48 +906,6 @@ export default function Home() {
 
   const wall = (x: number, y: number, w: number, h: number) => (
 
-  const sectionBackground = (
-
-  x: number,
-
-  y: number,
-
-  w: number,
-
-  h: number,
-
-  color: string
-
-) => (
-
-  <div
-
-    style={{
-
-      position: "absolute",
-
-      left: x,
-
-      top: y,
-
-      width: w,
-
-      height: h,
-
-      background: color,
-
-      borderRadius: 12,
-
-      zIndex: 0,
-
-      pointerEvents: "none",
-
-    }}
-
-  />
-
-);
-  
     <div
 
       style={{
@@ -919,6 +923,48 @@ export default function Home() {
         background: "#111827",
 
         zIndex: 1,
+
+      }}
+
+    />
+
+  );
+
+  const sectionBackground = (
+
+    x: number,
+
+    y: number,
+
+    w: number,
+
+    h: number,
+
+    color: string
+
+  ) => (
+
+    <div
+
+      style={{
+
+        position: "absolute",
+
+        left: x,
+
+        top: y,
+
+        width: w,
+
+        height: h,
+
+        background: color,
+
+        borderRadius: 12,
+
+        zIndex: 0,
+
+        pointerEvents: "none",
 
       }}
 
@@ -1078,6 +1124,18 @@ export default function Home() {
 
         />
 
+        <input
+
+          value={pager}
+
+          onChange={(e) => setPager(e.target.value)}
+
+          placeholder="Pager"
+
+          style={{ padding: 8, width: 75 }}
+
+        />
+
         <button onClick={addToWaitlist} style={{ padding: "8px 12px" }}>
 
           Add Wait
@@ -1194,9 +1252,11 @@ export default function Home() {
 
             >
 
-              {party.name} - {party.size} ({minutesSince(party.createdAt)}) | Wait{" "}
+              {party.name} - {party.size}
 
-              {estimatedWait(party.size)}
+              {party.pager ? ` | Pager ${party.pager}` : ""} (
+
+              {minutesSince(party.createdAt)}) | Wait {estimatedWait(party.size)}
 
             </button>
 
@@ -1256,18 +1316,18 @@ export default function Home() {
 
         >
 
-          {sectionBackground(20, 15, 1160, 95, "rgba(34,197,94,0.08)")}   // Patio
+          {sectionBackground(20, 15, 1160, 95, "rgba(34,197,94,0.15)")}
 
-          {sectionBackground(20, 120, 1180, 470, "rgba(59,130,246,0.06)")} // Main
+          {sectionBackground(20, 120, 1180, 470, "rgba(59,130,246,0.12)")}
 
-          {sectionBackground(250, 600, 520, 150, "rgba(14,165,233,0.08)")} // Bar
+          {sectionBackground(250, 600, 520, 150, "rgba(14,165,233,0.15)")}
 
-          {sectionBackground(20, 760, 760, 270, "rgba(168,85,247,0.07)")} // Lounge
+          {sectionBackground(20, 760, 760, 270, "rgba(168,85,247,0.12)")}
 
-          {sectionBackground(790, 760, 420, 270, "rgba(249,115,22,0.08)")} // Casa
+          {sectionBackground(790, 760, 420, 270, "rgba(249,115,22,0.15)")}
 
-          {sectionBackground(1240, 120, 250, 520, "rgba(239,68,68,0.07)")} // San Miguel
-         
+          {sectionBackground(1240, 120, 250, 520, "rgba(239,68,68,0.12)")}
+
           {wall(0, 105, 1240, 6)}
 
           {wall(0, 360, 270, 7)}
@@ -1318,11 +1378,17 @@ export default function Home() {
 
             <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
 
-              PODIUM:<br />
+              PODIUM:
 
-              SEATER 1:<br />
+              <br />
 
-              SEATER 2:<br />
+              SEATER 1:
+
+              <br />
+
+              SEATER 2:
+
+              <br />
 
               SEATER 3:
 
@@ -1372,11 +1438,23 @@ export default function Home() {
 
             >
 
-              GUEST NAME:<br /><br />
+              GUEST NAME:
 
-              ARRIVAL TIME:<br /><br />
+              <br />
 
-              GUESTS:<br /><br />
+              <br />
+
+              ARRIVAL TIME:
+
+              <br />
+
+              <br />
+
+              GUESTS:
+
+              <br />
+
+              <br />
 
               SERVER:
 
@@ -1434,11 +1512,23 @@ export default function Home() {
 
             <div style={{ padding: 16, fontSize: 16 }}>
 
-              GUEST NAME:<br /><br />
+              GUEST NAME:
 
-              ARRIVAL TIME:<br /><br />
+              <br />
 
-              GUEST COUNT:<br /><br />
+              <br />
+
+              ARRIVAL TIME:
+
+              <br />
+
+              <br />
+
+              GUEST COUNT:
+
+              <br />
+
+              <br />
 
               SERVER:
 
@@ -1596,6 +1686,8 @@ export default function Home() {
 
             const isSelectedForCombine = selectedCombineIds.includes(table.id);
 
+            const serverColor = getServerColor(table.server);
+
             return (
 
               <button
@@ -1642,29 +1734,31 @@ export default function Home() {
 
                     : statusColor(table.status),
 
-                  border:
+                  border: isSelectedForCombine
 
-                    isSelectedForCombine
+                    ? "4px solid #7c3aed"
 
-                      ? "4px solid #7c3aed"
+                    : table.combinedId
 
-                      : table.combinedId
+                    ? "4px solid #a855f7"
 
-                      ? "4px solid #a855f7"
+                    : table.server
 
-                      : table.status === "Boxed"
+                    ? `4px solid ${serverColor}`
 
-                      ? "4px solid #f59e0b"
+                    : table.status === "Boxed"
 
-                      : isBestTable
+                    ? "4px solid #f59e0b"
 
-                      ? "4px solid #16a34a"
+                    : isBestTable
 
-                      : editMode
+                    ? "4px solid #16a34a"
 
-                      ? "3px dashed #111827"
+                    : editMode
 
-                      : "2px solid #1e3a8a",
+                    ? "3px dashed #111827"
+
+                    : "2px solid #1e3a8a",
 
                   borderRadius: 8,
 
@@ -1730,11 +1824,9 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Combine Mode: select 2+ tables, then tap Combine Selected. Waitlist shows
+        Waitlist includes pager numbers, but pagers are not attached to tables.
 
-        estimated wait. Green tables fit selected party. Purple border = combined
-
-        tables.
+        Server colors show on seated tables. Background colors show sections.
 
       </p>
 
