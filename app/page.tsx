@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-type Status = "Open" | "Seated" | "Boxed" | "Dirty";
+/* ---------------- TYPES ---------------- */
 
-type Section = "Main" | "Patio" | "Lounge" | "Casa" | "San Miguel";
+type Status = "Open" | "Seated" | "Boxed" | "Dirty";
 
 type TableItem = {
 
@@ -22,8 +22,6 @@ type TableItem = {
 
   status: Status;
 
-  section: Section;
-
   guest?: string;
 
   partySize?: string;
@@ -33,8 +31,6 @@ type TableItem = {
   server?: string;
 
   combinedId?: string;
-
-  combinedLabel?: string;
 
 };
 
@@ -52,17 +48,13 @@ type WaitParty = {
 
 };
 
+/* ---------------- HELPERS ---------------- */
+
 const GRID = 5;
 
 const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
-
-const STORAGE_TABLES = "hostTables_v6";
-
-const STORAGE_WAITLIST = "hostWaitlist_v6";
-
-const STORAGE_ASSIGNMENTS = "hostServerAssignments_v6";
 
 function makeTable(
 
@@ -76,9 +68,7 @@ function makeTable(
 
   w = 62,
 
-  h = 48,
-
-  section: Section = "Main"
+  h = 48
 
 ): TableItem {
 
@@ -92,13 +82,11 @@ function makeTable(
 
     y: snap(y),
 
-    w: snap(w),
+    w,
 
-    h: snap(h),
+    h,
 
     status: "Open",
-
-    section,
 
   };
 
@@ -128,13 +116,7 @@ function minutesSince(time?: number) {
 
 }
 
-function seatNumber(seats: string) {
-
-  const n = parseInt(seats, 10);
-
-  return Number.isNaN(n) ? 0 : n;
-
-}
+/* ---------------- SERVER COLORS ---------------- */
 
 const serverColors = [
 
@@ -152,15 +134,13 @@ const serverColors = [
 
 ];
 
-function getServerColor(server?: string) {
-
-  if (!server) return "#1e3a8a";
+function getServerColor(name: string) {
 
   let hash = 0;
 
-  for (let i = 0; i < server.length; i++) {
+  for (let i = 0; i < name.length; i++) {
 
-    hash = server.charCodeAt(i) + ((hash << 5) - hash);
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
 
   }
 
@@ -168,445 +148,111 @@ function getServerColor(server?: string) {
 
 }
 
+/* ---------------- DEFAULT TABLES ---------------- */
+
 const defaultTables: TableItem[] = [
 
-  makeTable("P1", "4", 55, 35, 55, 58, "Patio"),
+  makeTable("1","4",135,665),
 
-  makeTable("P2", "4", 145, 35, 55, 58, "Patio"),
+  makeTable("2","4",135,590),
 
-  makeTable("P3", "4", 380, 35, 55, 58, "Patio"),
+  makeTable("13","4",605,265),
 
-  makeTable("P4", "4", 470, 35, 55, 58, "Patio"),
+  makeTable("14","4",500,265),
 
-  makeTable("P5", "4", 665, 35, 55, 58, "Patio"),
+  makeTable("15","4",395,265),
 
-  makeTable("P6", "4", 755, 35, 55, 58, "Patio"),
+  makeTable("16","4",235,305),
 
-  makeTable("P7", "4", 965, 35, 55, 58, "Patio"),
+  makeTable("17","4",140,305),
 
-  makeTable("P8", "6", 1055, 35, 55, 58, "Patio"),
+  makeTable("18","5",45,305),
 
-  makeTable("19", "5", 38, 150, 58, 110),
+  makeTable("34","6",865,455),
 
-  makeTable("20", "4", 175, 145, 82, 42),
+  makeTable("35","6",960,455),
 
-  makeTable("21", "4", 275, 145, 82, 42),
-
-  makeTable("22", "4", 420, 135, 52, 84),
-
-  makeTable("23", "4", 495, 135, 52, 84),
-
-  makeTable("24", "4", 570, 135, 52, 84),
-
-  makeTable("26", "4", 760, 145, 82, 42),
-
-  makeTable("27", "4", 860, 145, 82, 42),
-
-  makeTable("28", "4", 960, 145, 82, 42),
-
-  makeTable("29", "4", 1060, 145, 82, 42),
-
-  makeTable("18", "5", 45, 305, 82, 42),
-
-  makeTable("17", "4", 140, 305, 82, 42),
-
-  makeTable("16", "4", 235, 305, 82, 42),
-
-  makeTable("15", "4", 395, 265, 82, 42),
-
-  makeTable("14", "4", 500, 265, 82, 42),
-
-  makeTable("13", "4", 605, 265, 82, 42),
-
-  makeTable("9", "4", 395, 365, 82, 42),
-
-  makeTable("10", "4", 500, 365, 82, 42),
-
-  makeTable("11", "4", 605, 365, 82, 42),
-
-  makeTable("12", "7", 720, 285, 60, 130),
-
-  makeTable("32", "4", 825, 250, 55, 92),
-
-  makeTable("33", "4", 825, 365, 55, 92),
-
-  makeTable("31", "5", 960, 350, 82, 48),
-
-  makeTable("30", "5", 1060, 350, 82, 48),
-
-  makeTable("38", "7", 1165, 245, 55, 105),
-
-  makeTable("37", "5", 1165, 445, 55, 90),
-
-  makeTable("7", "4", 420, 440, 52, 82),
-
-  makeTable("6", "4", 525, 440, 52, 82),
-
-  makeTable("3", "2", 380, 580, 62, 40),
-
-  makeTable("4", "2", 475, 580, 62, 40),
-
-  makeTable("5", "2", 570, 580, 62, 40),
-
-  makeTable("34", "6", 865, 455, 55, 88),
-
-  makeTable("35", "6", 960, 455, 55, 88),
-
-  makeTable("36", "6", 1055, 455, 55, 88),
-
-  makeTable("2", "4", 135, 590, 78, 42),
-
-  makeTable("1", "4", 135, 665, 78, 42),
-
-  makeTable("DL4", "4", 45, 775, 75, 42, "Lounge"),
-
-  makeTable("DL3", "4", 45, 860, 75, 42, "Lounge"),
-
-  makeTable("DL2", "4", 45, 945, 75, 42, "Lounge"),
-
-  makeTable("DL1", "4", 145, 940, 70, 58, "Lounge"),
-
-  makeTable("L10", "6", 250, 815, 92, 42, "Lounge"),
-
-  makeTable("L9", "2", 250, 885, 58, 42, "Lounge"),
-
-  makeTable("L1", "4", 390, 775, 78, 42, "Lounge"),
-
-  makeTable("L2", "4", 490, 775, 78, 42, "Lounge"),
-
-  makeTable("L3", "4", 590, 775, 78, 42, "Lounge"),
-
-  makeTable("L4", "6", 670, 860, 75, 42, "Lounge"),
-
-  makeTable("L11", "Couch", 435, 855, 58, 46, "Lounge"),
-
-  makeTable("L12", "Couch", 520, 855, 58, 46, "Lounge"),
-
-  makeTable("L8", "4", 385, 930, 52, 75, "Lounge"),
-
-  makeTable("L7", "4", 475, 930, 52, 75, "Lounge"),
-
-  makeTable("L6", "4", 565, 930, 52, 75, "Lounge"),
-
-  makeTable("L5", "8", 670, 930, 82, 70, "Lounge"),
-
-  makeTable("Casa 8", "4", 840, 790, 55, 82, "Casa"),
-
-  makeTable("Casa 1", "4", 955, 790, 55, 82, "Casa"),
-
-  makeTable("Casa 2", "4", 1070, 790, 55, 82, "Casa"),
-
-  makeTable("Casa 7", "4", 800, 885, 80, 42, "Casa"),
-
-  makeTable("Casa 9", "4", 910, 885, 80, 42, "Casa"),
-
-  makeTable("Casa 10", "4", 1020, 885, 80, 42, "Casa"),
-
-  makeTable("Casa 3", "4", 1110, 885, 65, 42, "Casa"),
-
-  makeTable("Casa 6", "4", 850, 960, 60, 42, "Casa"),
-
-  makeTable("Casa 5", "4", 960, 960, 60, 42, "Casa"),
-
-  makeTable("Casa 4", "4", 1070, 960, 60, 42, "Casa"),
-
-  makeTable("San Miguel 1", "12", 1310, 410, 145, 60, "San Miguel"),
-
-  makeTable("San Miguel 2", "12", 1310, 510, 145, 60, "San Miguel"),
+  makeTable("36","6",1055,455),
 
 ];
 
+/* ---------------- MAIN ---------------- */
+
 export default function Home() {
-
-  const [editMode, setEditMode] = useState(false);
-
-  const [combineMode, setCombineMode] = useState(false);
-
-  const [selectedCombineIds, setSelectedCombineIds] = useState<string[]>([]);
-
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   const [tables, setTables] = useState<TableItem[]>(defaultTables);
 
+  const [editMode, setEditMode] = useState(false);
+
+  const [dragging, setDragging] = useState<number | null>(null);
+
   const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
 
-  const [guestName, setGuestName] = useState("");
+  const [guest, setGuest] = useState("");
 
-  const [partySize, setPartySize] = useState("");
+  const [size, setSize] = useState("");
 
   const [pager, setPager] = useState("");
 
-  const [selectedPartyId, setSelectedPartyId] = useState<number | null>(null);
+  /* NEW */
 
-  const [serverAssignments, setServerAssignments] = useState(
+  const [serverAssignments, setServerAssignments] = useState("");
 
-    "Maria: 1,2,3\nJose: 20,21,22"
+  const [hostInfo, setHostInfo] = useState("");
 
-  );
+  const [takeout, setTakeout] = useState("");
 
-  const [, setTick] = useState(0);
+  const [casaInfo, setCasaInfo] = useState("");
 
-  function assignedServerForTable(tableId: string) {
+  const [sanMiguelInfo, setSanMiguelInfo] = useState("");
 
-    const lines = serverAssignments.split("\n");
+  /* -------- SERVER PARSER -------- */
 
-    for (const line of lines) {
+  function parseAssignments() {
 
-      const [serverName, tableList] = line.split(":");
+    const map: Record<string, string> = {};
 
-      if (!serverName || !tableList) continue;
+    serverAssignments.split("\n").forEach(line => {
 
-      const ids = tableList.split(",").map((id) => id.trim());
+      const [name, tables] = line.split(":");
 
-      if (ids.includes(tableId)) return serverName.trim();
+      if (!name || !tables) return;
 
-    }
+      tables.split(",").forEach(t => {
 
-    return "";
-
-  }
-
-  const selectedParty = waitlist.find((p) => p.id === selectedPartyId);
-
-  const selectedSize = selectedParty ? parseInt(selectedParty.size, 10) : 0;
-
-  function availableSeats(table: TableItem, allTables: TableItem[]) {
-
-    if (!table.combinedId) return seatNumber(table.seats);
-
-    return allTables
-
-      .filter((t) => t.combinedId === table.combinedId)
-
-      .reduce((sum, t) => sum + seatNumber(t.seats), 0);
-
-  }
-
-  const bestTable =
-
-    selectedParty && !Number.isNaN(selectedSize)
-
-      ? tables
-
-          .filter((t) => t.status === "Open" && availableSeats(t, tables) >= selectedSize)
-
-          .sort(
-
-            (a, b) =>
-
-              availableSeats(a, tables) -
-
-              selectedSize -
-
-              (availableSeats(b, tables) - selectedSize)
-
-          )[0]
-
-      : undefined;
-
-  function estimatedWait(size: string) {
-
-    const party = parseInt(size, 10);
-
-    if (Number.isNaN(party)) return "~?";
-
-    const openFit = tables.some(
-
-      (t) => t.status === "Open" && availableSeats(t, tables) >= party
-
-    );
-
-    if (openFit) return "now";
-
-    const seatedFits = tables
-
-      .filter((t) => t.status === "Seated" && availableSeats(t, tables) >= party)
-
-      .map((t) => {
-
-        const minsSat = t.seatedAt
-
-          ? Math.floor((Date.now() - t.seatedAt) / 60000)
-
-          : 0;
-
-        return Math.max(10, 80 - minsSat);
+        map[t.trim()] = name.trim();
 
       });
 
-    if (seatedFits.length > 0) return `~${Math.min(...seatedFits)} min`;
+    });
 
-    const dirtyFit = tables.some(
-
-      (t) => t.status === "Dirty" && availableSeats(t, tables) >= party
-
-    );
-
-    if (dirtyFit) return "~10 min";
-
-    const boxedFit = tables.some(
-
-      (t) => t.status === "Boxed" && availableSeats(t, tables) >= party
-
-    );
-
-    if (boxedFit) return "~20 min";
-
-    return "no fit";
+    return map;
 
   }
 
-  useEffect(() => {
+  const serverMap = parseAssignments();
 
-    try {
+  /* -------- TABLE CLICK -------- */
 
-      const savedTables = localStorage.getItem(STORAGE_TABLES);
-
-      const savedWaitlist = localStorage.getItem(STORAGE_WAITLIST);
-
-      const savedAssignments = localStorage.getItem(STORAGE_ASSIGNMENTS);
-
-      if (savedTables) {
-
-        const parsed = JSON.parse(savedTables);
-
-        if (Array.isArray(parsed) && parsed.length === defaultTables.length) {
-
-          setTables(parsed);
-
-        }
-
-      }
-
-      if (savedWaitlist) setWaitlist(JSON.parse(savedWaitlist));
-
-      if (savedAssignments) setServerAssignments(savedAssignments);
-
-    } catch {
-
-      localStorage.removeItem(STORAGE_TABLES);
-
-      localStorage.removeItem(STORAGE_WAITLIST);
-
-      localStorage.removeItem(STORAGE_ASSIGNMENTS);
-
-    }
-
-  }, []);
-
-  useEffect(() => {
-
-    localStorage.setItem(STORAGE_TABLES, JSON.stringify(tables));
-
-  }, [tables]);
-
-  useEffect(() => {
-
-    localStorage.setItem(STORAGE_WAITLIST, JSON.stringify(waitlist));
-
-  }, [waitlist]);
-
-  useEffect(() => {
-
-    localStorage.setItem(STORAGE_ASSIGNMENTS, serverAssignments);
-
-  }, [serverAssignments]);
-
-  useEffect(() => {
-
-    const timer = setInterval(() => setTick((n) => n + 1), 60000);
-
-    return () => clearInterval(timer);
-
-  }, []);
-
-  function updateTable(index: number) {
+  function updateTable(i: number) {
 
     if (editMode) return;
 
-    if (combineMode) {
+    setTables(prev =>
 
-      const id = tables[index].id;
+      prev.map((t, idx) => {
 
-      setSelectedCombineIds((prev) =>
+        if (idx !== i) return t;
 
-        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-
-      );
-
-      return;
-
-    }
-
-    if (selectedParty && tables[index].status === "Open") {
-
-      const server = assignedServerForTable(tables[index].id);
-
-      const combinedId = tables[index].combinedId;
-
-      setTables((prev) =>
-
-        prev.map((table, i) => {
-
-          const sameCombo = combinedId && table.combinedId === combinedId;
-
-          if (i === index || sameCombo) {
-
-            return {
-
-              ...table,
-
-              status: "Seated",
-
-              guest: selectedParty.name,
-
-              partySize: selectedParty.size,
-
-              seatedAt: Date.now(),
-
-              server,
-
-            };
-
-          }
-
-          return table;
-
-        })
-
-      );
-
-      setWaitlist((prev) => prev.filter((p) => p.id !== selectedPartyId));
-
-      setSelectedPartyId(null);
-
-      return;
-
-    }
-
-    setTables((prev) =>
-
-      prev.map((table, i) => {
-
-        if (i !== index) return table;
-
-        const nextStatus = cycle[(cycle.indexOf(table.status) + 1) % cycle.length];
-
-        const server = assignedServerForTable(table.id);
+        const next = cycle[(cycle.indexOf(t.status)+1)%cycle.length];
 
         return {
 
-          ...table,
+          ...t,
 
-          status: nextStatus,
+          status: next,
 
-          seatedAt: nextStatus === "Seated" ? Date.now() : undefined,
-
-          guest: nextStatus === "Open" ? undefined : table.guest,
-
-          partySize: nextStatus === "Open" ? undefined : table.partySize,
-
-          server: nextStatus === "Open" ? undefined : server || table.server,
+          seatedAt: next === "Seated" ? Date.now() : undefined
 
         };
 
@@ -616,1161 +262,179 @@ export default function Home() {
 
   }
 
-  function addToWaitlist() {
+  /* -------- DRAG -------- */
 
-    if (!guestName.trim() || !partySize.trim()) return;
+  function drag(e:any) {
 
-    setWaitlist((prev) => [
+    if (!editMode || dragging === null) return;
 
-      ...prev,
+    const rect = e.currentTarget.getBoundingClientRect();
 
-      {
+    const x = snap(e.clientX - rect.left);
 
-        id: Date.now(),
+    const y = snap(e.clientY - rect.top);
 
-        name: guestName.trim(),
+    setTables(prev =>
 
-        size: partySize.trim(),
-
-        pager: pager.trim(),
-
-        createdAt: Date.now(),
-
-      },
-
-    ]);
-
-    setGuestName("");
-
-    setPartySize("");
-
-    setPager("");
-
-  }
-
-  function removeFromWaitlist(id: number) {
-
-    setWaitlist((prev) => prev.filter((p) => p.id !== id));
-
-    if (selectedPartyId === id) setSelectedPartyId(null);
-
-  }
-
-  function clearTable(index: number) {
-
-    const combinedId = tables[index].combinedId;
-
-    setTables((prev) =>
-
-      prev.map((table, i) => {
-
-        const sameCombo = combinedId && table.combinedId === combinedId;
-
-        if (i === index || sameCombo) {
-
-          return {
-
-            ...table,
-
-            status: "Open",
-
-            guest: undefined,
-
-            partySize: undefined,
-
-            seatedAt: undefined,
-
-            server: undefined,
-
-          };
-
-        }
-
-        return table;
-
-      })
+      prev.map((t,i)=> i===dragging ? {...t,x,y}:t)
 
     );
 
   }
 
-  function combineSelectedTables() {
+  /* -------- WAITLIST -------- */
 
-    if (selectedCombineIds.length < 2) return;
+  function addWait() {
 
-    const comboId = `combo-${Date.now()}`;
+    if (!guest || !size) return;
 
-    const selectedTables = tables.filter((t) => selectedCombineIds.includes(t.id));
+    setWaitlist(p => [...p,{
 
-    const totalSeats = selectedTables.reduce((sum, t) => sum + seatNumber(t.seats), 0);
+      id: Date.now(),
 
-    const label = `${selectedCombineIds.join("+")} = ${totalSeats}`;
+      name: guest,
 
-    setTables((prev) =>
+      size,
 
-      prev.map((table) =>
+      pager,
 
-        selectedCombineIds.includes(table.id)
+      createdAt: Date.now()
 
-          ? {
+    }]);
 
-              ...table,
-
-              combinedId: comboId,
-
-              combinedLabel: label,
-
-            }
-
-          : table
-
-      )
-
-    );
-
-    setSelectedCombineIds([]);
+    setGuest(""); setSize(""); setPager("");
 
   }
 
-  function uncombineSelectedTables() {
-
-    setTables((prev) =>
-
-      prev.map((table) =>
-
-        selectedCombineIds.includes(table.id)
-
-          ? {
-
-              ...table,
-
-              combinedId: undefined,
-
-              combinedLabel: undefined,
-
-            }
-
-          : table
-
-      )
-
-    );
-
-    setSelectedCombineIds([]);
-
-  }
-
-  function startDrag(index: number) {
-
-    if (!editMode) return;
-
-    setDraggingIndex(index);
-
-  }
-
-  function dragTable(e: React.PointerEvent<HTMLDivElement>) {
-
-    if (!editMode || draggingIndex === null) return;
-
-    const map = e.currentTarget.getBoundingClientRect();
-
-    const scale = map.width / 1500;
-
-    const x = snap(
-
-      (e.clientX - map.left) / scale - tables[draggingIndex].w / 2
-
-    );
-
-    const y = snap(
-
-      (e.clientY - map.top) / scale - tables[draggingIndex].h / 2
-
-    );
-
-    setTables((prev) =>
-
-      prev.map((table, i) =>
-
-        i === draggingIndex ? { ...table, x, y } : table
-
-      )
-
-    );
-
-  }
-
-  function stopDrag() {
-
-    setDraggingIndex(null);
-
-  }
-
-  function resetAll() {
-
-    localStorage.removeItem(STORAGE_TABLES);
-
-    localStorage.removeItem(STORAGE_WAITLIST);
-
-    localStorage.removeItem(STORAGE_ASSIGNMENTS);
-
-    setTables(defaultTables);
-
-    setWaitlist([]);
-
-    setSelectedPartyId(null);
-
-    setSelectedCombineIds([]);
-
-    setGuestName("");
-
-    setPartySize("");
-
-    setPager("");
-
-    setServerAssignments("Maria: 1,2,3\nJose: 20,21,22");
-
-  }
-
-  const wall = (x: number, y: number, w: number, h: number) => (
-
-    <div
-
-      style={{
-
-        position: "absolute",
-
-        left: snap(x),
-
-        top: snap(y),
-
-        width: snap(w),
-
-        height: snap(h),
-
-        background: "#111827",
-
-        zIndex: 1,
-
-      }}
-
-    />
-
-  );
-
-  const sectionBackground = (
-
-    x: number,
-
-    y: number,
-
-    w: number,
-
-    h: number,
-
-    color: string
-
-  ) => (
-
-    <div
-
-      style={{
-
-        position: "absolute",
-
-        left: x,
-
-        top: y,
-
-        width: w,
-
-        height: h,
-
-        background: color,
-
-        borderRadius: 12,
-
-        zIndex: 0,
-
-        pointerEvents: "none",
-
-      }}
-
-    />
-
-  );
+  /* ---------------- UI ---------------- */
 
   return (
 
-    <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
+    <main style={{padding:10}}>
+
+      <h1>Host Map</h1>
+
+      {/* CONTROLS */}
+
+      <button onClick={()=>setEditMode(!editMode)}>
+
+        {editMode ? "Editing" : "Service"}
+
+      </button>
+
+      <h3>Server Assignments</h3>
+
+      <textarea
+
+        value={serverAssignments}
+
+        onChange={(e)=>setServerAssignments(e.target.value)}
+
+        placeholder={`Maria: 1,2,3\nJohn: 13,14`}
+
+        style={{width:300,height:100}}
+
+      />
+
+      <h3>Host / Podium</h3>
+
+      <input value={hostInfo} onChange={e=>setHostInfo(e.target.value)} />
+
+      <h3>Takeout</h3>
+
+      <input value={takeout} onChange={e=>setTakeout(e.target.value)} />
+
+      <h3>Casa</h3>
+
+      <input value={casaInfo} onChange={e=>setCasaInfo(e.target.value)} />
+
+      <h3>San Miguel</h3>
+
+      <input value={sanMiguelInfo} onChange={e=>setSanMiguelInfo(e.target.value)} />
+
+      <h3>Waitlist</h3>
+
+      <input placeholder="Name" value={guest} onChange={e=>setGuest(e.target.value)} />
+
+      <input placeholder="#" value={size} onChange={e=>setSize(e.target.value)} />
+
+      <input placeholder="Pager" value={pager} onChange={e=>setPager(e.target.value)} />
+
+      <button onClick={addWait}>Add</button>
+
+      {/* MAP */}
 
       <div
 
-        style={{
+        onPointerMove={drag}
 
-          display: "flex",
+        onPointerUp={()=>setDragging(null)}
 
-          alignItems: "center",
-
-          gap: 8,
-
-          marginBottom: 8,
-
-          flexWrap: "wrap",
-
-        }}
+        style={{position:"relative",width:1200,height:700,border:"3px solid black"}}
 
       >
 
-        <h1 style={{ margin: 0, fontSize: 34 }}>Host Map</h1>
+        {tables.map((t,i)=>{
 
-        <button
+          const server = serverMap[t.id];
 
-          onClick={() => setEditMode(!editMode)}
+          const color = server ? getServerColor(server) : "#1e3a8a";
 
-          style={{
-
-            padding: "8px 12px",
-
-            borderRadius: 8,
-
-            border: "2px solid #111827",
-
-            background: editMode ? "#fde68a" : "white",
-
-            fontWeight: "bold",
-
-          }}
-
-        >
-
-          {editMode ? "Editing ON" : "Service Mode"}
-
-        </button>
-
-        <button
-
-          onClick={() => setCombineMode(!combineMode)}
-
-          style={{
-
-            padding: "8px 12px",
-
-            borderRadius: 8,
-
-            border: "2px solid #111827",
-
-            background: combineMode ? "#c4b5fd" : "white",
-
-            fontWeight: "bold",
-
-          }}
-
-        >
-
-          {combineMode ? "Combining ON" : "Combine Tables"}
-
-        </button>
-
-        {combineMode && (
-
-          <>
-
-            <button onClick={combineSelectedTables} style={{ padding: "8px 12px" }}>
-
-              Combine Selected
-
-            </button>
-
-            <button onClick={uncombineSelectedTables} style={{ padding: "8px 12px" }}>
-
-              Uncombine Selected
-
-            </button>
+          return (
 
             <button
 
-              onClick={() => setSelectedCombineIds([])}
+              key={t.id}
 
-              style={{ padding: "8px 12px" }}
+              onPointerDown={()=>setDragging(i)}
+
+              onClick={()=>updateTable(i)}
+
+              style={{
+
+                position:"absolute",
+
+                left:t.x,
+
+                top:t.y,
+
+                width:t.w,
+
+                height:t.h,
+
+                background: statusColor(t.status),
+
+                border:`4px solid ${color}`
+
+              }}
 
             >
 
-              Clear Selection
+              {t.id}<br/>
+
+              {server && server}<br/>
+
+              {t.status}
 
             </button>
 
-          </>
+          );
 
-        )}
-
-        <button
-
-          onClick={resetAll}
-
-          style={{
-
-            padding: "8px 12px",
-
-            borderRadius: 8,
-
-            border: "2px solid #111827",
-
-            background: "#fee2e2",
-
-            fontWeight: "bold",
-
-          }}
-
-        >
-
-          Reset All
-
-        </button>
-
-        <input
-
-          value={guestName}
-
-          onChange={(e) => setGuestName(e.target.value)}
-
-          placeholder="Guest name"
-
-          style={{ padding: 8 }}
-
-        />
-
-        <input
-
-          value={partySize}
-
-          onChange={(e) => setPartySize(e.target.value)}
-
-          placeholder="#"
-
-          style={{ padding: 8, width: 55 }}
-
-        />
-
-        <input
-
-          value={pager}
-
-          onChange={(e) => setPager(e.target.value)}
-
-          placeholder="Pager"
-
-          style={{ padding: 8, width: 75 }}
-
-        />
-
-        <button onClick={addToWaitlist} style={{ padding: "8px 12px" }}>
-
-          Add Wait
-
-        </button>
+        })}
 
       </div>
 
-      <div style={{ marginBottom: 8 }}>
+      <div style={{marginTop:10}}>
 
-        <div style={{ fontWeight: "bold", marginBottom: 4 }}>
+        <b>Host:</b> {hostInfo}<br/>
 
-          Server table assignments:
+        <b>Takeout:</b> {takeout}<br/>
 
-        </div>
+        <b>Casa:</b> {casaInfo}<br/>
 
-        <textarea
-
-          value={serverAssignments}
-
-          onChange={(e) => setServerAssignments(e.target.value)}
-
-          placeholder={`Maria: 1,2,3\nJose: 20,21,22\nAna: Casa 1,Casa 2`}
-
-          style={{
-
-            width: 420,
-
-            height: 80,
-
-            padding: 8,
-
-            border: "2px solid #111827",
-
-            borderRadius: 8,
-
-            fontFamily: "Arial",
-
-          }}
-
-        />
+        <b>San Miguel:</b> {sanMiguelInfo}
 
       </div>
-
-      {selectedParty && (
-
-        <div
-
-          style={{
-
-            marginBottom: 8,
-
-            padding: 8,
-
-            background: "#fde68a",
-
-            border: "2px solid #111827",
-
-            borderRadius: 8,
-
-            fontWeight: "bold",
-
-            display: "inline-block",
-
-          }}
-
-        >
-
-          Selected: {selectedParty.name} - {selectedParty.size}
-
-          {bestTable ? ` | Best table: ${bestTable.id}` : " | No open table fits"}
-
-        </div>
-
-      )}
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-
-        {waitlist.map((party) => (
-
-          <div
-
-            key={party.id}
-
-            style={{
-
-              display: "flex",
-
-              gap: 4,
-
-              alignItems: "center",
-
-              padding: 6,
-
-              borderRadius: 8,
-
-              border:
-
-                selectedPartyId === party.id
-
-                  ? "3px solid #f59e0b"
-
-                  : "2px solid #111827",
-
-              background: selectedPartyId === party.id ? "#fde68a" : "white",
-
-              fontWeight: "bold",
-
-            }}
-
-          >
-
-            <button
-
-              onClick={() => setSelectedPartyId(party.id)}
-
-              style={{
-
-                border: "none",
-
-                background: "transparent",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              {party.name} - {party.size}
-
-              {party.pager ? ` | Pager ${party.pager}` : ""} (
-
-              {minutesSince(party.createdAt)}) | Wait {estimatedWait(party.size)}
-
-            </button>
-
-            <button onClick={() => removeFromWaitlist(party.id)}>X</button>
-
-          </div>
-
-        ))}
-
-      </div>
-
-      {combineMode && (
-
-        <div style={{ marginBottom: 8, fontWeight: "bold" }}>
-
-          Selected to combine:{" "}
-
-          {selectedCombineIds.length > 0 ? selectedCombineIds.join(", ") : "none"}
-
-        </div>
-
-      )}
-
-      <div style={{ width: "100%", overflowX: "auto" }}>
-
-        <div
-
-          onPointerMove={dragTable}
-
-          onPointerUp={stopDrag}
-
-          onPointerCancel={stopDrag}
-
-          style={{
-
-            position: "relative",
-
-            width: 1500,
-
-            height: 1040,
-
-            background: "#fbfaf5",
-
-            border: "4px solid #111827",
-
-            overflow: "hidden",
-
-            transform: "scale(0.74)",
-
-            transformOrigin: "top left",
-
-            marginBottom: -270,
-
-            touchAction: editMode ? "none" : "auto",
-
-          }}
-
-        >
-
-          {sectionBackground(20, 15, 1160, 95, "rgba(34,197,94,0.15)")}
-
-          {sectionBackground(20, 120, 1180, 470, "rgba(59,130,246,0.12)")}
-
-          {sectionBackground(250, 600, 520, 150, "rgba(14,165,233,0.15)")}
-
-          {sectionBackground(20, 760, 760, 270, "rgba(168,85,247,0.12)")}
-
-          {sectionBackground(790, 760, 420, 270, "rgba(249,115,22,0.15)")}
-
-          {sectionBackground(1240, 120, 250, 520, "rgba(239,68,68,0.12)")}
-
-          {wall(0, 105, 1240, 6)}
-
-          {wall(0, 360, 270, 7)}
-
-          {wall(380, 325, 320, 7)}
-
-          {wall(380, 540, 290, 7)}
-
-          {wall(0, 560, 250, 8)}
-
-          {wall(300, 755, 460, 8)}
-
-          {wall(780, 755, 430, 8)}
-
-          {wall(220, 815, 8, 225)}
-
-          {wall(760, 755, 8, 285)}
-
-          {wall(1210, 755, 8, 285)}
-
-          {wall(800, 575, 360, 8)}
-
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 1240,
-
-              top: 0,
-
-              width: 260,
-
-              height: 650,
-
-              borderLeft: "5px solid #111827",
-
-              borderBottom: "5px solid #111827",
-
-              background: "#fffdf7",
-
-              zIndex: 2,
-
-            }}
-
-          >
-
-            <div style={{ height: 110, padding: 14, fontWeight: "bold", fontSize: 18 }}>
-
-              PODIUM:
-
-              <br />
-
-              SEATER 1:
-
-              <br />
-
-              SEATER 2:
-
-              <br />
-
-              SEATER 3:
-
-            </div>
-
-            <div
-
-              style={{
-
-                background: "#111827",
-
-                color: "white",
-
-                textAlign: "center",
-
-                padding: 8,
-
-                fontSize: 22,
-
-                fontWeight: "bold",
-
-                margin: "0 20px",
-
-              }}
-
-            >
-
-              San Miguel
-
-            </div>
-
-            <div
-
-              style={{
-
-                margin: "14px 22px",
-
-                padding: 12,
-
-                height: 165,
-
-                border: "3px solid #111827",
-
-                fontSize: 15,
-
-              }}
-
-            >
-
-              GUEST NAME:
-
-              <br />
-
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUESTS:
-
-              <br />
-
-              <br />
-
-              SERVER:
-
-            </div>
-
-          </div>
-
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 1225,
-
-              top: 735,
-
-              width: 255,
-
-              height: 290,
-
-              border: "4px solid #111827",
-
-              background: "#fffdf7",
-
-              zIndex: 2,
-
-            }}
-
-          >
-
-            <div
-
-              style={{
-
-                background: "#111827",
-
-                color: "white",
-
-                textAlign: "center",
-
-                padding: 8,
-
-                fontSize: 20,
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Casa 1884
-
-            </div>
-
-            <div style={{ padding: 16, fontSize: 16 }}>
-
-              GUEST NAME:
-
-              <br />
-
-              <br />
-
-              ARRIVAL TIME:
-
-              <br />
-
-              <br />
-
-              GUEST COUNT:
-
-              <br />
-
-              <br />
-
-              SERVER:
-
-            </div>
-
-          </div>
-
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 120,
-
-              top: 405,
-
-              fontSize: 25,
-
-              fontStyle: "italic",
-
-              fontWeight: "bold",
-
-              zIndex: 2,
-
-            }}
-
-          >
-
-            Take-Out
-
-          </div>
-
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 310,
-
-              top: 625,
-
-              width: 335,
-
-              height: 85,
-
-              borderRadius: 20,
-
-              border: "5px solid #64748b",
-
-              background: "#dbeafe",
-
-              display: "flex",
-
-              alignItems: "center",
-
-              justifyContent: "center",
-
-              fontSize: 36,
-
-              fontWeight: "bold",
-
-              zIndex: 2,
-
-            }}
-
-          >
-
-            BAR
-
-          </div>
-
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 810,
-
-              top: 600,
-
-              width: 275,
-
-              height: 48,
-
-              background: "white",
-
-              border: "3px solid #111827",
-
-              textAlign: "center",
-
-              paddingTop: 10,
-
-              fontWeight: "bold",
-
-              fontSize: 18,
-
-              zIndex: 2,
-
-            }}
-
-          >
-
-            Buffet
-
-          </div>
-
-          <div
-
-            style={{
-
-              position: "absolute",
-
-              left: 835,
-
-              top: 675,
-
-              width: 220,
-
-              height: 45,
-
-              background: "#dbeafe",
-
-              border: "1px solid #64748b",
-
-              textAlign: "center",
-
-              paddingTop: 10,
-
-              fontSize: 13,
-
-              zIndex: 2,
-
-            }}
-
-          >
-
-            Friday Lunch Buffet 11 - 2 pm
-
-          </div>
-
-          {tables.map((table, index) => {
-
-            const fitsSelectedParty =
-
-              selectedParty &&
-
-              table.status === "Open" &&
-
-              availableSeats(table, tables) >= selectedSize;
-
-            const isBestTable = bestTable?.id === table.id;
-
-            const isSelectedForCombine = selectedCombineIds.includes(table.id);
-
-            const assignedServer = assignedServerForTable(table.id) || table.server;
-
-            const serverColor = getServerColor(assignedServer);
-
-            return (
-
-              <button
-
-                key={table.id}
-
-                onPointerDown={(e) => {
-
-                  e.preventDefault();
-
-                  startDrag(index);
-
-                }}
-
-                onDoubleClick={() => clearTable(index)}
-
-                onClick={() => updateTable(index)}
-
-                title={table.combinedLabel || ""}
-
-                style={{
-
-                  position: "absolute",
-
-                  left: table.x,
-
-                  top: table.y,
-
-                  width: table.w,
-
-                  height: table.h,
-
-                  background: isSelectedForCombine
-
-                    ? "#ddd6fe"
-
-                    : fitsSelectedParty
-
-                    ? isBestTable
-
-                      ? "#86efac"
-
-                      : "#dcfce7"
-
-                    : statusColor(table.status),
-
-                  border: isSelectedForCombine
-
-                    ? "4px solid #7c3aed"
-
-                    : table.combinedId
-
-                    ? "4px solid #a855f7"
-
-                    : assignedServer
-
-                    ? `4px solid ${serverColor}`
-
-                    : table.status === "Boxed"
-
-                    ? "4px solid #f59e0b"
-
-                    : isBestTable
-
-                    ? "4px solid #16a34a"
-
-                    : editMode
-
-                    ? "3px dashed #111827"
-
-                    : "2px solid #1e3a8a",
-
-                  borderRadius: 8,
-
-                  color: "#006ee6",
-
-                  fontWeight: "bold",
-
-                  fontSize: 10,
-
-                  lineHeight: 1.05,
-
-                  overflow: "hidden",
-
-                  zIndex: draggingIndex === index ? 20 : 5,
-
-                  touchAction: "none",
-
-                  cursor: editMode ? "grab" : "pointer",
-
-                }}
-
-              >
-
-                {table.id}
-
-                <br />
-
-                {table.guest
-
-                  ? `${table.guest} ${table.partySize}`
-
-                  : table.combinedId
-
-                  ? `${availableSeats(table, tables)} seats`
-
-                  : table.seats}
-
-                <br />
-
-                {table.status === "Seated" ? minutesSince(table.seatedAt) : table.status}
-
-                {assignedServer && (
-
-                  <>
-
-                    <br />
-
-                    {assignedServer}
-
-                  </>
-
-                )}
-
-              </button>
-
-            );
-
-          })}
-
-        </div>
-
-      </div>
-
-      <p style={{ marginTop: 8, fontSize: 14 }}>
-
-        Type server assignments like: Maria: 1,2,3. Assigned tables highlight with
-
-        that server’s color. Pager stays only on waitlist.
-
-      </p>
 
     </main>
 
