@@ -58,13 +58,15 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
-const STORAGE_TABLES = "hostTables_v7";
+const STORAGE_TABLES = "hostTables_v8";
 
-const STORAGE_WAITLIST = "hostWaitlist_v7";
+const STORAGE_WAITLIST = "hostWaitlist_v8";
 
-const STORAGE_ASSIGNMENTS = "hostServerAssignments_v7";
+const STORAGE_ASSIGNMENTS = "hostServerAssignments_v8";
 
-const STORAGE_INFO = "hostInfoBoxes_v7";
+const STORAGE_INFO = "hostInfoBoxes_v8";
+
+const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v8";
 
 function makeTable(
 
@@ -364,6 +366,8 @@ export default function Home() {
 
   );
 
+  const [rotationIndex, setRotationIndex] = useState(0);
+
   const [hostInfo, setHostInfo] = useState("PODIUM:\nSEATER 1:\nSEATER 2:\nSEATER 3:");
 
   const [takeoutInfo, setTakeoutInfo] = useState("Take-Out");
@@ -381,6 +385,38 @@ export default function Home() {
   );
 
   const [, setTick] = useState(0);
+
+  function serverNamesFromAssignments() {
+
+    return serverAssignments
+
+      .split("\n")
+
+      .map((line) => line.split(":")[0]?.trim())
+
+      .filter(Boolean);
+
+  }
+
+  function nextServerName() {
+
+    const names = serverNamesFromAssignments();
+
+    if (names.length === 0) return "";
+
+    return names[rotationIndex % names.length];
+
+  }
+
+  function rotateServer() {
+
+    const names = serverNamesFromAssignments();
+
+    if (names.length === 0) return;
+
+    setRotationIndex((prev) => (prev + 1) % names.length);
+
+  }
 
   function assignedServerForTable(tableId: string) {
 
@@ -524,6 +560,8 @@ export default function Home() {
 
       const savedInfo = localStorage.getItem(STORAGE_INFO);
 
+      const savedRotationIndex = localStorage.getItem(STORAGE_ROTATION_INDEX);
+
       if (savedTables) {
 
         const parsed = JSON.parse(savedTables);
@@ -539,6 +577,8 @@ export default function Home() {
       if (savedWaitlist) setWaitlist(JSON.parse(savedWaitlist));
 
       if (savedAssignments) setServerAssignments(savedAssignments);
+
+      if (savedRotationIndex) setRotationIndex(Number(savedRotationIndex) || 0);
 
       if (savedInfo) {
 
@@ -564,6 +604,8 @@ export default function Home() {
 
       localStorage.removeItem(STORAGE_INFO);
 
+      localStorage.removeItem(STORAGE_ROTATION_INDEX);
+
     }
 
   }, []);
@@ -585,6 +627,12 @@ export default function Home() {
     localStorage.setItem(STORAGE_ASSIGNMENTS, serverAssignments);
 
   }, [serverAssignments]);
+
+  useEffect(() => {
+
+    localStorage.setItem(STORAGE_ROTATION_INDEX, String(rotationIndex));
+
+  }, [rotationIndex]);
 
   useEffect(() => {
 
@@ -626,7 +674,11 @@ export default function Home() {
 
     if (selectedParty && tables[index].status === "Open") {
 
-      const server = assignedServerForTable(tables[index].id);
+      const assignedServer = assignedServerForTable(tables[index].id);
+
+      const rotationServer = nextServerName();
+
+      const server = assignedServer || rotationServer;
 
       const combinedId = tables[index].combinedId;
 
@@ -662,6 +714,8 @@ export default function Home() {
 
       );
 
+      rotateServer();
+
       setWaitlist((prev) => prev.filter((p) => p.id !== selectedPartyId));
 
       setSelectedPartyId(null);
@@ -678,7 +732,13 @@ export default function Home() {
 
         const nextStatus = cycle[(cycle.indexOf(table.status) + 1) % cycle.length];
 
-        const server = assignedServerForTable(table.id);
+        const assignedServer = assignedServerForTable(table.id);
+
+        const rotationServer = nextServerName();
+
+        const server = assignedServer || rotationServer;
+
+        if (nextStatus === "Seated") rotateServer();
 
         return {
 
@@ -902,6 +962,8 @@ export default function Home() {
 
     localStorage.removeItem(STORAGE_INFO);
 
+    localStorage.removeItem(STORAGE_ROTATION_INDEX);
+
     setTables(defaultTables);
 
     setWaitlist([]);
@@ -917,6 +979,8 @@ export default function Home() {
     setPager("");
 
     setServerAssignments("Maria: 1,2,3\nJose: 20,21,22");
+
+    setRotationIndex(0);
 
     setHostInfo("PODIUM:\nSEATER 1:\nSEATER 2:\nSEATER 3:");
 
@@ -1037,6 +1101,10 @@ export default function Home() {
     );
 
   };
+
+  const rotationNames = serverNamesFromAssignments();
+
+  const nextUp = nextServerName();
 
   return (
 
@@ -1245,6 +1313,66 @@ export default function Home() {
           />
 
         </label>
+
+        <div
+
+          style={{
+
+            border: "2px solid #111827",
+
+            borderRadius: 8,
+
+            background: "white",
+
+            padding: 10,
+
+            minWidth: 180,
+
+            height: 85,
+
+            fontSize: 14,
+
+          }}
+
+        >
+
+          <div style={{ fontWeight: "bold" }}>Server Rotation</div>
+
+          <div>
+
+            Next Up: <b>{nextUp || "Add servers"}</b>
+
+          </div>
+
+          <button
+
+            onClick={rotateServer}
+
+            disabled={rotationNames.length === 0}
+
+            style={{
+
+              marginTop: 8,
+
+              padding: "6px 10px",
+
+              borderRadius: 6,
+
+              border: "2px solid #111827",
+
+              background: "#f8fafc",
+
+              fontWeight: "bold",
+
+            }}
+
+          >
+
+            Next →
+
+          </button>
+
+        </div>
 
         <label style={{ fontSize: 12 }}>
 
@@ -1944,9 +2072,9 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Server assignments create colored highlighted areas around assigned tables.
+        Server rotation uses names from your server assignment box. Seat a party to
 
-        Host, Takeout, Casa, and San Miguel boxes are editable and saved.
+        auto-advance the rotation, or tap Next manually.
 
       </p>
 
