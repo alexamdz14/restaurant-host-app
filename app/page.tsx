@@ -58,41 +58,11 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
-const STORAGE_TABLES = "hostTables_v5";
+const STORAGE_TABLES = "hostTables_v6";
 
-const STORAGE_WAITLIST = "hostWaitlist_v5";
+const STORAGE_WAITLIST = "hostWaitlist_v6";
 
-const STORAGE_ROTATION = "hostRotation_v5";
-
-const STORAGE_SERVERS = "hostServers_v5";
-
-const defaultServers: Record<Section, string[]> = {
-
-  Main: ["Server 1", "Server 2", "Server 3"],
-
-  Patio: ["Patio 1", "Patio 2"],
-
-  Lounge: ["Lounge 1", "Lounge 2"],
-
-  Casa: ["Casa 1", "Casa 2"],
-
-  "San Miguel": ["SM 1", "SM 2"],
-
-};
-
-const defaultRotation: Record<Section, number> = {
-
-  Main: 0,
-
-  Patio: 0,
-
-  Lounge: 0,
-
-  Casa: 0,
-
-  "San Miguel": 0,
-
-};
+const STORAGE_ASSIGNMENTS = "hostServerAssignments_v6";
 
 function makeTable(
 
@@ -368,11 +338,33 @@ export default function Home() {
 
   const [selectedPartyId, setSelectedPartyId] = useState<number | null>(null);
 
-  const [servers, setServers] = useState<Record<Section, string[]>>(defaultServers);
+  const [serverAssignments, setServerAssignments] = useState(
 
-  const [rotation, setRotation] = useState<Record<Section, number>>(defaultRotation);
+    "Maria: 1,2,3\nJose: 20,21,22"
+
+  );
 
   const [, setTick] = useState(0);
+
+  function assignedServerForTable(tableId: string) {
+
+    const lines = serverAssignments.split("\n");
+
+    for (const line of lines) {
+
+      const [serverName, tableList] = line.split(":");
+
+      if (!serverName || !tableList) continue;
+
+      const ids = tableList.split(",").map((id) => id.trim());
+
+      if (ids.includes(tableId)) return serverName.trim();
+
+    }
+
+    return "";
+
+  }
 
   const selectedParty = waitlist.find((p) => p.id === selectedPartyId);
 
@@ -472,9 +464,7 @@ export default function Home() {
 
       const savedWaitlist = localStorage.getItem(STORAGE_WAITLIST);
 
-      const savedRotation = localStorage.getItem(STORAGE_ROTATION);
-
-      const savedServers = localStorage.getItem(STORAGE_SERVERS);
+      const savedAssignments = localStorage.getItem(STORAGE_ASSIGNMENTS);
 
       if (savedTables) {
 
@@ -490,9 +480,7 @@ export default function Home() {
 
       if (savedWaitlist) setWaitlist(JSON.parse(savedWaitlist));
 
-      if (savedRotation) setRotation(JSON.parse(savedRotation));
-
-      if (savedServers) setServers(JSON.parse(savedServers));
+      if (savedAssignments) setServerAssignments(savedAssignments);
 
     } catch {
 
@@ -500,9 +488,7 @@ export default function Home() {
 
       localStorage.removeItem(STORAGE_WAITLIST);
 
-      localStorage.removeItem(STORAGE_ROTATION);
-
-      localStorage.removeItem(STORAGE_SERVERS);
+      localStorage.removeItem(STORAGE_ASSIGNMENTS);
 
     }
 
@@ -522,15 +508,9 @@ export default function Home() {
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_ROTATION, JSON.stringify(rotation));
+    localStorage.setItem(STORAGE_ASSIGNMENTS, serverAssignments);
 
-  }, [rotation]);
-
-  useEffect(() => {
-
-    localStorage.setItem(STORAGE_SERVERS, JSON.stringify(servers));
-
-  }, [servers]);
+  }, [serverAssignments]);
 
   useEffect(() => {
 
@@ -539,28 +519,6 @@ export default function Home() {
     return () => clearInterval(timer);
 
   }, []);
-
-  function getNextServer(section: Section) {
-
-    const list = servers[section]?.filter(Boolean) || [];
-
-    if (list.length === 0) return "";
-
-    const index = rotation[section] ?? 0;
-
-    const server = list[index % list.length];
-
-    setRotation((prev) => ({
-
-      ...prev,
-
-      [section]: (index + 1) % list.length,
-
-    }));
-
-    return server;
-
-  }
 
   function updateTable(index: number) {
 
@@ -582,7 +540,7 @@ export default function Home() {
 
     if (selectedParty && tables[index].status === "Open") {
 
-      const server = getNextServer(tables[index].section);
+      const server = assignedServerForTable(tables[index].id);
 
       const combinedId = tables[index].combinedId;
 
@@ -634,6 +592,8 @@ export default function Home() {
 
         const nextStatus = cycle[(cycle.indexOf(table.status) + 1) % cycle.length];
 
+        const server = assignedServerForTable(table.id);
+
         return {
 
           ...table,
@@ -646,17 +606,7 @@ export default function Home() {
 
           partySize: nextStatus === "Open" ? undefined : table.partySize,
 
-          server:
-
-            nextStatus === "Seated"
-
-              ? getNextServer(table.section)
-
-              : nextStatus === "Open"
-
-              ? undefined
-
-              : table.server,
+          server: nextStatus === "Open" ? undefined : server || table.server,
 
         };
 
@@ -862,17 +812,11 @@ export default function Home() {
 
     localStorage.removeItem(STORAGE_WAITLIST);
 
-    localStorage.removeItem(STORAGE_ROTATION);
-
-    localStorage.removeItem(STORAGE_SERVERS);
+    localStorage.removeItem(STORAGE_ASSIGNMENTS);
 
     setTables(defaultTables);
 
     setWaitlist([]);
-
-    setRotation(defaultRotation);
-
-    setServers(defaultServers);
 
     setSelectedPartyId(null);
 
@@ -884,23 +828,7 @@ export default function Home() {
 
     setPager("");
 
-  }
-
-  function updateServerList(section: Section, value: string) {
-
-    setServers((prev) => ({
-
-      ...prev,
-
-      [section]: value
-
-        .split(",")
-
-        .map((s) => s.trim())
-
-        .filter(Boolean),
-
-    }));
+    setServerAssignments("Maria: 1,2,3\nJose: 20,21,22");
 
   }
 
@@ -1144,27 +1072,39 @@ export default function Home() {
 
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+      <div style={{ marginBottom: 8 }}>
 
-        {(Object.keys(servers) as Section[]).map((section) => (
+        <div style={{ fontWeight: "bold", marginBottom: 4 }}>
 
-          <label key={section} style={{ fontSize: 12 }}>
+          Server table assignments:
 
-            {section}:{" "}
+        </div>
 
-            <input
+        <textarea
 
-              value={servers[section].join(", ")}
+          value={serverAssignments}
 
-              onChange={(e) => updateServerList(section, e.target.value)}
+          onChange={(e) => setServerAssignments(e.target.value)}
 
-              style={{ padding: 4, width: 180 }}
+          placeholder={`Maria: 1,2,3\nJose: 20,21,22\nAna: Casa 1,Casa 2`}
 
-            />
+          style={{
 
-          </label>
+            width: 420,
 
-        ))}
+            height: 80,
+
+            padding: 8,
+
+            border: "2px solid #111827",
+
+            borderRadius: 8,
+
+            fontFamily: "Arial",
+
+          }}
+
+        />
 
       </div>
 
@@ -1686,7 +1626,9 @@ export default function Home() {
 
             const isSelectedForCombine = selectedCombineIds.includes(table.id);
 
-            const serverColor = getServerColor(table.server);
+            const assignedServer = assignedServerForTable(table.id) || table.server;
+
+            const serverColor = getServerColor(assignedServer);
 
             return (
 
@@ -1742,7 +1684,7 @@ export default function Home() {
 
                     ? "4px solid #a855f7"
 
-                    : table.server
+                    : assignedServer
 
                     ? `4px solid ${serverColor}`
 
@@ -1800,13 +1742,13 @@ export default function Home() {
 
                 {table.status === "Seated" ? minutesSince(table.seatedAt) : table.status}
 
-                {table.server && (
+                {assignedServer && (
 
                   <>
 
                     <br />
 
-                    {table.server}
+                    {assignedServer}
 
                   </>
 
@@ -1824,9 +1766,9 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Waitlist includes pager numbers, but pagers are not attached to tables.
+        Type server assignments like: Maria: 1,2,3. Assigned tables highlight with
 
-        Server colors show on seated tables. Background colors show sections.
+        that server’s color. Pager stays only on waitlist.
 
       </p>
 
