@@ -162,6 +162,40 @@ const serverColors = [
 
 function getServerColor(server?: string) {
 
+  function serverWorkloads() {
+
+  const allServers = Object.values(servers).flat().filter(Boolean);
+
+  return allServers.map((server) => {
+
+    const assigned = tables.filter((t) => t.server === server);
+
+    const seated = assigned.filter((t) => t.status === "Seated");
+
+    const covers = seated.reduce(
+
+      (sum, t) => sum + (parseInt(t.partySize || "0", 10) || 0),
+
+      0
+
+    );
+
+    return {
+
+      name: server,
+
+      assigned: assigned.length,
+
+      seated: seated.length,
+
+      covers,
+
+    };
+
+  });
+
+}
+
   if (!server) return "#1e3a8a";
 
   let hash = 0;
@@ -1344,6 +1378,53 @@ export default function Home() {
 
           </div>
 
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+
+  {serverWorkloads().map((s) => (
+
+    <div
+
+      key={s.name}
+
+      style={{
+
+        padding: "8px 12px",
+
+        borderRadius: 10,
+
+        border: "2px solid #111827",
+
+        background: "#ffffff",
+
+        fontSize: 12,
+
+        fontWeight: "bold",
+
+        minWidth: 140,
+
+      }}
+
+    >
+
+      {s.name}
+
+      <br />
+
+      Assigned: {s.assigned}
+
+      <br />
+
+      Seated: {s.seated}
+
+      <br />
+
+      Covers: {s.covers}
+
+    </div>
+
+  ))}
+
+</div>
           <button
 
             onClick={rotateServer}
