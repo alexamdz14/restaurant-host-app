@@ -162,40 +162,6 @@ const serverColors = [
 
 function getServerColor(server?: string) {
 
-  function serverWorkloads() {
-
-  const allServers = Object.values(servers).flat().filter(Boolean);
-
-  return allServers.map((server) => {
-
-    const assigned = tables.filter((t) => t.server === server);
-
-    const seated = assigned.filter((t) => t.status === "Seated");
-
-    const covers = seated.reduce(
-
-      (sum, t) => sum + (parseInt(t.partySize || "0", 10) || 0),
-
-      0
-
-    );
-
-    return {
-
-      name: server,
-
-      assigned: assigned.length,
-
-      seated: seated.length,
-
-      covers,
-
-    };
-
-  });
-
-}
-
   if (!server) return "#1e3a8a";
 
   let hash = 0;
@@ -428,7 +394,7 @@ export default function Home() {
 
       .map((line) => line.split(":")[0]?.trim())
 
-      .filter(Boolean);
+      .filter((name): name is string => Boolean(name));
 
   }
 
@@ -489,6 +455,44 @@ export default function Home() {
     }
 
     return groups;
+
+  }
+
+  function serverWorkloads() {
+
+    return serverNamesFromAssignments().map((server) => {
+
+      const assignedTables = tables.filter(
+
+        (table) => assignedServerForTable(table.id) === server
+
+      );
+
+      const seatedTables = assignedTables.filter((table) => table.status === "Seated");
+
+      const covers = seatedTables.reduce((sum, table) => {
+
+        if (table.partySize) return sum + (parseInt(table.partySize, 10) || 0);
+
+        return sum + seatNumber(table.seats);
+
+      }, 0);
+
+      return {
+
+        server,
+
+        color: getServerColor(server),
+
+        assignedCount: assignedTables.length,
+
+        seatedCount: seatedTables.length,
+
+        covers,
+
+      };
+
+    });
 
   }
 
@@ -1378,53 +1382,6 @@ export default function Home() {
 
           </div>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-
-  {serverWorkloads().map((s) => (
-
-    <div
-
-      key={s.name}
-
-      style={{
-
-        padding: "8px 12px",
-
-        borderRadius: 10,
-
-        border: "2px solid #111827",
-
-        background: "#ffffff",
-
-        fontSize: 12,
-
-        fontWeight: "bold",
-
-        minWidth: 140,
-
-      }}
-
-    >
-
-      {s.name}
-
-      <br />
-
-      Assigned: {s.assigned}
-
-      <br />
-
-      Seated: {s.seated}
-
-      <br />
-
-      Covers: {s.covers}
-
-    </div>
-
-  ))}
-
-</div>
           <button
 
             onClick={rotateServer}
@@ -1454,6 +1411,48 @@ export default function Home() {
           </button>
 
         </div>
+
+        {serverWorkloads().map((workload) => (
+
+          <div
+
+            key={workload.server}
+
+            style={{
+
+              border: `3px solid ${workload.color}`,
+
+              borderRadius: 8,
+
+              background: "white",
+
+              padding: 10,
+
+              minWidth: 145,
+
+              height: 85,
+
+              fontSize: 13,
+
+            }}
+
+          >
+
+            <div style={{ fontWeight: "bold", color: workload.color }}>
+
+              {workload.server}
+
+            </div>
+
+            <div>Assigned: {workload.assignedCount}</div>
+
+            <div>Seated: {workload.seatedCount}</div>
+
+            <div>Covers: {workload.covers}</div>
+
+          </div>
+
+        ))}
 
         <label style={{ fontSize: 12 }}>
 
@@ -2153,9 +2152,7 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Server rotation uses names from your server assignment box. Seat a party to
-
-        auto-advance the rotation, or tap Next manually.
+        Server workload shows assigned tables, seated tables, and covers per server.
 
       </p>
 
