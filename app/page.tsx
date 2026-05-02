@@ -398,25 +398,109 @@ export default function Home() {
 
   }
 
-  function nextServerName() {
+  function getServerWorkload(server: string) {
 
-    const names = serverNamesFromAssignments();
+  const serverTables = tables.filter((table) => {
 
-    if (names.length === 0) return "";
+    const assigned = assignedServerForTable(table.id) || table.server;
 
-    return names[rotationIndex % names.length];
+    return assigned === server;
 
-  }
+  });
 
-  function rotateServer() {
+  const seatedTables = serverTables.filter((table) => table.status === "Seated");
 
-    const names = serverNamesFromAssignments();
+  const covers = seatedTables.reduce((sum, table) => {
 
-    if (names.length === 0) return;
+    if (table.partySize) {
 
-    setRotationIndex((prev) => (prev + 1) % names.length);
+      return sum + (parseInt(table.partySize, 10) || 0);
 
-  }
+    }
+
+    return sum + seatNumber(table.seats);
+
+  }, 0);
+
+  return {
+
+    seatedTables: seatedTables.length,
+
+    covers,
+
+  };
+
+}
+
+function nextServerName() {
+
+  const names = serverNamesFromAssignments();
+
+  if (names.length === 0) return "";
+
+  const orderedNames = [
+
+    ...names.slice(rotationIndex),
+
+    ...names.slice(0, rotationIndex),
+
+  ];
+
+  const ranked = orderedNames
+
+    .map((name, index) => {
+
+      const workload = getServerWorkload(name);
+
+      return {
+
+        name,
+
+        index,
+
+        seatedTables: workload.seatedTables,
+
+        covers: workload.covers,
+
+      };
+
+    })
+
+    .sort((a, b) => {
+
+      if (a.seatedTables !== b.seatedTables) {
+
+        return a.seatedTables - b.seatedTables;
+
+      }
+
+      if (a.covers !== b.covers) {
+
+        return a.covers - b.covers;
+
+      }
+
+      return a.index - b.index;
+
+    });
+
+  return ranked[0]?.name || "";
+
+}
+
+function rotateServer() {
+
+  const names = serverNamesFromAssignments();
+
+  const smartNext = nextServerName();
+
+  if (names.length === 0 || !smartNext) return;
+
+  const currentIndex = names.indexOf(smartNext);
+
+  setRotationIndex((currentIndex + 1) % names.length);
+
+}
 
   function assignedServerForTable(tableId: string) {
 
@@ -1374,7 +1458,7 @@ export default function Home() {
 
         >
 
-          <div style={{ fontWeight: "bold" }}>Server Rotation</div>
+        <div style={{ fontWeight: "bold" }}>Smart Rotation</div>
 
           <div>
 
