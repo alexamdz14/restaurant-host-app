@@ -6,6 +6,8 @@ type Status = "Open" | "Seated" | "Boxed" | "Dirty";
 
 type Section = "Main" | "Patio" | "Lounge" | "Casa" | "San Miguel";
 
+type WaitStatus = "Waiting" | "Paged" | "Returned" | "NoShow";
+
 type TableItem = {
 
   id: string;
@@ -47,6 +49,8 @@ type WaitParty = {
   size: string;
 
   pager?: string;
+
+  status?: WaitStatus;
 
   createdAt: number;
 
@@ -140,31 +144,7 @@ function seatNumber(seats: string) {
 
 }
 
-function waitlistColor(status: string) {
-
-function cycleWaitStatus(id: number) {
-
-  setWaitlist((prev) =>
-
-    prev.map((p) => {
-
-      if (p.id !== id) return p;
-
-      const order = ["Waiting", "Paged", "Returned", "NoShow"] as const;
-
-      const next =
-
-        order[(order.indexOf(p.status) + 1) % order.length];
-
-      return { ...p, status: next };
-
-    })
-
-  );
-
-}
-  
-  if (status === "Waiting") return "#ffffff";
+function waitlistColor(status?: WaitStatus) {
 
   if (status === "Paged") return "#fde68a";
 
@@ -175,6 +155,7 @@ function cycleWaitStatus(id: number) {
   return "#ffffff";
 
 }
+
 const serverColors = [
 
   "#2563eb",
@@ -421,6 +402,28 @@ export default function Home() {
 
   const [, setTick] = useState(0);
 
+  function cycleWaitStatus(id: number) {
+
+    setWaitlist((prev) =>
+
+      prev.map((p) => {
+
+        if (p.id !== id) return p;
+
+        const order: WaitStatus[] = ["Waiting", "Paged", "Returned", "NoShow"];
+
+        const currentStatus = p.status || "Waiting";
+
+        const next = order[(order.indexOf(currentStatus) + 1) % order.length];
+
+        return { ...p, status: next };
+
+      })
+
+    );
+
+  }
+
   function serverNamesFromAssignments() {
 
     return serverAssignments
@@ -432,110 +435,6 @@ export default function Home() {
       .filter((name): name is string => Boolean(name));
 
   }
-
-  function getServerWorkload(server: string) {
-
-  const serverTables = tables.filter((table) => {
-
-    const assigned = assignedServerForTable(table.id) || table.server;
-
-    return assigned === server;
-
-  });
-
-  const seatedTables = serverTables.filter((table) => table.status === "Seated");
-
-  const covers = seatedTables.reduce((sum, table) => {
-
-    if (table.partySize) {
-
-      return sum + (parseInt(table.partySize, 10) || 0);
-
-    }
-
-    return sum + seatNumber(table.seats);
-
-  }, 0);
-
-  return {
-
-    seatedTables: seatedTables.length,
-
-    covers,
-
-  };
-
-}
-
-function nextServerName() {
-
-  const names = serverNamesFromAssignments();
-
-  if (names.length === 0) return "";
-
-  const orderedNames = [
-
-    ...names.slice(rotationIndex),
-
-    ...names.slice(0, rotationIndex),
-
-  ];
-
-  const ranked = orderedNames
-
-    .map((name, index) => {
-
-      const workload = getServerWorkload(name);
-
-      return {
-
-        name,
-
-        index,
-
-        seatedTables: workload.seatedTables,
-
-        covers: workload.covers,
-
-      };
-
-    })
-
-    .sort((a, b) => {
-
-      if (a.seatedTables !== b.seatedTables) {
-
-        return a.seatedTables - b.seatedTables;
-
-      }
-
-      if (a.covers !== b.covers) {
-
-        return a.covers - b.covers;
-
-      }
-
-      return a.index - b.index;
-
-    });
-
-  return ranked[0]?.name || "";
-
-}
-
-function rotateServer() {
-
-  const names = serverNamesFromAssignments();
-
-  const smartNext = nextServerName();
-
-  if (names.length === 0 || !smartNext) return;
-
-  const currentIndex = names.indexOf(smartNext);
-
-  setRotationIndex((currentIndex + 1) % names.length);
-
-}
 
   function assignedServerForTable(tableId: string) {
 
@@ -554,6 +453,106 @@ function rotateServer() {
     }
 
     return "";
+
+  }
+
+  function getServerWorkload(server: string) {
+
+    const serverTables = tables.filter((table) => {
+
+      const assigned = assignedServerForTable(table.id) || table.server;
+
+      return assigned === server;
+
+    });
+
+    const seatedTables = serverTables.filter((table) => table.status === "Seated");
+
+    const covers = seatedTables.reduce((sum, table) => {
+
+      if (table.partySize) return sum + (parseInt(table.partySize, 10) || 0);
+
+      return sum + seatNumber(table.seats);
+
+    }, 0);
+
+    return {
+
+      seatedTables: seatedTables.length,
+
+      covers,
+
+    };
+
+  }
+
+  function nextServerName() {
+
+    const names = serverNamesFromAssignments();
+
+    if (names.length === 0) return "";
+
+    const orderedNames = [
+
+      ...names.slice(rotationIndex),
+
+      ...names.slice(0, rotationIndex),
+
+    ];
+
+    const ranked = orderedNames
+
+      .map((name, index) => {
+
+        const workload = getServerWorkload(name);
+
+        return {
+
+          name,
+
+          index,
+
+          seatedTables: workload.seatedTables,
+
+          covers: workload.covers,
+
+        };
+
+      })
+
+      .sort((a, b) => {
+
+        if (a.seatedTables !== b.seatedTables) {
+
+          return a.seatedTables - b.seatedTables;
+
+        }
+
+        if (a.covers !== b.covers) {
+
+          return a.covers - b.covers;
+
+        }
+
+        return a.index - b.index;
+
+      });
+
+    return ranked[0]?.name || "";
+
+  }
+
+  function rotateServer() {
+
+    const names = serverNamesFromAssignments();
+
+    const smartNext = nextServerName();
+
+    if (names.length === 0 || !smartNext) return;
+
+    const currentIndex = names.indexOf(smartNext);
+
+    setRotationIndex((currentIndex + 1) % names.length);
 
   }
 
@@ -731,7 +730,23 @@ function rotateServer() {
 
       }
 
-      if (savedWaitlist) setWaitlist(JSON.parse(savedWaitlist));
+      if (savedWaitlist) {
+
+        const parsedWaitlist = JSON.parse(savedWaitlist);
+
+        setWaitlist(
+
+          parsedWaitlist.map((p: WaitParty) => ({
+
+            ...p,
+
+            status: p.status || "Waiting",
+
+          }))
+
+        );
+
+      }
 
       if (savedAssignments) setServerAssignments(savedAssignments);
 
@@ -936,6 +951,8 @@ function rotateServer() {
         size: partySize.trim(),
 
         pager: pager.trim(),
+
+        status: "Waiting",
 
         createdAt: Date.now(),
 
@@ -1493,7 +1510,7 @@ function rotateServer() {
 
         >
 
-        <div style={{ fontWeight: "bold" }}>Smart Rotation</div>
+          <div style={{ fontWeight: "bold" }}>Smart Rotation</div>
 
           <div>
 
@@ -1741,10 +1758,10 @@ function rotateServer() {
 
             <button onClick={() => cycleWaitStatus(party.id)}>
 
-              {party.status}
+              {party.status || "Waiting"}
 
             </button>
-            
+
             <button onClick={() => removeFromWaitlist(party.id)}>X</button>
 
           </div>
@@ -2277,7 +2294,7 @@ function rotateServer() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Server workload shows assigned tables, seated tables, and covers per server.
+        Waitlist status: Waiting → Paged → Returned → NoShow.
 
       </p>
 
