@@ -38,6 +38,8 @@ type TableItem = {
 
   combinedLabel?: string;
 
+  readyFlash?: boolean;
+
 };
 
 type WaitParty = {
@@ -62,15 +64,15 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
-const STORAGE_TABLES = "hostTables_v8";
+const STORAGE_TABLES = "hostTables_v9";
 
-const STORAGE_WAITLIST = "hostWaitlist_v8";
+const STORAGE_WAITLIST = "hostWaitlist_v9";
 
-const STORAGE_ASSIGNMENTS = "hostServerAssignments_v8";
+const STORAGE_ASSIGNMENTS = "hostServerAssignments_v9";
 
-const STORAGE_INFO = "hostInfoBoxes_v8";
+const STORAGE_INFO = "hostInfoBoxes_v9";
 
-const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v8";
+const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v9";
 
 function makeTable(
 
@@ -126,6 +128,18 @@ function statusColor(status: Status) {
 
 }
 
+function waitlistColor(status?: WaitStatus) {
+
+  if (status === "Paged") return "#fde68a";
+
+  if (status === "Returned") return "#bbf7d0";
+
+  if (status === "NoShow") return "#fecaca";
+
+  return "#ffffff";
+
+}
+
 function minutesSince(time?: number) {
 
   if (!time) return "";
@@ -144,15 +158,17 @@ function seatNumber(seats: string) {
 
 }
 
-function waitlistColor(status?: WaitStatus) {
+function turnBackground(table: TableItem) {
 
-  if (status === "Paged") return "#fde68a";
+  if (table.status !== "Seated" || !table.seatedAt) return statusColor(table.status);
 
-  if (status === "Returned") return "#bbf7d0";
+  const mins = Math.floor((Date.now() - table.seatedAt) / 60000);
 
-  if (status === "NoShow") return "#fecaca";
+  if (mins >= 60) return "#fecaca";
 
-  return "#ffffff";
+  if (mins >= 45) return "#fde68a";
+
+  return statusColor(table.status);
 
 }
 
@@ -424,6 +440,16 @@ export default function Home() {
 
   }
 
+  function markWaitStatus(id: number, status: WaitStatus) {
+
+    setWaitlist((prev) =>
+
+      prev.map((p) => (p.id === id ? { ...p, status } : p))
+
+    );
+
+  }
+
   function serverNamesFromAssignments() {
 
     return serverAssignments
@@ -522,17 +548,9 @@ export default function Home() {
 
       .sort((a, b) => {
 
-        if (a.seatedTables !== b.seatedTables) {
+        if (a.seatedTables !== b.seatedTables) return a.seatedTables - b.seatedTables;
 
-          return a.seatedTables - b.seatedTables;
-
-        }
-
-        if (a.covers !== b.covers) {
-
-          return a.covers - b.covers;
-
-        }
+        if (a.covers !== b.covers) return a.covers - b.covers;
 
         return a.index - b.index;
 
@@ -611,6 +629,42 @@ export default function Home() {
       };
 
     });
+
+  }
+
+  function shiftSummary() {
+
+    const seatedTables = tables.filter((table) => table.status === "Seated");
+
+    const dirtyTables = tables.filter((table) => table.status === "Dirty");
+
+    const boxedTables = tables.filter((table) => table.status === "Boxed");
+
+    const openTables = tables.filter((table) => table.status === "Open");
+
+    const currentCovers = seatedTables.reduce((sum, table) => {
+
+      if (table.partySize) return sum + (parseInt(table.partySize, 10) || 0);
+
+      return sum + seatNumber(table.seats);
+
+    }, 0);
+
+    return {
+
+      seated: seatedTables.length,
+
+      dirty: dirtyTables.length,
+
+      boxed: boxedTables.length,
+
+      open: openTables.length,
+
+      covers: currentCovers,
+
+      wait: waitlist.length,
+
+    };
 
   }
 
@@ -876,6 +930,8 @@ export default function Home() {
 
               server,
 
+              readyFlash: false,
+
             };
 
           }
@@ -926,6 +982,8 @@ export default function Home() {
 
           server: nextStatus === "Open" ? undefined : server || table.server,
 
+          readyFlash: nextStatus === "Open",
+
         };
 
       })
@@ -968,6 +1026,16 @@ export default function Home() {
 
   }
 
+  function seatSelectedPartyAtBestTable() {
+
+    if (!selectedParty || !bestTable) return;
+
+    const index = tables.findIndex((table) => table.id === bestTable.id);
+
+    if (index >= 0) updateTable(index);
+
+  }
+
   function removeFromWaitlist(id: number) {
 
     setWaitlist((prev) => prev.filter((p) => p.id !== id));
@@ -1001,6 +1069,8 @@ export default function Home() {
             seatedAt: undefined,
 
             server: undefined,
+
+            readyFlash: true,
 
           };
 
@@ -1280,6 +1350,8 @@ export default function Home() {
 
   const nextUp = nextServerName();
 
+  const summary = shiftSummary();
+
   return (
 
     <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
@@ -1453,6 +1525,46 @@ export default function Home() {
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+
+        <div
+
+          style={{
+
+            border: "3px solid #111827",
+
+            borderRadius: 10,
+
+            background: "white",
+
+            padding: 10,
+
+            minWidth: 230,
+
+            height: 85,
+
+            fontSize: 13,
+
+          }}
+
+        >
+
+          <div style={{ fontWeight: "bold", fontSize: 15 }}>Shift Dashboard</div>
+
+          <div>
+
+            Seated: {summary.seated} | Covers: {summary.covers} | Wait: {summary.wait}
+
+          </div>
+
+          <div>
+
+            Open: {summary.open} | Boxed: {summary.boxed} | Dirty: {summary.dirty}
+
+          </div>
+
+          <div>Ready alert: table turns Open after clear/double tap.</div>
+
+        </div>
 
         <label style={{ fontSize: 12 }}>
 
@@ -1682,15 +1794,49 @@ export default function Home() {
 
             fontWeight: "bold",
 
-            display: "inline-block",
+            display: "inline-flex",
+
+            gap: 10,
+
+            alignItems: "center",
 
           }}
 
         >
 
-          Selected: {selectedParty.name} - {selectedParty.size}
+          <span>
 
-          {bestTable ? ` | Best table: ${bestTable.id}` : " | No open table fits"}
+            Selected: {selectedParty.name} - {selectedParty.size}
+
+            {bestTable ? ` | Best table: ${bestTable.id}` : " | No open table fits"}
+
+          </span>
+
+          {bestTable && (
+
+            <button
+
+              onClick={seatSelectedPartyAtBestTable}
+
+              style={{
+
+                padding: "5px 9px",
+
+                borderRadius: 6,
+
+                border: "2px solid #111827",
+
+                fontWeight: "bold",
+
+              }}
+
+            >
+
+              Seat Best
+
+            </button>
+
+          )}
 
         </div>
 
@@ -1761,6 +1907,12 @@ export default function Home() {
               {party.status || "Waiting"}
 
             </button>
+
+            <button onClick={() => markWaitStatus(party.id, "Paged")}>Page</button>
+
+            <button onClick={() => markWaitStatus(party.id, "Returned")}>Back</button>
+
+            <button onClick={() => markWaitStatus(party.id, "NoShow")}>No-show</button>
 
             <button onClick={() => removeFromWaitlist(party.id)}>X</button>
 
@@ -2202,9 +2354,13 @@ export default function Home() {
 
                       : "#dcfce7"
 
-                    : statusColor(table.status),
+                    : turnBackground(table),
 
-                  border: isSelectedForCombine
+                  border: table.readyFlash
+
+                    ? "5px solid #22c55e"
+
+                    : isSelectedForCombine
 
                     ? "4px solid #7c3aed"
 
@@ -2229,6 +2385,8 @@ export default function Home() {
                     ? "3px dashed #111827"
 
                     : "2px solid #1e3a8a",
+
+                  boxShadow: table.readyFlash ? "0 0 14px #22c55e" : "none",
 
                   borderRadius: 8,
 
@@ -2294,7 +2452,11 @@ export default function Home() {
 
       <p style={{ marginTop: 8, fontSize: 14 }}>
 
-        Waitlist status: Waiting → Paged → Returned → NoShow.
+        Upgrades included: smart rotation, workload counters, waitlist status,
+
+        turn timer colors, ready table alert, server section highlights, Seat Best,
+
+        and shift dashboard.
 
       </p>
 
