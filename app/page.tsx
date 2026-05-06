@@ -140,6 +140,41 @@ function seatNumber(seats: string) {
 
 }
 
+function waitlistColor(status: string) {
+
+function cycleWaitStatus(id: number) {
+
+  setWaitlist((prev) =>
+
+    prev.map((p) => {
+
+      if (p.id !== id) return p;
+
+      const order = ["Waiting", "Paged", "Returned", "NoShow"] as const;
+
+      const next =
+
+        order[(order.indexOf(p.status) + 1) % order.length];
+
+      return { ...p, status: next };
+
+    })
+
+  );
+
+}
+  
+  if (status === "Waiting") return "#ffffff";
+
+  if (status === "Paged") return "#fde68a";
+
+  if (status === "Returned") return "#bbf7d0";
+
+  if (status === "NoShow") return "#fecaca";
+
+  return "#ffffff";
+
+}
 const serverColors = [
 
   "#2563eb",
@@ -1672,7 +1707,7 @@ function rotateServer() {
 
                   : "2px solid #111827",
 
-              background: selectedPartyId === party.id ? "#fde68a" : "white",
+              background: waitlistColor(party.status),
 
               fontWeight: "bold",
 
@@ -1704,6 +1739,12 @@ function rotateServer() {
 
             </button>
 
+            <button onClick={() => cycleWaitStatus(party.id)}>
+
+              {party.status}
+
+            </button>
+            
             <button onClick={() => removeFromWaitlist(party.id)}>X</button>
 
           </div>
