@@ -8,6 +8,8 @@ type Section = "Main" | "Patio" | "Lounge" | "Casa" | "San Miguel";
 
 type WaitStatus = "Waiting" | "Paged" | "Returned" | "NoShow";
 
+type PartyType = "Walk-in" | "Call-ahead" | "Reservation overflow";
+
 type ReservationStatus = "Booked" | "Arrived" | "Seated" | "NoShow" | "Cancelled";
 
 type AppMode = "full" | "reservationsOnly";
@@ -57,6 +59,18 @@ type WaitParty = {
   pager?: string;
 
   status?: WaitStatus;
+
+  quotedWait?: string;
+
+  pagedAt?: number;
+
+  priority?: boolean;
+
+  notes?: string;
+
+  partyType?: PartyType;
+
+  textReadySent?: boolean;
 
   createdAt: number;
 
@@ -140,31 +154,47 @@ const snap = (n: number) => Math.round(n / GRID) * GRID;
 
 const cycle: Status[] = ["Seated", "Boxed", "Dirty", "Open"];
 
-const STORAGE_TABLES = "hostTables_v13";
+const waitTimeOptions = ["0-10", "10-15", "15-20", "20-30", "30-45", "45-60", "60+"];
 
-const STORAGE_WAITLIST = "hostWaitlist_v13";
+const partyTypeOptions: PartyType[] = [
 
-const STORAGE_ASSIGNMENTS = "hostServerAssignments_v13";
+  "Walk-in",
 
-const STORAGE_SERVER_INFO = "hostServerInfo_v13";
+  "Call-ahead",
 
-const STORAGE_INFO = "hostInfoBoxes_v13";
+  "Reservation overflow",
 
-const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v13";
+];
 
-const STORAGE_RESERVATIONS = "hostReservations_v13";
+const STORAGE_TABLES = "hostTables_v14";
 
-const STORAGE_RESERVATION_SETTINGS = "hostReservationSettings_v13";
+const STORAGE_WAITLIST = "hostWaitlist_v14";
 
-const STORAGE_TRAINING_MODE = "hostTrainingMode_v13";
+const STORAGE_ASSIGNMENTS = "hostServerAssignments_v14";
 
-const STORAGE_TRAINING_RESERVATIONS = "hostTrainingReservations_v13";
+const STORAGE_SERVER_INFO = "hostServerInfo_v14";
 
-const STORAGE_FLOOR_LOCKED = "hostFloorLocked_v13";
+const STORAGE_INFO = "hostInfoBoxes_v14";
 
-const STORAGE_APP_MODE = "hostAppMode_v13";
+const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v14";
 
-const STORAGE_NIGHT_MAP = "hostNightMap_v13";
+const STORAGE_RESERVATIONS = "hostReservations_v14";
+
+const STORAGE_RESERVATION_SETTINGS = "hostReservationSettings_v14";
+
+const STORAGE_TRAINING_MODE = "hostTrainingMode_v14";
+
+const STORAGE_TRAINING_RESERVATIONS = "hostTrainingReservations_v14";
+
+const STORAGE_TRAINING_WAITLIST = "hostTrainingWaitlist_v14";
+
+const STORAGE_TRAINING_TABLES = "hostTrainingTables_v14";
+
+const STORAGE_FLOOR_LOCKED = "hostFloorLocked_v14";
+
+const STORAGE_APP_MODE = "hostAppMode_v14";
+
+const STORAGE_NIGHT_MAP = "hostNightMap_v14";
 
 const defaultReservationSettings: ReservationSettings = {
 
@@ -256,13 +286,17 @@ function statusColor(status: Status) {
 
 }
 
-function waitlistColor(status?: WaitStatus) {
+function waitlistColor(party: WaitParty) {
 
-  if (status === "Paged") return "#fde68a";
+  if (party.priority) return "#fef3c7";
 
-  if (status === "Returned") return "#bbf7d0";
+  if (isOverQuotedWait(party)) return "#fecaca";
 
-  if (status === "NoShow") return "#fecaca";
+  if (party.status === "Paged") return "#fde68a";
+
+  if (party.status === "Returned") return "#bbf7d0";
+
+  if (party.status === "NoShow") return "#fecaca";
 
   return "#ffffff";
 
@@ -299,6 +333,34 @@ function seatNumber(seats: string) {
   const n = parseInt(seats, 10);
 
   return Number.isNaN(n) ? 0 : n;
+
+}
+
+function quotedWaitMaxMinutes(quotedWait?: string) {
+
+  if (!quotedWait) return 0;
+
+  if (quotedWait === "60+") return 60;
+
+  const parts = quotedWait.split("-");
+
+  const max = parseInt(parts[1] || "0", 10);
+
+  return Number.isNaN(max) ? 0 : max;
+
+}
+
+function isOverQuotedWait(party: WaitParty) {
+
+  if (!party.quotedWait || party.status === "NoShow") return false;
+
+  const maxMinutes = quotedWaitMaxMinutes(party.quotedWait);
+
+  if (!maxMinutes) return false;
+
+  const waitedMinutes = Math.floor((Date.now() - party.createdAt) / 60000);
+
+  return waitedMinutes > maxMinutes;
 
 }
 
@@ -428,6 +490,8 @@ function minutesToTime(total: number) {
 
 function displayTime(time: string) {
 
+  if (!time) return "";
+
   const [h, m] = time.split(":").map(Number);
 
   const suffix = h >= 12 ? "PM" : "AM";
@@ -435,6 +499,22 @@ function displayTime(time: string) {
   const hour = h % 12 || 12;
 
   return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
+
+}
+
+function displayStandardTime(time: string) {
+
+  if (!time) return "";
+
+  if (time.toLowerCase().includes("am") || time.toLowerCase().includes("pm")) {
+
+    return time;
+
+  }
+
+  if (!time.includes(":")) return time;
+
+  return displayTime(time);
 
 }
 
@@ -580,13 +660,21 @@ function reservationWarnings(
 
   if (sameSlot.length >= settings.maxReservationsPerSlot) {
 
-    warnings.push(`Slot full: ${settings.maxReservationsPerSlot} reservations already booked`);
+    warnings.push(
+
+      `Slot full: ${settings.maxReservationsPerSlot} reservations already booked`
+
+    );
 
   }
 
   if (slotCovers + partySize > settings.maxCoversPerSlot) {
 
-    warnings.push(`Cover warning: this slot would exceed ${settings.maxCoversPerSlot} guests`);
+    warnings.push(
+
+      `Cover warning: this slot would exceed ${settings.maxCoversPerSlot} guests`
+
+    );
 
   }
 
@@ -630,7 +718,9 @@ function slotStats(
 
   );
 
-  const fullByReservations = slotReservations.length >= settings.maxReservationsPerSlot;
+  const fullByReservations =
+
+    slotReservations.length >= settings.maxReservationsPerSlot;
 
   const fullByCovers = covers >= settings.maxCoversPerSlot;
 
@@ -712,7 +802,11 @@ function reservationTableSuggestionText(reservation: Reservation, tables: TableI
 
   if (combo.fits) {
 
-    return `Combine: ${combo.tables.map((table) => table.id).join(" + ")} = ${combo.totalSeats}`;
+    return `Combine: ${combo.tables.map((table) => table.id).join(" + ")} = ${
+
+      combo.totalSeats
+
+    }`;
 
   }
 
@@ -902,13 +996,25 @@ export default function Home() {
 
   const [tables, setTables] = useState<TableItem[]>(defaultTables);
 
+  const [trainingTables, setTrainingTables] = useState<TableItem[]>(defaultTables);
+
   const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
+
+  const [trainingWaitlist, setTrainingWaitlist] = useState<WaitParty[]>([]);
 
   const [guestName, setGuestName] = useState("");
 
   const [partySize, setPartySize] = useState("");
 
   const [pager, setPager] = useState("");
+
+  const [quotedWait, setQuotedWait] = useState("15-20");
+
+  const [waitNotes, setWaitNotes] = useState("");
+
+  const [waitPriority, setWaitPriority] = useState(false);
+
+  const [partyType, setPartyType] = useState<PartyType>("Walk-in");
 
   const [selectedPartyId, setSelectedPartyId] = useState<number | null>(null);
 
@@ -920,9 +1026,9 @@ export default function Home() {
 
   const [serverInfo, setServerInfo] = useState<ServerInfo[]>([
 
-    { name: "Maria", startTime: "16:00", cut: false },
+    { name: "Maria", startTime: "4:00 PM", cut: false },
 
-    { name: "Jose", startTime: "16:00", cut: false },
+    { name: "Jose", startTime: "4:00 PM", cut: false },
 
   ]);
 
@@ -984,6 +1090,10 @@ export default function Home() {
 
   const activeReservations = trainingMode ? trainingReservations : reservations;
 
+  const activeWaitlist = trainingMode ? trainingWaitlist : waitlist;
+
+  const activeTables = trainingMode ? trainingTables : tables;
+
   function setActiveReservations(
 
     updater: Reservation[] | ((prev: Reservation[]) => Reservation[])
@@ -997,6 +1107,42 @@ export default function Home() {
     } else {
 
       setReservations(updater);
+
+    }
+
+  }
+
+  function setActiveWaitlist(
+
+    updater: WaitParty[] | ((prev: WaitParty[]) => WaitParty[])
+
+  ) {
+
+    if (trainingMode) {
+
+      setTrainingWaitlist(updater);
+
+    } else {
+
+      setWaitlist(updater);
+
+    }
+
+  }
+
+  function setActiveTables(
+
+    updater: TableItem[] | ((prev: TableItem[]) => TableItem[])
+
+  ) {
+
+    if (trainingMode) {
+
+      setTrainingTables(updater);
+
+    } else {
+
+      setTables(updater);
 
     }
 
@@ -1034,7 +1180,7 @@ export default function Home() {
 
   function cycleWaitStatus(id: number) {
 
-    setWaitlist((prev) =>
+    setActiveWaitlist((prev) =>
 
       prev.map((p) => {
 
@@ -1046,9 +1192,31 @@ export default function Home() {
 
         const next = order[(order.indexOf(currentStatus) + 1) % order.length];
 
-        return { ...p, status: next };
+        return {
+
+          ...p,
+
+          status: next,
+
+          pagedAt: next === "Paged" ? Date.now() : p.pagedAt,
+
+        };
 
       })
+
+    );
+
+  }
+
+  function markTextReadySent(id: number) {
+
+    setActiveWaitlist((prev) =>
+
+      prev.map((p) =>
+
+        p.id === id ? { ...p, textReadySent: true, status: "Paged", pagedAt: Date.now() } : p
+
+      )
 
     );
 
@@ -1104,8 +1272,6 @@ export default function Home() {
 
   function toggleServerCut(serverName: string) {
 
-    if (!requireManager()) return;
-
     setServerInfo((prev) =>
 
       prev.map((server) =>
@@ -1138,9 +1304,9 @@ export default function Home() {
 
   }
 
-    function getServerWorkload(server: string) {
+  function getServerWorkload(server: string) {
 
-    const serverTables = tables.filter((table) => {
+    const serverTables = activeTables.filter((table) => {
 
       const assigned = assignedServerForTable(table.id) || table.server;
 
@@ -1254,7 +1420,7 @@ export default function Home() {
 
     const groups: Record<string, TableItem[]> = {};
 
-    for (const table of tables) {
+    for (const table of activeTables) {
 
       const server = assignedServerForTable(table.id);
 
@@ -1274,7 +1440,7 @@ export default function Home() {
 
     return serverNamesFromAssignments().map((server) => {
 
-      const assignedTables = tables.filter(
+      const assignedTables = activeTables.filter(
 
         (table) => assignedServerForTable(table.id) === server
 
@@ -1326,7 +1492,7 @@ export default function Home() {
 
   }
 
-  const selectedParty = waitlist.find((p) => p.id === selectedPartyId);
+  const selectedParty = activeWaitlist.find((p) => p.id === selectedPartyId);
 
   const selectedSize = selectedParty ? parseInt(selectedParty.size, 10) : 0;
 
@@ -1346,7 +1512,7 @@ export default function Home() {
 
     selectedParty && !Number.isNaN(selectedSize)
 
-      ? tables
+      ? activeTables
 
           .filter(
 
@@ -1354,7 +1520,7 @@ export default function Home() {
 
               t.status === "Open" &&
 
-              availableSeats(t, tables) >= selectedSize
+              availableSeats(t, activeTables) >= selectedSize
 
           )
 
@@ -1362,11 +1528,11 @@ export default function Home() {
 
             (a, b) =>
 
-              availableSeats(a, tables) -
+              availableSeats(a, activeTables) -
 
               selectedSize -
 
-              (availableSeats(b, tables) - selectedSize)
+              (availableSeats(b, activeTables) - selectedSize)
 
           )[0]
 
@@ -1378,19 +1544,19 @@ export default function Home() {
 
     if (Number.isNaN(party)) return "~?";
 
-    const openFit = tables.some(
+    const openFit = activeTables.some(
 
-      (t) => t.status === "Open" && availableSeats(t, tables) >= party
+      (t) => t.status === "Open" && availableSeats(t, activeTables) >= party
 
     );
 
     if (openFit) return "now";
 
-    const seatedFits = tables
+    const seatedFits = activeTables
 
       .filter(
 
-        (t) => t.status === "Seated" && availableSeats(t, tables) >= party
+        (t) => t.status === "Seated" && availableSeats(t, activeTables) >= party
 
       )
 
@@ -1412,17 +1578,17 @@ export default function Home() {
 
     }
 
-    const dirtyFit = tables.some(
+    const dirtyFit = activeTables.some(
 
-      (t) => t.status === "Dirty" && availableSeats(t, tables) >= party
+      (t) => t.status === "Dirty" && availableSeats(t, activeTables) >= party
 
     );
 
     if (dirtyFit) return "~10 min";
 
-    const boxedFit = tables.some(
+    const boxedFit = activeTables.some(
 
-      (t) => t.status === "Boxed" && availableSeats(t, tables) >= party
+      (t) => t.status === "Boxed" && availableSeats(t, activeTables) >= party
 
     );
 
@@ -1618,7 +1784,7 @@ export default function Home() {
 
   function addReservationAsWaitlist(reservation: Reservation) {
 
-    setWaitlist((prev) => [
+    setActiveWaitlist((prev) => [
 
       ...prev,
 
@@ -1634,6 +1800,18 @@ export default function Home() {
 
         status: "Waiting",
 
+        quotedWait: "15-20",
+
+        pagedAt: undefined,
+
+        priority: false,
+
+        notes: reservation.notes || "Reservation overflow",
+
+        partyType: "Reservation overflow",
+
+        textReadySent: false,
+
         createdAt: Date.now(),
 
       },
@@ -1646,19 +1824,19 @@ export default function Home() {
 
     const party = reservationTotalGuests(reservation);
 
-    const best = tables
+    const best = activeTables
 
-      .filter((t) => t.status === "Open" && availableSeats(t, tables) >= party)
+      .filter((t) => t.status === "Open" && availableSeats(t, activeTables) >= party)
 
       .sort(
 
         (a, b) =>
 
-          availableSeats(a, tables) -
+          availableSeats(a, activeTables) -
 
           party -
 
-          (availableSeats(b, tables) - party)
+          (availableSeats(b, activeTables) - party)
 
       )[0];
 
@@ -1670,7 +1848,7 @@ export default function Home() {
 
     }
 
-    const index = tables.findIndex((t) => t.id === best.id);
+    const index = activeTables.findIndex((t) => t.id === best.id);
 
     const assignedServer = assignedServerForTable(best.id);
 
@@ -1678,7 +1856,7 @@ export default function Home() {
 
     const server = assignedServer || rotationServer;
 
-    setTables((prev) =>
+    setActiveTables((prev) =>
 
       prev.map((table, i) =>
 
@@ -1732,7 +1910,7 @@ export default function Home() {
 
     if (!newTableId.trim() || !newTableSeats.trim()) return;
 
-    const alreadyExists = tables.some(
+    const alreadyExists = activeTables.some(
 
       (table) => table.id.toLowerCase() === newTableId.trim().toLowerCase()
 
@@ -1764,7 +1942,7 @@ export default function Home() {
 
     );
 
-    setTables((prev) => [...prev, newTable]);
+    setActiveTables((prev) => [...prev, newTable]);
 
     setNewTableId("");
 
@@ -1782,19 +1960,19 @@ export default function Home() {
 
     if (!okay) return;
 
-    setTables((prev) => prev.filter((table) => table.id !== tableId));
+    setActiveTables((prev) => prev.filter((table) => table.id !== tableId));
 
   }
 
   function shiftSummary() {
 
-    const seatedTables = tables.filter((table) => table.status === "Seated");
+    const seatedTables = activeTables.filter((table) => table.status === "Seated");
 
-    const dirtyTables = tables.filter((table) => table.status === "Dirty");
+    const dirtyTables = activeTables.filter((table) => table.status === "Dirty");
 
-    const boxedTables = tables.filter((table) => table.status === "Boxed");
+    const boxedTables = activeTables.filter((table) => table.status === "Boxed");
 
-    const openTables = tables.filter((table) => table.status === "Open");
+    const openTables = activeTables.filter((table) => table.status === "Open");
 
     const currentCovers = seatedTables.reduce((sum, table) => {
 
@@ -1816,11 +1994,15 @@ export default function Home() {
 
       covers: currentCovers,
 
-      wait: waitlist.length,
+      wait: activeWaitlist.length,
 
       reservationsToday: reservationsForDate(reservationDate).length,
 
       serversCut: serverInfo.filter((server) => server.cut).length,
+
+      overWait: activeWaitlist.filter((party) => isOverQuotedWait(party)).length,
+
+      priority: activeWaitlist.filter((party) => party.priority).length,
 
     };
 
@@ -1832,7 +2014,7 @@ export default function Home() {
 
     if (combineMode) {
 
-      const id = tables[index].id;
+      const id = activeTables[index].id;
 
       setSelectedCombineIds((prev) =>
 
@@ -1844,17 +2026,17 @@ export default function Home() {
 
     }
 
-    if (selectedParty && tables[index].status === "Open") {
+    if (selectedParty && activeTables[index].status === "Open") {
 
-      const assignedServer = assignedServerForTable(tables[index].id);
+      const assignedServer = assignedServerForTable(activeTables[index].id);
 
       const rotationServer = nextServerName();
 
       const server = assignedServer || rotationServer;
 
-      const combinedId = tables[index].combinedId;
+      const combinedId = activeTables[index].combinedId;
 
-      setTables((prev) =>
+      setActiveTables((prev) =>
 
         prev.map((table, i) => {
 
@@ -1890,7 +2072,7 @@ export default function Home() {
 
       rotateServer();
 
-      setWaitlist((prev) => prev.filter((p) => p.id !== selectedPartyId));
+      setActiveWaitlist((prev) => prev.filter((p) => p.id !== selectedPartyId));
 
       setSelectedPartyId(null);
 
@@ -1898,7 +2080,7 @@ export default function Home() {
 
     }
 
-    setTables((prev) =>
+    setActiveTables((prev) =>
 
       prev.map((table, i) => {
 
@@ -1938,11 +2120,11 @@ export default function Home() {
 
   }
 
-    function addToWaitlist() {
+  function addToWaitlist() {
 
     if (!guestName.trim() || !partySize.trim()) return;
 
-    setWaitlist((prev) => [
+    setActiveWaitlist((prev) => [
 
       ...prev,
 
@@ -1958,6 +2140,18 @@ export default function Home() {
 
         status: "Waiting",
 
+        quotedWait,
+
+        pagedAt: undefined,
+
+        priority: waitPriority,
+
+        notes: waitNotes.trim(),
+
+        partyType,
+
+        textReadySent: false,
+
         createdAt: Date.now(),
 
       },
@@ -1970,11 +2164,19 @@ export default function Home() {
 
     setPager("");
 
+    setQuotedWait("15-20");
+
+    setWaitNotes("");
+
+    setWaitPriority(false);
+
+    setPartyType("Walk-in");
+
   }
 
   function removeFromWaitlist(id: number) {
 
-    setWaitlist((prev) => prev.filter((p) => p.id !== id));
+    setActiveWaitlist((prev) => prev.filter((p) => p.id !== id));
 
     if (selectedPartyId === id) setSelectedPartyId(null);
 
@@ -1982,9 +2184,9 @@ export default function Home() {
 
   function clearTable(index: number) {
 
-    const combinedId = tables[index].combinedId;
+    const combinedId = activeTables[index].combinedId;
 
-    setTables((prev) =>
+    setActiveTables((prev) =>
 
       prev.map((table, i) => {
 
@@ -2026,13 +2228,13 @@ export default function Home() {
 
     const comboId = `combo-${Date.now()}`;
 
-    const selectedTables = tables.filter((t) => selectedCombineIds.includes(t.id));
+    const selectedTables = activeTables.filter((t) => selectedCombineIds.includes(t.id));
 
     const totalSeats = selectedTables.reduce((sum, t) => sum + seatNumber(t.seats), 0);
 
     const label = `${selectedCombineIds.join("+")} = ${totalSeats}`;
 
-    setTables((prev) =>
+    setActiveTables((prev) =>
 
       prev.map((table) =>
 
@@ -2052,7 +2254,7 @@ export default function Home() {
 
   function uncombineSelectedTables() {
 
-    setTables((prev) =>
+    setActiveTables((prev) =>
 
       prev.map((table) =>
 
@@ -2094,11 +2296,11 @@ export default function Home() {
 
     const scale = map.width / 1500;
 
-    const x = snap((e.clientX - map.left) / scale - tables[draggingIndex].w / 2);
+    const x = snap((e.clientX - map.left) / scale - activeTables[draggingIndex].w / 2);
 
-    const y = snap((e.clientY - map.top) / scale - tables[draggingIndex].h / 2);
+    const y = snap((e.clientY - map.top) / scale - activeTables[draggingIndex].h / 2);
 
-    setTables((prev) =>
+    setActiveTables((prev) =>
 
       prev.map((table, i) => (i === draggingIndex ? { ...table, x, y } : table))
 
@@ -2116,7 +2318,7 @@ export default function Home() {
 
     if (!selectedParty || !bestTable) return;
 
-    const index = tables.findIndex((table) => table.id === bestTable.id);
+    const index = activeTables.findIndex((table) => table.id === bestTable.id);
 
     if (index >= 0) updateTable(index);
 
@@ -2126,7 +2328,11 @@ export default function Home() {
 
     if (!requireManager()) return;
 
-    const okay = window.confirm("Reset everything? This clears tables, waitlist, reservations, settings, and training data.");
+    const okay = window.confirm(
+
+      "Reset everything? This clears tables, waitlist, reservations, settings, and training data."
+
+    );
 
     if (!okay) return;
 
@@ -2150,6 +2356,10 @@ export default function Home() {
 
     localStorage.removeItem(STORAGE_TRAINING_RESERVATIONS);
 
+    localStorage.removeItem(STORAGE_TRAINING_WAITLIST);
+
+    localStorage.removeItem(STORAGE_TRAINING_TABLES);
+
     localStorage.removeItem(STORAGE_FLOOR_LOCKED);
 
     localStorage.removeItem(STORAGE_APP_MODE);
@@ -2158,7 +2368,11 @@ export default function Home() {
 
     setTables(defaultTables);
 
+    setTrainingTables(defaultTables);
+
     setWaitlist([]);
+
+    setTrainingWaitlist([]);
 
     setReservations([]);
 
@@ -2184,13 +2398,21 @@ export default function Home() {
 
     setPager("");
 
+    setQuotedWait("15-20");
+
+    setWaitNotes("");
+
+    setWaitPriority(false);
+
+    setPartyType("Walk-in");
+
     setServerAssignments("Maria: 1,2,3\nJose: 20,21,22");
 
     setServerInfo([
 
-      { name: "Maria", startTime: "16:00", cut: false },
+      { name: "Maria", startTime: "4:00 PM", cut: false },
 
-      { name: "Jose", startTime: "16:00", cut: false },
+      { name: "Jose", startTime: "4:00 PM", cut: false },
 
     ]);
 
@@ -2330,7 +2552,11 @@ export default function Home() {
 
       const savedTables = localStorage.getItem(STORAGE_TABLES);
 
+      const savedTrainingTables = localStorage.getItem(STORAGE_TRAINING_TABLES);
+
       const savedWaitlist = localStorage.getItem(STORAGE_WAITLIST);
+
+      const savedTrainingWaitlist = localStorage.getItem(STORAGE_TRAINING_WAITLIST);
 
       const savedAssignments = localStorage.getItem(STORAGE_ASSIGNMENTS);
 
@@ -2354,13 +2580,9 @@ export default function Home() {
 
       const savedNightMap = localStorage.getItem(STORAGE_NIGHT_MAP);
 
-      if (savedTables) {
+      if (savedTables) setTables(JSON.parse(savedTables));
 
-        const parsed = JSON.parse(savedTables);
-
-        if (Array.isArray(parsed)) setTables(parsed);
-
-      }
+      if (savedTrainingTables) setTrainingTables(JSON.parse(savedTrainingTables));
 
       if (savedWaitlist) {
 
@@ -2373,6 +2595,40 @@ export default function Home() {
             ...p,
 
             status: p.status || "Waiting",
+
+            quotedWait: p.quotedWait || "15-20",
+
+            priority: Boolean(p.priority),
+
+            partyType: p.partyType || "Walk-in",
+
+            textReadySent: Boolean(p.textReadySent),
+
+          }))
+
+        );
+
+      }
+
+      if (savedTrainingWaitlist) {
+
+        const parsedTrainingWaitlist = JSON.parse(savedTrainingWaitlist);
+
+        setTrainingWaitlist(
+
+          parsedTrainingWaitlist.map((p: WaitParty) => ({
+
+            ...p,
+
+            status: p.status || "Waiting",
+
+            quotedWait: p.quotedWait || "15-20",
+
+            priority: Boolean(p.priority),
+
+            partyType: p.partyType || "Walk-in",
+
+            textReadySent: Boolean(p.textReadySent),
 
           }))
 
@@ -2390,11 +2646,7 @@ export default function Home() {
 
       }
 
-      if (savedReservations) {
-
-        setReservations(JSON.parse(savedReservations));
-
-      }
+      if (savedReservations) setReservations(JSON.parse(savedReservations));
 
       if (savedTrainingReservations) {
 
@@ -2476,6 +2728,10 @@ export default function Home() {
 
       localStorage.removeItem(STORAGE_TRAINING_RESERVATIONS);
 
+      localStorage.removeItem(STORAGE_TRAINING_WAITLIST);
+
+      localStorage.removeItem(STORAGE_TRAINING_TABLES);
+
       localStorage.removeItem(STORAGE_FLOOR_LOCKED);
 
       localStorage.removeItem(STORAGE_APP_MODE);
@@ -2494,9 +2750,21 @@ export default function Home() {
 
   useEffect(() => {
 
+    localStorage.setItem(STORAGE_TRAINING_TABLES, JSON.stringify(trainingTables));
+
+  }, [trainingTables]);
+
+  useEffect(() => {
+
     localStorage.setItem(STORAGE_WAITLIST, JSON.stringify(waitlist));
 
   }, [waitlist]);
+
+  useEffect(() => {
+
+    localStorage.setItem(STORAGE_TRAINING_WAITLIST, JSON.stringify(trainingWaitlist));
+
+  }, [trainingWaitlist]);
 
   useEffect(() => {
 
@@ -2524,7 +2792,13 @@ export default function Home() {
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_TRAINING_RESERVATIONS, JSON.stringify(trainingReservations));
+    localStorage.setItem(
+
+      STORAGE_TRAINING_RESERVATIONS,
+
+      JSON.stringify(trainingReservations)
+
+    );
 
   }, [trainingReservations]);
 
@@ -2554,7 +2828,13 @@ export default function Home() {
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_RESERVATION_SETTINGS, JSON.stringify(reservationSettings));
+    localStorage.setItem(
+
+      STORAGE_RESERVATION_SETTINGS,
+
+      JSON.stringify(reservationSettings)
+
+    );
 
   }, [reservationSettings]);
 
@@ -2564,7 +2844,17 @@ export default function Home() {
 
       STORAGE_INFO,
 
-      JSON.stringify({ hostInfo, takeoutInfo, casaInfo, sanMiguelInfo })
+      JSON.stringify({
+
+        hostInfo,
+
+        takeoutInfo,
+
+        casaInfo,
+
+        sanMiguelInfo,
+
+      })
 
     );
 
@@ -2588,7 +2878,13 @@ export default function Home() {
 
   const summary = shiftSummary();
 
-  const slots = generateReservationSlots(reservationDate, reservationSettings);
+  const slots = generateReservationSlots(
+
+    reservationDate,
+
+    reservationSettings
+
+  );
 
   const holdingReservations = reservedTablesNow();
 
@@ -2622,7 +2918,19 @@ export default function Home() {
 
   return (
 
-    <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
+    <main
+
+      style={{
+
+        padding: 4,
+
+        fontFamily: "Arial",
+
+        background: "#f3f4f6",
+
+      }}
+
+    >
 
       {trainingMode && (
 
@@ -2648,7 +2956,7 @@ export default function Home() {
 
         >
 
-          TRAINING MODE ON — practice reservations are separate from live reservations.
+          TRAINING MODE ON — host board and reservations are using practice data.
 
         </div>
 
@@ -2684,7 +2992,21 @@ export default function Home() {
 
       )}
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+      <div
+
+        style={{
+
+          display: "flex",
+
+          gap: 8,
+
+          flexWrap: "wrap",
+
+          marginBottom: 8,
+
+        }}
+
+      >
 
         {appMode === "full" && (
 
@@ -2700,7 +3022,9 @@ export default function Home() {
 
               border: "2px solid #111827",
 
-              background: activeTab === "host" ? "#bfdbfe" : "white",
+              background:
+
+                activeTab === "host" ? "#bfdbfe" : "white",
 
               fontWeight: "bold",
 
@@ -2726,7 +3050,13 @@ export default function Home() {
 
             border: "2px solid #111827",
 
-            background: activeTab === "reservations" ? "#bfdbfe" : "white",
+            background:
+
+              activeTab === "reservations"
+
+                ? "#bfdbfe"
+
+                : "white",
 
             fontWeight: "bold",
 
@@ -2790,7 +3120,13 @@ export default function Home() {
 
             border: "2px solid #111827",
 
-            background: appMode === "reservationsOnly" ? "#dbeafe" : "white",
+            background:
+
+              appMode === "reservationsOnly"
+
+                ? "#dbeafe"
+
+                : "white",
 
             fontWeight: "bold",
 
@@ -2806,15 +3142,115 @@ export default function Home() {
 
         </button>
 
+        {!managerUnlocked ? (
+
+          <>
+
+            <input
+
+              type="password"
+
+              value={managerPinInput}
+
+              onChange={(e) =>
+
+                setManagerPinInput(e.target.value)
+
+              }
+
+              placeholder="Manager PIN"
+
+              style={{
+
+                padding: 8,
+
+                width: 125,
+
+                border: "2px solid #111827",
+
+                borderRadius: 8,
+
+              }}
+
+            />
+
+            <button
+
+              onClick={unlockManager}
+
+              style={{
+
+                padding: "9px 14px",
+
+                borderRadius: 8,
+
+                border: "2px solid #111827",
+
+                background: "white",
+
+                fontWeight: "bold",
+
+              }}
+
+            >
+
+              Unlock
+
+            </button>
+
+          </>
+
+        ) : (
+
+          <button
+
+            onClick={() => setManagerUnlocked(false)}
+
+            style={{
+
+              padding: "9px 14px",
+
+              borderRadius: 8,
+
+              border: "2px solid #111827",
+
+              background: "#dcfce7",
+
+              fontWeight: "bold",
+
+            }}
+
+          >
+
+            Manager Unlocked
+
+          </button>
+
+        )}
+
       </div>
 
-      {activeTab === "reservations" && (
+            {activeTab === "reservations" && (
 
         <div>
 
           <h1 style={{ marginTop: 0 }}>Reservations</h1>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <div
+
+            style={{
+
+              display: "flex",
+
+              gap: 8,
+
+              flexWrap: "wrap",
+
+              marginBottom: 10,
+
+            }}
+
+          >
 
             <div
 
@@ -2828,365 +3264,177 @@ export default function Home() {
 
                 borderRadius: 8,
 
-                minWidth: 280,
+                minWidth: 300,
 
               }}
 
             >
 
-              <b>Manager Settings</b>
+              <b>Reservation Settings</b>
 
-              <br />
+              <div style={{ marginTop: 8 }}>
 
-              {!managerUnlocked ? (
+                Year{" "}
 
-                <>
+                <input
 
-                  <input
+                  type="number"
 
-                    type="password"
+                  value={reservationSettings.year}
 
-                    value={managerPinInput}
+                  disabled={!managerUnlocked}
 
-                    onChange={(e) => setManagerPinInput(e.target.value)}
+                  onChange={(e) =>
 
-                    placeholder="Manager PIN"
+                    setReservationSettings((p) => ({
 
-                    style={{ padding: 6, marginTop: 6, width: 120 }}
+                      ...p,
 
-                  />
+                      year: Number(e.target.value) || 2026,
 
-                  <button
+                    }))
 
-                    onClick={unlockManager}
+                  }
 
-                    style={{
+                  style={{ width: 80 }}
 
-                      marginLeft: 6,
+                />
 
-                      padding: "6px 10px",
+              </div>
 
-                      borderRadius: 6,
+              <div style={{ marginTop: 6 }}>
 
-                      border: "2px solid #111827",
+                Min Reservations / Slot{" "}
 
-                      fontWeight: "bold",
+                <input
 
-                    }}
+                  type="number"
 
-                  >
+                  disabled={!managerUnlocked}
 
-                    Unlock
+                  value={reservationSettings.maxReservationsPerSlot}
 
-                  </button>
+                  onChange={(e) =>
 
-                  <div style={{ marginTop: 6, fontSize: 12 }}>
+                    setReservationSettings((p) => ({
 
-                    Employees can add/manage reservations. Settings are manager-only.
+                      ...p,
 
-                  </div>
+                      maxReservationsPerSlot:
 
-                </>
+                        Number(e.target.value) || 5,
 
-              ) : (
+                    }))
 
-                <>
+                  }
 
-                  <button
+                  style={{ width: 70 }}
 
-                    onClick={() => setManagerUnlocked(false)}
+                />
 
-                    style={{
+              </div>
 
-                      padding: "5px 9px",
+              <div style={{ marginTop: 6 }}>
 
-                      marginBottom: 6,
+                Max Covers / Slot{" "}
 
-                      borderRadius: 6,
+                <input
 
-                      border: "2px solid #111827",
+                  type="number"
 
-                      fontWeight: "bold",
+                  disabled={!managerUnlocked}
 
-                    }}
+                  value={reservationSettings.maxCoversPerSlot}
 
-                  >
+                  onChange={(e) =>
 
-                    Lock Settings
+                    setReservationSettings((p) => ({
 
-                  </button>
+                      ...p,
 
-                  <br />
+                      maxCoversPerSlot:
 
-                  Year{" "}
+                        Number(e.target.value) || 30,
 
-                  <input
+                    }))
 
-                    type="number"
+                  }
 
-                    value={reservationSettings.year}
+                  style={{ width: 70 }}
 
-                    onChange={(e) =>
+                />
 
-                      setReservationSettings((p) => ({
+              </div>
 
-                        ...p,
+              <div style={{ marginTop: 6 }}>
 
-                        year: Number(e.target.value) || 2026,
+                Hold Minutes{" "}
 
-                      }))
+                <input
 
-                    }
+                  type="number"
 
-                    style={{ width: 70 }}
+                  disabled={!managerUnlocked}
 
-                  />
+                  value={reservationSettings.holdMinutes}
 
-                  <br />
+                  onChange={(e) =>
 
-                  Tue-Thu{" "}
+                    setReservationSettings((p) => ({
 
-                  <input
+                      ...p,
 
-                    value={reservationSettings.tueThuOpen}
+                      holdMinutes:
 
-                    onChange={(e) =>
+                        Number(e.target.value) || 15,
 
-                      setReservationSettings((p) => ({
+                    }))
 
-                        ...p,
+                  }
 
-                        tueThuOpen: e.target.value,
+                  style={{ width: 70 }}
 
-                      }))
+                />
 
-                    }
+              </div>
 
-                    style={{ width: 60 }}
+              <div style={{ marginTop: 6 }}>
 
-                  />{" "}
+                Large Party Size{" "}
 
-                  to{" "}
+                <input
 
-                  <input
+                  type="number"
 
-                    value={reservationSettings.tueThuClose}
+                  disabled={!managerUnlocked}
 
-                    onChange={(e) =>
+                  value={reservationSettings.largePartySize}
 
-                      setReservationSettings((p) => ({
+                  onChange={(e) =>
 
-                        ...p,
+                    setReservationSettings((p) => ({
 
-                        tueThuClose: e.target.value,
+                      ...p,
 
-                      }))
+                      largePartySize:
 
-                    }
+                        Number(e.target.value) || 10,
 
-                    style={{ width: 60 }}
+                    }))
 
-                  />
+                  }
 
-                  <br />
+                  style={{ width: 70 }}
 
-                  Fri-Sat{" "}
+                />
 
-                  <input
+              </div>
 
-                    value={reservationSettings.friSatOpen}
+              <div style={{ marginTop: 10, fontSize: 12 }}>
 
-                    onChange={(e) =>
+                Sunday & Monday automatically blocked.
 
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        friSatOpen: e.target.value,
-
-                      }))
-
-                    }
-
-                    style={{ width: 60 }}
-
-                  />{" "}
-
-                  to{" "}
-
-                  <input
-
-                    value={reservationSettings.friSatClose}
-
-                    onChange={(e) =>
-
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        friSatClose: e.target.value,
-
-                      }))
-
-                    }
-
-                    style={{ width: 60 }}
-
-                  />
-
-                  <br />
-
-                  Slot min{" "}
-
-                  <input
-
-                    type="number"
-
-                    value={reservationSettings.slotMinutes}
-
-                    onChange={(e) =>
-
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        slotMinutes: Number(e.target.value) || 15,
-
-                      }))
-
-                    }
-
-                    style={{ width: 55 }}
-
-                  />{" "}
-
-                  Max res{" "}
-
-                  <input
-
-                    type="number"
-
-                    value={reservationSettings.maxReservationsPerSlot}
-
-                    onChange={(e) =>
-
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        maxReservationsPerSlot: Number(e.target.value) || 5,
-
-                      }))
-
-                    }
-
-                    style={{ width: 55 }}
-
-                  />
-
-                  <br />
-
-                  Max covers{" "}
-
-                  <input
-
-                    type="number"
-
-                    value={reservationSettings.maxCoversPerSlot}
-
-                    onChange={(e) =>
-
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        maxCoversPerSlot: Number(e.target.value) || 30,
-
-                      }))
-
-                    }
-
-                    style={{ width: 55 }}
-
-                  />{" "}
-
-                  Hold min{" "}
-
-                  <input
-
-                    type="number"
-
-                    value={reservationSettings.holdMinutes}
-
-                    onChange={(e) =>
-
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        holdMinutes: Number(e.target.value) || 15,
-
-                      }))
-
-                    }
-
-                    style={{ width: 55 }}
-
-                  />
-
-                  <br />
-
-                  Large party{" "}
-
-                  <input
-
-                    type="number"
-
-                    value={reservationSettings.largePartySize}
-
-                    onChange={(e) =>
-
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        largePartySize: Number(e.target.value) || 10,
-
-                      }))
-
-                    }
-
-                    style={{ width: 55 }}
-
-                  />{" "}
-
-                  PIN{" "}
-
-                  <input
-
-                    type="password"
-
-                    value={reservationSettings.managerPin}
-
-                    onChange={(e) =>
-
-                      setReservationSettings((p) => ({
-
-                        ...p,
-
-                        managerPin: e.target.value,
-
-                      }))
-
-                    }
-
-                    style={{ width: 70 }}
-
-                  />
-
-                </>
-
-              )}
+              </div>
 
             </div>
 
@@ -3202,7 +3450,7 @@ export default function Home() {
 
                 borderRadius: 8,
 
-                minWidth: 520,
+                minWidth: 560,
 
               }}
 
@@ -3210,227 +3458,195 @@ export default function Home() {
 
               <b>Add Reservation</b>
 
-              <br />
-
-              <input
-
-                type="date"
-
-                min={`${reservationSettings.year}-01-01`}
-
-                max={`${reservationSettings.year}-12-31`}
-
-                value={reservationDate}
-
-                onChange={(e) => {
-
-                  setReservationDate(e.target.value);
-
-                  setReservationTime("");
-
-                }}
-
-                style={{ padding: 6 }}
-
-              />
-
-              <input
-
-                value={reservationName}
-
-                onChange={(e) => setReservationName(e.target.value)}
-
-                placeholder="Guest name"
-
-                style={{ padding: 6 }}
-
-              />
-
-              <input
-
-                value={reservationPhone}
-
-                onChange={(e) => setReservationPhone(e.target.value)}
-
-                placeholder="Phone"
-
-                style={{ padding: 6 }}
-
-              />
-
-              <input
-
-                value={reservationAdults}
-
-                onChange={(e) => setReservationAdults(e.target.value)}
-
-                placeholder="Adults"
-
-                style={{ padding: 6, width: 70 }}
-
-              />
-
-              <input
-
-                value={reservationKids}
-
-                onChange={(e) => setReservationKids(e.target.value)}
-
-                placeholder="Kids"
-
-                style={{ padding: 6, width: 60 }}
-
-              />
-
-              <input
-
-                value={reservationNotes}
-
-                onChange={(e) => setReservationNotes(e.target.value)}
-
-                placeholder="Notes / table preference"
-
-                style={{ padding: 6, width: 220 }}
-
-              />
-
-              <button
-
-                onClick={addReservation}
+              <div
 
                 style={{
 
-                  padding: "7px 10px",
+                  display: "flex",
 
-                  fontWeight: "bold",
+                  gap: 6,
 
-                  border: "2px solid #111827",
+                  flexWrap: "wrap",
 
-                  borderRadius: 6,
+                  marginTop: 8,
 
                 }}
 
               >
 
-                Add
+                <input
 
-              </button>
+                  type="date"
 
-              <div style={{ marginTop: 8, fontWeight: "bold" }}>
+                  min={`${reservationSettings.year}-01-01`}
 
-                Selected time:{" "}
+                  max={`${reservationSettings.year}-12-31`}
 
-                {reservationTime ? displayTime(reservationTime) : "Tap a time slot below"}
+                  value={reservationDate}
+
+                  onChange={(e) => {
+
+                    setReservationDate(e.target.value);
+
+                    setReservationTime("");
+
+                  }}
+
+                  style={{ padding: 6 }}
+
+                />
+
+                <input
+
+                  value={reservationName}
+
+                  onChange={(e) =>
+
+                    setReservationName(e.target.value)
+
+                  }
+
+                  placeholder="Guest name"
+
+                  style={{ padding: 6 }}
+
+                />
+
+                <input
+
+                  value={reservationPhone}
+
+                  onChange={(e) =>
+
+                    setReservationPhone(e.target.value)
+
+                  }
+
+                  placeholder="Phone"
+
+                  style={{ padding: 6 }}
+
+                />
+
+                <input
+
+                  value={reservationAdults}
+
+                  onChange={(e) =>
+
+                    setReservationAdults(e.target.value)
+
+                  }
+
+                  placeholder="Adults"
+
+                  style={{ padding: 6, width: 70 }}
+
+                />
+
+                <input
+
+                  value={reservationKids}
+
+                  onChange={(e) =>
+
+                    setReservationKids(e.target.value)
+
+                  }
+
+                  placeholder="Kids"
+
+                  style={{ padding: 6, width: 60 }}
+
+                />
+
+                <input
+
+                  value={reservationNotes}
+
+                  onChange={(e) =>
+
+                    setReservationNotes(e.target.value)
+
+                  }
+
+                  placeholder="Notes"
+
+                  style={{ padding: 6, width: 180 }}
+
+                />
+
+                <button
+
+                  onClick={addReservation}
+
+                  style={{
+
+                    padding: "7px 10px",
+
+                    border: "2px solid #111827",
+
+                    borderRadius: 6,
+
+                    fontWeight: "bold",
+
+                  }}
+
+                >
+
+                  Add
+
+                </button>
 
               </div>
 
-              <div style={{ fontSize: 12 }}>
+              <div style={{ marginTop: 10, fontWeight: "bold" }}>
 
-                Example: 6 adults + 4 kids shows as 6A + 4K = 10.
+                Selected Time:{" "}
+
+                {reservationTime
+
+                  ? displayStandardTime(reservationTime)
+
+                  : "Tap slot"}
 
               </div>
+
+              {activeReservationWarnings.length > 0 && (
+
+                <div
+
+                  style={{
+
+                    marginTop: 8,
+
+                    background: "#fff7ed",
+
+                    border: "2px solid #f97316",
+
+                    borderRadius: 8,
+
+                    padding: 8,
+
+                    fontSize: 13,
+
+                  }}
+
+                >
+
+                  {activeReservationWarnings.map((warning) => (
+
+                    <div key={warning}>⚠️ {warning}</div>
+
+                  ))}
+
+                </div>
+
+              )}
 
             </div>
 
           </div>
-
-          {isClosedDay(reservationDate) && (
-
-            <div
-
-              style={{
-
-                padding: 8,
-
-                background: "#fecaca",
-
-                border: "2px solid #991b1b",
-
-                borderRadius: 8,
-
-                marginBottom: 8,
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Closed day warning: Sunday/Monday.
-
-            </div>
-
-          )}
-
-          {isSameDayWarning(reservationDate, reservationTime) && (
-
-            <div
-
-              style={{
-
-                padding: 8,
-
-                background: "#fde68a",
-
-                border: "2px solid #92400e",
-
-                borderRadius: 8,
-
-                marginBottom: 8,
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Same-day warning: reservation is within 1 hour. Confirm availability or treat as call-ahead.
-
-            </div>
-
-          )}
-
-          {activeReservationWarnings.length > 0 && (
-
-            <div
-
-              style={{
-
-                padding: 8,
-
-                background: "#fff7ed",
-
-                border: "2px solid #f97316",
-
-                borderRadius: 8,
-
-                marginBottom: 8,
-
-              }}
-
-            >
-
-              {activeReservationWarnings.map((w) => (
-
-                <div key={w}>⚠️ {w}</div>
-
-              ))}
-
-            </div>
-
-          )}
-
-          <input
-
-            value={reservationSearch}
-
-            onChange={(e) => setReservationSearch(e.target.value)}
-
-            placeholder="Search reservations by name or phone"
-
-            style={{ padding: 8, width: 310, marginBottom: 8 }}
-
-          />
 
           <div
 
@@ -3438,7 +3654,9 @@ export default function Home() {
 
               display: "grid",
 
-              gridTemplateColumns: "repeat(auto-fill, minmax(275px, 1fr))",
+              gridTemplateColumns:
+
+                "repeat(auto-fill, minmax(250px, 1fr))",
 
               gap: 8,
 
@@ -3460,7 +3678,13 @@ export default function Home() {
 
               );
 
-              const slotReservations = reservationsForSlot(reservationDate, slot);
+              const slotReservations = reservationsForSlot(
+
+                reservationDate,
+
+                slot
+
+              );
 
               const selected = reservationTime === slot;
 
@@ -3474,11 +3698,19 @@ export default function Home() {
 
                   style={{
 
-                    border: selected ? "4px solid #2563eb" : "2px solid #111827",
+                    border: selected
+
+                      ? "4px solid #2563eb"
+
+                      : "2px solid #111827",
 
                     borderRadius: 8,
 
-                    background: stats.full ? "#fecaca" : "white",
+                    background: stats.full
+
+                      ? "#fecaca"
+
+                      : "white",
 
                     padding: 8,
 
@@ -3488,31 +3720,65 @@ export default function Home() {
 
                 >
 
-                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                  <div
 
-                    {displayTime(slot)}
+                    style={{
+
+                      fontWeight: "bold",
+
+                      fontSize: 16,
+
+                    }}
+
+                  >
+
+                    {displayStandardTime(slot)}
 
                   </div>
 
-                  <div style={{ fontSize: 13, fontWeight: "bold" }}>
+                  <div
 
-                    {stats.reservations}/{reservationSettings.maxReservationsPerSlot} reservations
+                    style={{
 
-                    {" | "}
+                      fontSize: 13,
 
-                    {stats.covers}/{reservationSettings.maxCoversPerSlot} covers
+                      fontWeight: "bold",
+
+                    }}
+
+                  >
+
+                    {stats.reservations}/
+
+                    {reservationSettings.maxReservationsPerSlot}
+
+                    {" reservations | "}
+
+                    {stats.covers}/
+
+                    {reservationSettings.maxCoversPerSlot}
+
+                    {" covers"}
 
                   </div>
 
                   {stats.full && (
 
-                    <div style={{ color: "#991b1b", fontWeight: "bold" }}>FULL</div>
+                    <div
 
-                  )}
+                      style={{
 
-                  {slotReservations.length === 0 && (
+                        color: "#991b1b",
 
-                    <div style={{ fontSize: 12, color: "#475569" }}>Open slot</div>
+                        fontWeight: "bold",
+
+                      }}
+
+                    >
+
+                      FULL
+
+                    </div>
 
                   )}
 
@@ -3532,7 +3798,9 @@ export default function Home() {
 
                         border: "1px solid #111827",
 
-                        background: reservationStatusColor(r.status),
+                        background:
+
+                          reservationStatusColor(r.status),
 
                         fontSize: 12,
 
@@ -3540,27 +3808,19 @@ export default function Home() {
 
                     >
 
-                      <b>{r.name}</b> — {reservationGuestLabel(r)}
+                      <b>{r.name}</b>
 
                       <br />
 
-                      {r.phone && (
-
-                        <>
-
-                          Phone: {r.phone}
-
-                          <br />
-
-                        </>
-
-                      )}
-
-                      Status: {r.status}
+                      {reservationGuestLabel(r)}
 
                       <br />
 
-                      Suggestion: {reservationTableSuggestionText(r, tables)}
+                      {r.phone}
+
+                      <br />
+
+                      {r.status}
 
                       <br />
 
@@ -3576,123 +3836,149 @@ export default function Home() {
 
                       )}
 
-                      {reservationTotalGuests(r) >= reservationSettings.largePartySize && (
+                      {reservationTotalGuests(r) >=
 
-                        <div>⚠️ 20% auto gratuity</div>
+                        reservationSettings.largePartySize && (
 
-                      )}
+                        <div>
 
-                      {isReservationWithinHoldWindow(r, reservationSettings) && (
-
-                        <div style={{ color: "#dc2626", fontWeight: "bold" }}>
-
-                          🚨 Hold window active
+                          ⚠️ 20% auto gratuity
 
                         </div>
 
                       )}
 
-                      <div>
+                      <div
 
-                        Hold: {reservationSettings.holdMinutes} min | Majority required
+                        style={{
+
+                          marginTop: 6,
+
+                          display: "flex",
+
+                          gap: 4,
+
+                          flexWrap: "wrap",
+
+                        }}
+
+                      >
+
+                        <button
+
+                          onClick={(e) => {
+
+                            e.stopPropagation();
+
+                            updateReservationStatus(
+
+                              r.id,
+
+                              "Arrived"
+
+                            );
+
+                          }}
+
+                        >
+
+                          Arrived
+
+                        </button>
+
+                        <button
+
+                          onClick={(e) => {
+
+                            e.stopPropagation();
+
+                            seatReservation(r);
+
+                          }}
+
+                        >
+
+                          Seat
+
+                        </button>
+
+                        <button
+
+                          onClick={(e) => {
+
+                            e.stopPropagation();
+
+                            addReservationAsWaitlist(r);
+
+                          }}
+
+                        >
+
+                          Waitlist
+
+                        </button>
+
+                        <button
+
+                          onClick={(e) => {
+
+                            e.stopPropagation();
+
+                            updateReservationStatus(
+
+                              r.id,
+
+                              "NoShow"
+
+                            );
+
+                          }}
+
+                        >
+
+                          No-show
+
+                        </button>
+
+                        <button
+
+                          onClick={(e) => {
+
+                            e.stopPropagation();
+
+                            updateReservationStatus(
+
+                              r.id,
+
+                              "Cancelled"
+
+                            );
+
+                          }}
+
+                        >
+
+                          Cancel
+
+                        </button>
+
+                        <button
+
+                          onClick={(e) => {
+
+                            e.stopPropagation();
+
+                            deleteReservation(r.id);
+
+                          }}
+
+                        >
+
+                          Delete
+
+                        </button>
 
                       </div>
-
-                      <button
-
-                        onClick={(e) => {
-
-                          e.stopPropagation();
-
-                          updateReservationStatus(r.id, "Arrived");
-
-                        }}
-
-                      >
-
-                        Arrived
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={(e) => {
-
-                          e.stopPropagation();
-
-                          seatReservation(r);
-
-                        }}
-
-                      >
-
-                        Seat
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={(e) => {
-
-                          e.stopPropagation();
-
-                          addReservationAsWaitlist(r);
-
-                        }}
-
-                      >
-
-                        Waitlist
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={(e) => {
-
-                          e.stopPropagation();
-
-                          updateReservationStatus(r.id, "NoShow");
-
-                        }}
-
-                      >
-
-                        No-show
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={(e) => {
-
-                          e.stopPropagation();
-
-                          updateReservationStatus(r.id, "Cancelled");
-
-                        }}
-
-                      >
-
-                        Cancel
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={(e) => {
-
-                          e.stopPropagation();
-
-                          deleteReservation(r.id);
-
-                        }}
-
-                      >
-
-                        Delete
-
-                      </button>
 
                     </div>
 
@@ -3709,1673 +3995,3 @@ export default function Home() {
         </div>
 
       )}
-
-            {activeTab === "host" && appMode === "full" && (
-
-        <>
-
-          <div
-
-            style={{
-
-              display: "flex",
-
-              alignItems: "center",
-
-              gap: 8,
-
-              marginBottom: 8,
-
-              flexWrap: "wrap",
-
-            }}
-
-          >
-
-            <h1 style={{ margin: 0, fontSize: 34 }}>Host Map</h1>
-
-            <button
-
-              onClick={() => setEditMode(!editMode)}
-
-              style={{
-
-                padding: "8px 12px",
-
-                borderRadius: 8,
-
-                border: "2px solid #111827",
-
-                background: editMode ? "#fde68a" : "white",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              {editMode ? "Editing ON" : "Service Mode"}
-
-            </button>
-
-            <button
-
-              onClick={() => {
-
-                if (!requireManager()) return;
-
-                setFloorLocked((prev) => !prev);
-
-              }}
-
-              style={{
-
-                padding: "8px 12px",
-
-                borderRadius: 8,
-
-                border: "2px solid #111827",
-
-                background: floorLocked ? "#dcfce7" : "#fecaca",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              {floorLocked ? "Floor Locked" : "Floor Unlocked"}
-
-            </button>
-
-            <button
-
-              onClick={() => setCombineMode(!combineMode)}
-
-              style={{
-
-                padding: "8px 12px",
-
-                borderRadius: 8,
-
-                border: "2px solid #111827",
-
-                background: combineMode ? "#c4b5fd" : "white",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              {combineMode ? "Combining ON" : "Combine Tables"}
-
-            </button>
-
-            {combineMode && (
-
-              <>
-
-                <button onClick={combineSelectedTables} style={{ padding: "8px 12px" }}>
-
-                  Combine Selected
-
-                </button>
-
-                <button onClick={uncombineSelectedTables} style={{ padding: "8px 12px" }}>
-
-                  Uncombine Selected
-
-                </button>
-
-                <button
-
-                  onClick={() => setSelectedCombineIds([])}
-
-                  style={{ padding: "8px 12px" }}
-
-                >
-
-                  Clear Selection
-
-                </button>
-
-              </>
-
-            )}
-
-            <button
-
-              onClick={resetAll}
-
-              style={{
-
-                padding: "8px 12px",
-
-                borderRadius: 8,
-
-                border: "2px solid #111827",
-
-                background: "#fee2e2",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Reset All
-
-            </button>
-
-            <input
-
-              value={guestName}
-
-              onChange={(e) => setGuestName(e.target.value)}
-
-              placeholder="Guest name"
-
-              style={{ padding: 8 }}
-
-            />
-
-            <input
-
-              value={partySize}
-
-              onChange={(e) => setPartySize(e.target.value)}
-
-              placeholder="#"
-
-              style={{ padding: 8, width: 55 }}
-
-            />
-
-            <input
-
-              value={pager}
-
-              onChange={(e) => setPager(e.target.value)}
-
-              placeholder="Pager"
-
-              style={{ padding: 8, width: 75 }}
-
-            />
-
-            <button onClick={addToWaitlist} style={{ padding: "8px 12px" }}>
-
-              Add Wait
-
-            </button>
-
-          </div>
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-
-            <div
-
-              style={{
-
-                border: "3px solid #111827",
-
-                borderRadius: 10,
-
-                background: "white",
-
-                padding: 10,
-
-                minWidth: 240,
-
-                minHeight: 95,
-
-                fontSize: 13,
-
-              }}
-
-            >
-
-              <div style={{ fontWeight: "bold", fontSize: 15 }}>Shift Dashboard</div>
-
-              <div>
-
-                Seated: {summary.seated} | Covers: {summary.covers} | Wait: {summary.wait}
-
-              </div>
-
-              <div>
-
-                Open: {summary.open} | Boxed: {summary.boxed} | Dirty: {summary.dirty}
-
-              </div>
-
-              <div>Reservations today: {summary.reservationsToday}</div>
-
-              <div>Active holds: {holdingReservations.length}</div>
-
-              <div>Servers cut: {summary.serversCut}</div>
-
-            </div>
-
-            <div
-
-              style={{
-
-                border: "3px solid #111827",
-
-                borderRadius: 10,
-
-                background: "white",
-
-                padding: 10,
-
-                minWidth: 320,
-
-                fontSize: 13,
-
-              }}
-
-            >
-
-              <div style={{ fontWeight: "bold", fontSize: 15 }}>Night Map</div>
-
-              <input
-
-                value={nightMap.date}
-
-                onChange={(e) => {
-
-                  if (!managerUnlocked) return;
-
-                  setNightMap((prev) => ({ ...prev, date: e.target.value }));
-
-                }}
-
-                placeholder="Date"
-
-                style={{ padding: 5, width: 90 }}
-
-              />
-
-              <input
-
-                value={nightMap.manager}
-
-                onChange={(e) => {
-
-                  if (!managerUnlocked) return;
-
-                  setNightMap((prev) => ({ ...prev, manager: e.target.value }));
-
-                }}
-
-                placeholder="Manager"
-
-                style={{ padding: 5, width: 110 }}
-
-              />
-
-              <br />
-
-              <textarea
-
-                value={nightMap.notes}
-
-                onChange={(e) => {
-
-                  if (!managerUnlocked) return;
-
-                  setNightMap((prev) => ({ ...prev, notes: e.target.value }));
-
-                }}
-
-                placeholder="Night notes, sections, cuts, specials..."
-
-                style={{
-
-                  marginTop: 5,
-
-                  width: 295,
-
-                  height: 55,
-
-                  padding: 6,
-
-                  fontFamily: "Arial",
-
-                }}
-
-              />
-
-            </div>
-
-            <label style={{ fontSize: 12 }}>
-
-              Server table assignments:
-
-              <br />
-
-              <textarea
-
-                value={serverAssignments}
-
-                onChange={(e) => setServerAssignments(e.target.value)}
-
-                onBlur={syncServerInfoFromAssignments}
-
-                placeholder={`Maria: 1,2,3\nJose: 20,21,22\nAna: Casa 1,Casa 2`}
-
-                style={{
-
-                  width: 330,
-
-                  height: 85,
-
-                  padding: 8,
-
-                  border: "2px solid #111827",
-
-                  borderRadius: 8,
-
-                  fontFamily: "Arial",
-
-                }}
-
-              />
-
-            </label>
-
-            <div
-
-              style={{
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-                background: "white",
-
-                padding: 10,
-
-                minWidth: 180,
-
-                height: 85,
-
-                fontSize: 14,
-
-              }}
-
-            >
-
-              <div style={{ fontWeight: "bold" }}>Smart Rotation</div>
-
-              <div>
-
-                Next Up: <b>{nextUp || "Add active servers"}</b>
-
-              </div>
-
-              <button
-
-                onClick={rotateServer}
-
-                disabled={rotationNames.length === 0}
-
-                style={{
-
-                  marginTop: 8,
-
-                  padding: "6px 10px",
-
-                  borderRadius: 6,
-
-                  border: "2px solid #111827",
-
-                  background: "#f8fafc",
-
-                  fontWeight: "bold",
-
-                }}
-
-              >
-
-                Next →
-
-              </button>
-
-            </div>
-
-            {serverWorkloads().map((workload) => (
-
-              <div
-
-                key={workload.server}
-
-                style={{
-
-                  border: `3px solid ${workload.cut ? "#64748b" : workload.color}`,
-
-                  borderRadius: 8,
-
-                  background: workload.cut ? "#e5e7eb" : "white",
-
-                  padding: 10,
-
-                  minWidth: 155,
-
-                  minHeight: 105,
-
-                  fontSize: 13,
-
-                }}
-
-              >
-
-                <div
-
-                  style={{
-
-                    fontWeight: "bold",
-
-                    color: workload.cut ? "#475569" : workload.color,
-
-                  }}
-
-                >
-
-                  {workload.server} {workload.cut ? "(CUT)" : ""}
-
-                </div>
-
-                <div>
-
-                  Start:{" "}
-
-                  <input
-
-                    value={workload.startTime}
-
-                    onChange={(e) => updateServerStartTime(workload.server, e.target.value)}
-
-                    placeholder="4:00"
-
-                    style={{ width: 58 }}
-
-                  />
-
-                </div>
-
-                <div>Assigned: {workload.assignedCount}</div>
-
-                <div>Seated: {workload.seatedCount}</div>
-
-                <div>Covers: {workload.covers}</div>
-
-                <button
-
-                  onClick={() => toggleServerCut(workload.server)}
-
-                  style={{
-
-                    marginTop: 4,
-
-                    padding: "4px 8px",
-
-                    borderRadius: 6,
-
-                    border: "2px solid #111827",
-
-                    background: workload.cut ? "#dcfce7" : "#fee2e2",
-
-                    fontWeight: "bold",
-
-                  }}
-
-                >
-
-                  {workload.cut ? "Uncut" : "Cut"}
-
-                </button>
-
-              </div>
-
-            ))}
-
-          </div>
-
-          {managerUnlocked && (
-
-            <div
-
-              style={{
-
-                display: "flex",
-
-                gap: 8,
-
-                flexWrap: "wrap",
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "#f8fafc",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-              }}
-
-            >
-
-              <b>Manager Table Tools:</b>
-
-              <input
-
-                value={newTableId}
-
-                onChange={(e) => setNewTableId(e.target.value)}
-
-                placeholder="Table ID"
-
-                style={{ padding: 6, width: 90 }}
-
-              />
-
-              <input
-
-                value={newTableSeats}
-
-                onChange={(e) => setNewTableSeats(e.target.value)}
-
-                placeholder="Seats"
-
-                style={{ padding: 6, width: 70 }}
-
-              />
-
-              <select
-
-                value={newTableSection}
-
-                onChange={(e) => setNewTableSection(e.target.value as Section)}
-
-                style={{ padding: 6 }}
-
-              >
-
-                <option>Main</option>
-
-                <option>Patio</option>
-
-                <option>Lounge</option>
-
-                <option>Casa</option>
-
-                <option>San Miguel</option>
-
-              </select>
-
-              <button
-
-                onClick={addNewTable}
-
-                style={{
-
-                  padding: "6px 10px",
-
-                  borderRadius: 6,
-
-                  border: "2px solid #111827",
-
-                  fontWeight: "bold",
-
-                }}
-
-              >
-
-                Add Table
-
-              </button>
-
-              <span style={{ fontSize: 12 }}>
-
-                To remove a table: double-check manager is unlocked, then use the Remove button on the table.
-
-              </span>
-
-            </div>
-
-          )}
-
-                    {upcomingReservations.length > 0 && (
-
-            <div
-
-              style={{
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "white",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-              }}
-
-            >
-
-              <div style={{ fontWeight: "bold", marginBottom: 6 }}>
-
-                Today’s Reservations on Host Page
-
-              </div>
-
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-
-                {upcomingReservations.map((reservation) => (
-
-                  <div
-
-                    key={reservation.id}
-
-                    style={{
-
-                      padding: 8,
-
-                      borderRadius: 8,
-
-                      border: "2px solid #111827",
-
-                      background: reservationStatusColor(reservation.status),
-
-                      minWidth: 210,
-
-                      fontSize: 12,
-
-                    }}
-
-                  >
-
-                    <b>
-
-                      {displayTime(reservation.time)} — {reservation.name}
-
-                    </b>
-
-                    <br />
-
-                    {reservationGuestLabel(reservation)}
-
-                    <br />
-
-                    Status: {reservation.status}
-
-                    <br />
-
-                    Suggestion: {reservationTableSuggestionText(reservation, tables)}
-
-                    {reservation.notes && (
-
-                      <>
-
-                        <br />
-
-                        Notes: {reservation.notes}
-
-                      </>
-
-                    )}
-
-                    {reservationTotalGuests(reservation) >=
-
-                      reservationSettings.largePartySize && (
-
-                      <div>⚠️ 20% auto gratuity</div>
-
-                    )}
-
-                    {isReservationWithinHoldWindow(
-
-                      reservation,
-
-                      reservationSettings
-
-                    ) && (
-
-                      <div style={{ color: "#dc2626", fontWeight: "bold" }}>
-
-                        🚨 Hold window active
-
-                      </div>
-
-                    )}
-
-                    <div style={{ marginTop: 5 }}>
-
-                      <button
-
-                        onClick={() =>
-
-                          updateReservationStatus(reservation.id, "Arrived")
-
-                        }
-
-                      >
-
-                        Arrived
-
-                      </button>{" "}
-
-                      <button onClick={() => seatReservation(reservation)}>
-
-                        Seat
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={() => addReservationAsWaitlist(reservation)}
-
-                      >
-
-                        Waitlist
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={() =>
-
-                          updateReservationStatus(reservation.id, "NoShow")
-
-                        }
-
-                      >
-
-                        No-show
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={() =>
-
-                          updateReservationStatus(reservation.id, "Cancelled")
-
-                        }
-
-                      >
-
-                        Cancel
-
-                      </button>
-
-                    </div>
-
-                  </div>
-
-                ))}
-
-              </div>
-
-            </div>
-
-          )}
-
-          {holdingReservations.length > 0 && (
-
-            <div
-
-              style={{
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "#fecaca",
-
-                border: "2px solid #991b1b",
-
-                borderRadius: 8,
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Reservation hold active:{" "}
-
-              {holdingReservations
-
-                .map(
-
-                  (r) =>
-
-                    `${r.name} ${displayTime(r.time)} (${reservationGuestLabel(
-
-                      r
-
-                    )})`
-
-                )
-
-                .join(", ")}
-
-            </div>
-
-          )}
-
-          {selectedParty && (
-
-            <div
-
-              style={{
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "#fde68a",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-                fontWeight: "bold",
-
-                display: "inline-flex",
-
-                gap: 10,
-
-                alignItems: "center",
-
-              }}
-
-            >
-
-              <span>
-
-                Selected: {selectedParty.name} - {selectedParty.size}
-
-                {bestTable
-
-                  ? ` | Best table: ${bestTable.id}`
-
-                  : " | No open table fits"}
-
-              </span>
-
-              {bestTable && (
-
-                <button
-
-                  onClick={seatSelectedPartyAtBestTable}
-
-                  style={{
-
-                    padding: "5px 9px",
-
-                    borderRadius: 6,
-
-                    border: "2px solid #111827",
-
-                    fontWeight: "bold",
-
-                  }}
-
-                >
-
-                  Seat Best
-
-                </button>
-
-              )}
-
-            </div>
-
-          )}
-
-          <div
-
-            style={{
-
-              display: "flex",
-
-              gap: 8,
-
-              marginBottom: 8,
-
-              flexWrap: "wrap",
-
-            }}
-
-          >
-
-            {waitlist.map((party) => (
-
-              <div
-
-                key={party.id}
-
-                style={{
-
-                  display: "flex",
-
-                  gap: 4,
-
-                  alignItems: "center",
-
-                  padding: 6,
-
-                  borderRadius: 8,
-
-                  border:
-
-                    selectedPartyId === party.id
-
-                      ? "3px solid #f59e0b"
-
-                      : "2px solid #111827",
-
-                  background: waitlistColor(party.status),
-
-                  fontWeight: "bold",
-
-                }}
-
-              >
-
-                <button
-
-                  onClick={() => setSelectedPartyId(party.id)}
-
-                  style={{
-
-                    border: "none",
-
-                    background: "transparent",
-
-                    fontWeight: "bold",
-
-                  }}
-
-                >
-
-                  {party.name} - {party.size}
-
-                  {party.pager ? ` | Pager ${party.pager}` : ""} (
-
-                  {minutesSince(party.createdAt)}) | Wait{" "}
-
-                  {estimatedWait(party.size)}
-
-                </button>
-
-                <button onClick={() => cycleWaitStatus(party.id)}>
-
-                  {party.status || "Waiting"}
-
-                </button>
-
-                <button onClick={() => removeFromWaitlist(party.id)}>X</button>
-
-              </div>
-
-            ))}
-
-          </div>
-
-          {combineMode && (
-
-            <div style={{ marginBottom: 8, fontWeight: "bold" }}>
-
-              Selected to combine:{" "}
-
-              {selectedCombineIds.length > 0
-
-                ? selectedCombineIds.join(", ")
-
-                : "none"}
-
-            </div>
-
-          )}
-
-          <div style={{ width: "100%", overflowX: "auto" }}>
-
-            <div
-
-              onPointerMove={dragTable}
-
-              onPointerUp={stopDrag}
-
-              onPointerCancel={stopDrag}
-
-              style={{
-
-                position: "relative",
-
-                width: 1500,
-
-                height: 1040,
-
-                background: "#fbfaf5",
-
-                border: "4px solid #111827",
-
-                overflow: "hidden",
-
-                transform: "scale(0.74)",
-
-                transformOrigin: "top left",
-
-                marginBottom: -270,
-
-                touchAction: editMode && !floorLocked ? "none" : "auto",
-
-              }}
-
-            >
-
-              {Object.entries(serverGroups()).map(([server, assignedTables]) =>
-
-                serverSectionHighlight(server, assignedTables)
-
-              )}
-
-              {wall(0, 105, 1240, 6)}
-
-              {wall(0, 360, 270, 7)}
-
-              {wall(380, 325, 320, 7)}
-
-              {wall(380, 540, 290, 7)}
-
-              {wall(0, 560, 250, 8)}
-
-              {wall(300, 755, 460, 8)}
-
-              {wall(780, 755, 430, 8)}
-
-              {wall(220, 815, 8, 225)}
-
-              {wall(760, 755, 8, 285)}
-
-              {wall(1210, 755, 8, 285)}
-
-              {wall(800, 575, 360, 8)}
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 1240,
-
-                  top: 0,
-
-                  width: 260,
-
-                  height: 650,
-
-                  borderLeft: "5px solid #111827",
-
-                  borderBottom: "5px solid #111827",
-
-                  background: "#fffdf7",
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                <div
-
-                  style={{
-
-                    height: 110,
-
-                    padding: 14,
-
-                    fontWeight: "bold",
-
-                    fontSize: 18,
-
-                    whiteSpace: "pre-line",
-
-                  }}
-
-                >
-
-                  {hostInfo}
-
-                </div>
-
-                <div
-
-                  style={{
-
-                    background: "#111827",
-
-                    color: "white",
-
-                    textAlign: "center",
-
-                    padding: 8,
-
-                    fontSize: 22,
-
-                    fontWeight: "bold",
-
-                    margin: "0 20px",
-
-                  }}
-
-                >
-
-                  San Miguel
-
-                </div>
-
-                <div
-
-                  style={{
-
-                    margin: "14px 22px",
-
-                    padding: 12,
-
-                    height: 165,
-
-                    border: "3px solid #111827",
-
-                    fontSize: 15,
-
-                    whiteSpace: "pre-line",
-
-                  }}
-
-                >
-
-                  {sanMiguelInfo}
-
-                </div>
-
-              </div>
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 1225,
-
-                  top: 735,
-
-                  width: 255,
-
-                  height: 290,
-
-                  border: "4px solid #111827",
-
-                  background: "#fffdf7",
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                <div
-
-                  style={{
-
-                    background: "#111827",
-
-                    color: "white",
-
-                    textAlign: "center",
-
-                    padding: 8,
-
-                    fontSize: 20,
-
-                    fontWeight: "bold",
-
-                  }}
-
-                >
-
-                  Casa 1884
-
-                </div>
-
-                <div
-
-                  style={{
-
-                    padding: 16,
-
-                    fontSize: 16,
-
-                    whiteSpace: "pre-line",
-
-                  }}
-
-                >
-
-                  {casaInfo}
-
-                </div>
-
-              </div>
-
-                            <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 120,
-
-                  top: 405,
-
-                  fontSize: 25,
-
-                  fontStyle: "italic",
-
-                  fontWeight: "bold",
-
-                  zIndex: 3,
-
-                  whiteSpace: "pre-line",
-
-                }}
-
-              >
-
-                {takeoutInfo}
-
-              </div>
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 310,
-
-                  top: 625,
-
-                  width: 335,
-
-                  height: 85,
-
-                  borderRadius: 20,
-
-                  border: "5px solid #64748b",
-
-                  background: "#dbeafe",
-
-                  display: "flex",
-
-                  alignItems: "center",
-
-                  justifyContent: "center",
-
-                  fontSize: 36,
-
-                  fontWeight: "bold",
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                BAR
-
-              </div>
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 810,
-
-                  top: 600,
-
-                  width: 275,
-
-                  height: 48,
-
-                  background: "white",
-
-                  border: "3px solid #111827",
-
-                  textAlign: "center",
-
-                  paddingTop: 10,
-
-                  fontWeight: "bold",
-
-                  fontSize: 18,
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                Buffet
-
-              </div>
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 835,
-
-                  top: 675,
-
-                  width: 220,
-
-                  height: 45,
-
-                  background: "#dbeafe",
-
-                  border: "1px solid #64748b",
-
-                  textAlign: "center",
-
-                  paddingTop: 10,
-
-                  fontSize: 13,
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                Friday Lunch Buffet 11 - 2 pm
-
-              </div>
-
-              {tables.map((table, index) => {
-
-                const fitsSelectedParty =
-
-                  selectedParty &&
-
-                  table.status === "Open" &&
-
-                  availableSeats(table, tables) >= selectedSize;
-
-                const isBestTable = bestTable?.id === table.id;
-
-                const isSelectedForCombine = selectedCombineIds.includes(table.id);
-
-                const assignedServer = assignedServerForTable(table.id) || table.server;
-
-                const serverColor = getServerColor(assignedServer);
-
-                const assignedServerCut = assignedServer
-
-                  ? serverIsCut(assignedServer, serverInfo)
-
-                  : false;
-
-                const heldForReservation = holdingReservations.some(
-
-                  (r) =>
-
-                    reservationTotalGuests(r) <= availableSeats(table, tables) &&
-
-                    table.status === "Open"
-
-                );
-
-                return (
-
-                  <button
-
-                    key={table.id}
-
-                    onPointerDown={(e) => {
-
-                      e.preventDefault();
-
-                      startDrag(index);
-
-                    }}
-
-                    onDoubleClick={() => clearTable(index)}
-
-                    onClick={() => updateTable(index)}
-
-                    title={table.combinedLabel || ""}
-
-                    style={{
-
-                      position: "absolute",
-
-                      left: table.x,
-
-                      top: table.y,
-
-                      width: table.w,
-
-                      height: table.h,
-
-                      background: heldForReservation
-
-                        ? "#fef3c7"
-
-                        : assignedServerCut
-
-                        ? "#e5e7eb"
-
-                        : isSelectedForCombine
-
-                        ? "#ddd6fe"
-
-                        : fitsSelectedParty
-
-                        ? isBestTable
-
-                          ? "#86efac"
-
-                          : "#dcfce7"
-
-                        : turnBackground(table),
-
-                      border: heldForReservation
-
-                        ? "5px solid #dc2626"
-
-                        : table.readyFlash
-
-                        ? "5px solid #22c55e"
-
-                        : isSelectedForCombine
-
-                        ? "4px solid #7c3aed"
-
-                        : table.combinedId
-
-                        ? "4px solid #a855f7"
-
-                        : assignedServerCut
-
-                        ? "4px dashed #64748b"
-
-                        : assignedServer
-
-                        ? `4px solid ${serverColor}`
-
-                        : table.status === "Boxed"
-
-                        ? "4px solid #f59e0b"
-
-                        : isBestTable
-
-                        ? "4px solid #16a34a"
-
-                        : editMode
-
-                        ? "3px dashed #111827"
-
-                        : "2px solid #1e3a8a",
-
-                      boxShadow: heldForReservation
-
-                        ? "0 0 16px #dc2626"
-
-                        : table.readyFlash
-
-                        ? "0 0 14px #22c55e"
-
-                        : "none",
-
-                      borderRadius: 8,
-
-                      color: assignedServerCut ? "#475569" : "#006ee6",
-
-                      fontWeight: "bold",
-
-                      fontSize: 10,
-
-                      lineHeight: 1.05,
-
-                      overflow: "hidden",
-
-                      zIndex: draggingIndex === index ? 20 : 5,
-
-                      touchAction: "none",
-
-                      cursor: editMode && !floorLocked ? "grab" : "pointer",
-
-                    }}
-
-                  >
-
-                    {table.id}
-
-                    <br />
-
-                    {table.guest
-
-                      ? `${table.guest} ${table.partySize}`
-
-                      : table.combinedId
-
-                      ? `${availableSeats(table, tables)} seats`
-
-                      : table.seats}
-
-                    <br />
-
-                    {heldForReservation
-
-                      ? "RES HOLD"
-
-                      : table.status === "Seated"
-
-                      ? minutesSince(table.seatedAt)
-
-                      : table.status}
-
-                    {assignedServer && (
-
-                      <>
-
-                        <br />
-
-                        {assignedServerCut ? `${assignedServer} CUT` : assignedServer}
-
-                      </>
-
-                    )}
-
-                    {managerUnlocked && (
-
-                      <>
-
-                        <br />
-
-                        <span
-
-                          onClick={(e) => {
-
-                            e.stopPropagation();
-
-                            removeTable(table.id);
-
-                          }}
-
-                          style={{
-
-                            color: "#dc2626",
-
-                            fontSize: 9,
-
-                            textDecoration: "underline",
-
-                          }}
-
-                        >
-
-                          Remove
-
-                        </span>
-
-                      </>
-
-                    )}
-
-                  </button>
-
-                );
-
-              })}
-
-            </div>
-
-          </div>
-
-          <p style={{ marginTop: 8, fontSize: 14 }}>
-
-            Reservations connect to the host board. Active reservation holds highlight
-
-            red/gold. Cut servers are removed from smart rotation. Floor movement and table
-
-            add/remove are manager-locked.
-
-          </p>
-
-        </>
-
-      )}
-
-    </main>
-
-  );
-
-}
