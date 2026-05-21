@@ -1,14 +1,18 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
 type Status = "Open" | "Seated" | "Boxed" | "Dirty";
 
-type Section = "Main" | "Patio" | "Lounge" | "Casa" | "San Miguel";
+type Section =
+
+  | "Main"
+
+  | "Patio"
+
+  | "Lounge"
+
+  | "Casa"
+
+  | "San Miguel";
 
 type WaitStatus = "Waiting" | "Paged" | "Returned" | "NoShow";
-
-type PartyType = "Walk-in" | "Call-ahead" | "Reservation overflow";
 
 type ReservationStatus =
 
@@ -24,25 +28,35 @@ type ReservationStatus =
 
   | "Cancelled";
 
-type AppMode = "full" | "reservationsOnly";
-
-type TableShape = "rectangle" | "round" | "booth";
-
 type GuestTag =
 
   | "VIP"
 
   | "Birthday"
 
-  | "Allergy"
+  | "Anniversary"
 
-  | "High Chair"
-
-  | "Stroller"
+  | "Large Party"
 
   | "Patio"
 
-  | "Large Party";
+  | "High Top"
+
+  | "Booth"
+
+  | "Frequent Guest";
+
+type PartyType =
+
+  | "Walk-in"
+
+  | "Call-ahead"
+
+  | "Reservation overflow";
+
+type SyncStatus = "Online" | "Offline" | "Pending Sync";
+
+type TableShape = "rectangle" | "round" | "booth";
 
 type TableItem = {
 
@@ -58,11 +72,11 @@ type TableItem = {
 
   h: number;
 
+  shape?: TableShape;
+
   status: Status;
 
   section: Section;
-
-  shape?: TableShape;
 
   guest?: string;
 
@@ -130,13 +144,13 @@ type Reservation = {
 
   status: ReservationStatus;
 
-  tableId?: string;
-
   tags?: GuestTag[];
 
   textConfirmed?: boolean;
 
   reminderSent?: boolean;
+
+  tableId?: string;
 
   createdAt: number;
 
@@ -164,13 +178,13 @@ type ReservationSettings = {
 
   largePartySize: number;
 
-  avgSpendPerGuest: number;
-
-  averageTurnMinutes: number;
+  managerPin: string;
 
   kitchenPacingLimit: number;
 
-  managerPin: string;
+  averageTurnMinutes: number;
+
+  avgSpendPerGuest: number;
 
 };
 
@@ -182,17 +196,7 @@ type ServerInfo = {
 
   cut: boolean;
 
-  salesGoal?: number;
-
-};
-
-type NightMapInfo = {
-
-  date: string;
-
-  manager: string;
-
-  notes: string;
+  salesGoal: number;
 
 };
 
@@ -226,7 +230,137 @@ type SyncLog = {
 
 };
 
+type TextMessage = {
+
+  id: number;
+
+  guestName: string;
+
+  phone: string;
+
+  message: string;
+
+  type:
+
+    | "Reservation Confirmation"
+
+    | "Reminder"
+
+    | "Table Ready"
+
+    | "Custom";
+
+  status: "Drafted" | "Ready To Send" | "Sent Placeholder";
+
+  createdAt: number;
+
+};
+
+type GuestHistoryItem = {
+
+  id: number;
+
+  name: string;
+
+  phone: string;
+
+  visits: number;
+
+  lastVisit: number;
+
+  notes: string;
+
+  tags: GuestTag[];
+
+};
+
+type OfflineQueueItem = {
+
+  id: number;
+
+  action: string;
+
+  createdAt: number;
+
+  resolved: boolean;
+
+};
+
+type ServerSectionBox = {
+
+  id: number;
+
+  server: string;
+
+  x: number;
+
+  y: number;
+
+  w: number;
+
+  h: number;
+
+};
+
 const GRID = 5;
+
+const STORAGE_TABLES = "hostTables_v40";
+
+const STORAGE_TRAINING_TABLES = "hostTrainingTables_v40";
+
+const STORAGE_WAITLIST = "hostWaitlist_v40";
+
+const STORAGE_TRAINING_WAITLIST = "hostTrainingWaitlist_v40";
+
+const STORAGE_ASSIGNMENTS = "hostServerAssignments_v40";
+
+const STORAGE_SERVER_INFO = "hostServerInfo_v40";
+
+const STORAGE_INFO = "hostInfoBoxes_v40";
+
+const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v40";
+
+const STORAGE_RESERVATIONS = "hostReservations_v40";
+
+const STORAGE_TRAINING_RESERVATIONS = "hostTrainingReservations_v40";
+
+const STORAGE_RESERVATION_SETTINGS = "hostReservationSettings_v40";
+
+const STORAGE_TRAINING_MODE = "hostTrainingMode_v40";
+
+const STORAGE_FLOOR_LOCKED = "hostFloorLocked_v40";
+
+const STORAGE_APP_MODE = "hostAppMode_v40";
+
+const STORAGE_NIGHT_MAP = "hostNightMap_v40";
+
+const STORAGE_SHIFT_REPORTS = "hostShiftReports_v40";
+
+const STORAGE_SYNC_LOGS = "hostSyncLogs_v40";
+
+const STORAGE_TEXT_MESSAGES = "hostTextMessages_v40";
+
+const STORAGE_GUEST_HISTORY = "hostGuestHistory_v40";
+
+const STORAGE_OFFLINE_QUEUE = "hostOfflineQueue_v40";
+
+const STORAGE_SYNC_STATUS = "hostSyncStatus_v40";
+
+const STORAGE_SERVER_SECTION_BOXES =
+
+  "hostServerSectionBoxes_v40";
+
+type AppMode = "full" | "reservationsOnly";
+
+type NightMapInfo = {
+
+  date: string;
+
+  manager: string;
+
+  notes: string;
+
+};
 
 const snap = (n: number) => Math.round(n / GRID) * GRID;
 
@@ -266,53 +400,29 @@ const guestTagOptions: GuestTag[] = [
 
   "Birthday",
 
-  "Allergy",
-
-  "High Chair",
-
-  "Stroller",
-
-  "Patio",
+  "Anniversary",
 
   "Large Party",
 
+  "Patio",
+
+  "High Top",
+
+  "Booth",
+
+  "Frequent Guest",
+
 ];
 
-const tableShapeOptions: TableShape[] = ["rectangle", "round", "booth"];
+const tableShapeOptions: TableShape[] = [
 
-const STORAGE_TABLES = "hostTables_v30";
+  "rectangle",
 
-const STORAGE_TRAINING_TABLES = "hostTrainingTables_v30";
+  "round",
 
-const STORAGE_WAITLIST = "hostWaitlist_v30";
+  "booth",
 
-const STORAGE_TRAINING_WAITLIST = "hostTrainingWaitlist_v30";
-
-const STORAGE_ASSIGNMENTS = "hostServerAssignments_v30";
-
-const STORAGE_SERVER_INFO = "hostServerInfo_v30";
-
-const STORAGE_INFO = "hostInfoBoxes_v30";
-
-const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v30";
-
-const STORAGE_RESERVATIONS = "hostReservations_v30";
-
-const STORAGE_TRAINING_RESERVATIONS = "hostTrainingReservations_v30";
-
-const STORAGE_RESERVATION_SETTINGS = "hostReservationSettings_v30";
-
-const STORAGE_TRAINING_MODE = "hostTrainingMode_v30";
-
-const STORAGE_FLOOR_LOCKED = "hostFloorLocked_v30";
-
-const STORAGE_APP_MODE = "hostAppMode_v30";
-
-const STORAGE_NIGHT_MAP = "hostNightMap_v30";
-
-const STORAGE_SHIFT_REPORTS = "hostShiftReports_v30";
-
-const STORAGE_SYNC_LOGS = "hostSyncLogs_v30";
+];
 
 const defaultReservationSettings: ReservationSettings = {
 
@@ -336,13 +446,13 @@ const defaultReservationSettings: ReservationSettings = {
 
   largePartySize: 10,
 
-  avgSpendPerGuest: 25,
-
-  averageTurnMinutes: 80,
+  managerPin: "1884",
 
   kitchenPacingLimit: 40,
 
-  managerPin: "1884",
+  averageTurnMinutes: 80,
+
+  avgSpendPerGuest: 25,
 
 };
 
@@ -397,6 +507,18 @@ function makeTable(
     shape,
 
   };
+
+}
+
+function normalizeGuestKey(name: string, phone: string) {
+
+  return `${name.trim().toLowerCase()}-${phone.trim()}`;
+
+}
+
+function formatPrintDate(time: number) {
+
+  return new Date(time).toLocaleString();
 
 }
 
@@ -476,7 +598,11 @@ function isOverQuotedWait(party: WaitParty) {
 
   if (!maxMinutes) return false;
 
-  const waitedMinutes = Math.floor((Date.now() - party.createdAt) / 60000);
+  const waitedMinutes = Math.floor(
+
+    (Date.now() - party.createdAt) / 60000
+
+  );
 
   return waitedMinutes > maxMinutes;
 
@@ -498,7 +624,11 @@ function waitlistColor(party: WaitParty) {
 
 }
 
-function reservationTotalGuests(reservation: Pick<Reservation, "adults" | "kids">) {
+function reservationTotalGuests(
+
+  reservation: Pick<Reservation, "adults" | "kids">
+
+) {
 
   const adults = parseInt(reservation.adults || "0", 10) || 0;
 
@@ -508,7 +638,11 @@ function reservationTotalGuests(reservation: Pick<Reservation, "adults" | "kids"
 
 }
 
-function reservationGuestLabel(reservation: Pick<Reservation, "adults" | "kids">) {
+function reservationGuestLabel(
+
+  reservation: Pick<Reservation, "adults" | "kids">
+
+) {
 
   const adults = parseInt(reservation.adults || "0", 10) || 0;
 
@@ -684,7 +818,13 @@ function getHoursForDate(dateString: string, settings: ReservationSettings) {
 
 }
 
-function generateReservationSlots(dateString: string, settings: ReservationSettings) {
+function generateReservationSlots(
+
+  dateString: string,
+
+  settings: ReservationSettings
+
+) {
 
   const hours = getHoursForDate(dateString, settings);
 
@@ -722,13 +862,27 @@ function isReservationWithinHoldWindow(
 
   const now = Date.now();
 
-  const reservationMs = reservationDateTimeMs(reservation.date, reservation.time);
+  const reservationMs = reservationDateTimeMs(
+
+    reservation.date,
+
+    reservation.time
+
+  );
 
   const startHold = reservationMs - settings.holdMinutes * 60000;
 
   const endHold = reservationMs + settings.holdMinutes * 60000;
 
-  return now >= startHold && now <= endHold && reservation.status === "Booked";
+  return (
+
+    now >= startHold &&
+
+    now <= endHold &&
+
+    reservation.status === "Booked"
+
+  );
 
 }
 
@@ -738,321 +892,41 @@ function reservationTagColor(tag: GuestTag) {
 
   if (tag === "Birthday") return "#fce7f3";
 
-  if (tag === "Allergy") return "#fee2e2";
+  if (tag === "Anniversary") return "#ede9fe";
 
-  if (tag === "High Chair") return "#dcfce7";
-
-  if (tag === "Stroller") return "#dbeafe";
+  if (tag === "Large Party") return "#ffedd5";
 
   if (tag === "Patio") return "#e0f2fe";
 
-  if (tag === "Large Party") return "#ffedd5";
+  if (tag === "High Top") return "#dcfce7";
+
+  if (tag === "Booth") return "#dbeafe";
+
+  if (tag === "Frequent Guest") return "#ccfbf1";
 
   return "#e5e7eb";
 
 }
 
-function estimatedSalesFromCovers(covers: number, settings: ReservationSettings) {
+function estimatedSalesFromCovers(
 
-  return covers * settings.avgSpendPerGuest;
-
-}
-
-function estimateTableAvailableMinutes(table: TableItem, settings: ReservationSettings) {
-
-  if (table.status === "Open") return 0;
-
-  if (table.status === "Dirty") return 10;
-
-  if (table.status === "Boxed") return 20;
-
-  if (table.status === "Seated") {
-
-    const minsSat = table.seatedAt
-
-      ? Math.floor((Date.now() - table.seatedAt) / 60000)
-
-      : 0;
-
-    return Math.max(10, settings.averageTurnMinutes - minsSat);
-
-  }
-
-  return 30;
-
-}
-
-function tablePredictionLabel(table: TableItem, settings: ReservationSettings) {
-
-  const mins = estimateTableAvailableMinutes(table, settings);
-
-  if (mins === 0) return "Open now";
-
-  return `Est. open in ${mins} min`;
-
-}
-
-function reservationTotalGuests(reservation: Pick<Reservation, "adults" | "kids">) {
-
-  const adults = parseInt(reservation.adults || "0", 10) || 0;
-
-  const kids = parseInt(reservation.kids || "0", 10) || 0;
-
-  return adults + kids;
-
-}
-
-function reservationGuestLabel(reservation: Pick<Reservation, "adults" | "kids">) {
-
-  const adults = parseInt(reservation.adults || "0", 10) || 0;
-
-  const kids = parseInt(reservation.kids || "0", 10) || 0;
-
-  if (adults > 0 && kids > 0) return `${adults}A + ${kids}K = ${adults + kids}`;
-
-  if (adults > 0) return `${adults}A`;
-
-  if (kids > 0) return `${kids}K`;
-
-  return "0";
-
-}
-
-function turnBackground(table: TableItem) {
-
-  if (table.status !== "Seated" || !table.seatedAt) {
-
-    return statusColor(table.status);
-
-  }
-
-  const mins = Math.floor((Date.now() - table.seatedAt) / 60000);
-
-  if (mins >= 60) return "#fecaca";
-
-  if (mins >= 45) return "#fde68a";
-
-  return statusColor(table.status);
-
-}
-
-const serverColors = [
-
-  "#2563eb",
-
-  "#16a34a",
-
-  "#dc2626",
-
-  "#9333ea",
-
-  "#ea580c",
-
-  "#0891b2",
-
-  "#be123c",
-
-  "#0f766e",
-
-];
-
-function getServerColor(server?: string) {
-
-  if (!server) return "#1e3a8a";
-
-  let hash = 0;
-
-  for (let i = 0; i < server.length; i++) {
-
-    hash = server.charCodeAt(i) + ((hash << 5) - hash);
-
-  }
-
-  return serverColors[Math.abs(hash) % serverColors.length];
-
-}
-
-function hexToRgba(hex: string, alpha: number) {
-
-  const clean = hex.replace("#", "");
-
-  const r = parseInt(clean.substring(0, 2), 16);
-
-  const g = parseInt(clean.substring(2, 4), 16);
-
-  const b = parseInt(clean.substring(4, 6), 16);
-
-  return `rgba(${r},${g},${b},${alpha})`;
-
-}
-
-function dayName(dateString: string) {
-
-  const date = new Date(`${dateString}T12:00:00`);
-
-  return date.toLocaleDateString("en-US", { weekday: "long" });
-
-}
-
-function isClosedDay(dateString: string) {
-
-  const day = dayName(dateString);
-
-  return day === "Sunday" || day === "Monday";
-
-}
-
-function timeToMinutes(time: string) {
-
-  const [hours, minutes] = time.split(":").map(Number);
-
-  return hours * 60 + minutes;
-
-}
-
-function minutesToTime(total: number) {
-
-  const hours = Math.floor(total / 60);
-
-  const minutes = total % 60;
-
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-
-}
-
-function displayTime(time: string) {
-
-  if (!time) return "";
-
-  const [h, m] = time.split(":").map(Number);
-
-  const suffix = h >= 12 ? "PM" : "AM";
-
-  const hour = h % 12 || 12;
-
-  return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
-
-}
-
-function displayStandardTime(time: string) {
-
-  if (!time) return "";
-
-  if (time.toLowerCase().includes("am") || time.toLowerCase().includes("pm")) {
-
-    return time;
-
-  }
-
-  if (!time.includes(":")) return time;
-
-  return displayTime(time);
-
-}
-
-function getHoursForDate(dateString: string, settings: ReservationSettings) {
-
-  const day = dayName(dateString);
-
-  if (day === "Sunday" || day === "Monday") return null;
-
-  if (day === "Friday" || day === "Saturday") {
-
-    return {
-
-      open: settings.friSatOpen,
-
-      close: settings.friSatClose,
-
-    };
-
-  }
-
-  return {
-
-    open: settings.tueThuOpen,
-
-    close: settings.tueThuClose,
-
-  };
-
-}
-
-function generateReservationSlots(dateString: string, settings: ReservationSettings) {
-
-  const hours = getHoursForDate(dateString, settings);
-
-  if (!hours) return [];
-
-  const open = timeToMinutes(hours.open);
-
-  const close = timeToMinutes(hours.close);
-
-  const slots: string[] = [];
-
-  for (let time = open; time < close; time += settings.slotMinutes) {
-
-    slots.push(minutesToTime(time));
-
-  }
-
-  return slots;
-
-}
-
-function reservationDateTimeMs(date: string, time: string) {
-
-  return new Date(`${date}T${time}:00`).getTime();
-
-}
-
-function isReservationWithinHoldWindow(
-
-  reservation: Reservation,
+  covers: number,
 
   settings: ReservationSettings
 
 ) {
 
-  const now = Date.now();
-
-  const reservationMs = reservationDateTimeMs(reservation.date, reservation.time);
-
-  const startHold = reservationMs - settings.holdMinutes * 60000;
-
-  const endHold = reservationMs + settings.holdMinutes * 60000;
-
-  return now >= startHold && now <= endHold && reservation.status === "Booked";
-
-}
-
-function reservationTagColor(tag: GuestTag) {
-
-  if (tag === "VIP") return "#fef3c7";
-
-  if (tag === "Birthday") return "#fce7f3";
-
-  if (tag === "Allergy") return "#fee2e2";
-
-  if (tag === "High Chair") return "#dcfce7";
-
-  if (tag === "Stroller") return "#dbeafe";
-
-  if (tag === "Patio") return "#e0f2fe";
-
-  if (tag === "Large Party") return "#ffedd5";
-
-  return "#e5e7eb";
-
-}
-
-function estimatedSalesFromCovers(covers: number, settings: ReservationSettings) {
-
   return covers * settings.avgSpendPerGuest;
 
 }
 
-function estimateTableAvailableMinutes(table: TableItem, settings: ReservationSettings) {
+function estimateTableAvailableMinutes(
+
+  table: TableItem,
+
+  settings: ReservationSettings
+
+) {
 
   if (table.status === "Open") return 0;
 
@@ -1068,7 +942,7 @@ function estimateTableAvailableMinutes(table: TableItem, settings: ReservationSe
 
       : 0;
 
-    return Math.max(10, settings.averageTurnMinutes - minsSat);
+    return Math.max(0, settings.averageTurnMinutes - minsSat);
 
   }
 
@@ -1076,13 +950,49 @@ function estimateTableAvailableMinutes(table: TableItem, settings: ReservationSe
 
 }
 
-function tablePredictionLabel(table: TableItem, settings: ReservationSettings) {
+function tablePredictionLabel(
+
+  table: TableItem,
+
+  settings: ReservationSettings
+
+) {
 
   const mins = estimateTableAvailableMinutes(table, settings);
 
   if (mins === 0) return "Open now";
 
   return `Est. open in ${mins} min`;
+
+}
+
+function turnPredictionDetail(
+
+  table: TableItem,
+
+  settings: ReservationSettings
+
+) {
+
+  if (table.status === "Open") return "Available now";
+
+  if (table.status === "Dirty") return "Needs cleaning — approx. 10 min";
+
+  if (table.status === "Boxed") return "Boxed — approx. 20 min";
+
+  if (table.status === "Seated" && table.seatedAt) {
+
+    const satMinutes = Math.floor((Date.now() - table.seatedAt) / 60000);
+
+    const remaining = Math.max(0, settings.averageTurnMinutes - satMinutes);
+
+    if (remaining === 0) return "Past expected turn time";
+
+    return `Expected open in ${remaining} min`;
+
+  }
+
+  return "No prediction";
 
 }
 
@@ -1234,26 +1144,6 @@ function reservationConflictWarnings(
 
   }
 
-  const nearbyLargeParties = reservations.filter((r) => {
-
-    if (r.date !== reservation.date || r.status === "Cancelled") return false;
-
-    const diff = Math.abs(
-
-      timeToMinutes(r.time) - timeToMinutes(reservation.time)
-
-    );
-
-    return diff <= 30 && reservationTotalGuests(r) >= settings.largePartySize;
-
-  });
-
-  if (nearbyLargeParties.length > 0 && partySize >= settings.largePartySize) {
-
-    warnings.push("Large party conflict: another large party is within 30 minutes");
-
-  }
-
   warnings.push(`Hold policy: reservations held for ${settings.holdMinutes} minutes only`);
 
   warnings.push("Seating policy: majority of party must be present to be seated");
@@ -1262,17 +1152,49 @@ function reservationConflictWarnings(
 
 }
 
-function findBestTablesForParty(partySize: number, tables: TableItem[]) {
+function serverIsCut(serverName: string, serverInfo: ServerInfo[]) {
+
+  return serverInfo.some(
+
+    (server) =>
+
+      server.name.toLowerCase() === serverName.toLowerCase() && server.cut
+
+  );
+
+}
+
+function findBestTablesForParty(
+
+  partySize: number,
+
+  tables: TableItem[]
+
+) {
 
   return tables
 
-    .filter((table) => table.status === "Open" && seatNumber(table.seats) >= partySize)
+    .filter(
+
+      (table) =>
+
+        table.status === "Open" &&
+
+        seatNumber(table.seats) >= partySize
+
+    )
 
     .sort((a, b) => seatNumber(a.seats) - seatNumber(b.seats));
 
 }
 
-function suggestCombinedTablesForParty(partySize: number, tables: TableItem[]) {
+function suggestCombinedTablesForParty(
+
+  partySize: number,
+
+  tables: TableItem[]
+
+) {
 
   const openTables = tables
 
@@ -1308,7 +1230,13 @@ function suggestCombinedTablesForParty(partySize: number, tables: TableItem[]) {
 
 }
 
-function reservationTableSuggestionText(reservation: Reservation, tables: TableItem[]) {
+function reservationTableSuggestionText(
+
+  reservation: Reservation,
+
+  tables: TableItem[]
+
+) {
 
   const totalGuests = reservationTotalGuests(reservation);
 
@@ -1324,11 +1252,11 @@ function reservationTableSuggestionText(reservation: Reservation, tables: TableI
 
   if (combo.fits) {
 
-    return `Combine: ${combo.tables.map((table) => table.id).join(" + ")} = ${
+    return `Combine: ${combo.tables
 
-      combo.totalSeats
+      .map((table) => table.id)
 
-    }`;
+      .join(" + ")} = ${combo.totalSeats}`;
 
   }
 
@@ -1336,13 +1264,39 @@ function reservationTableSuggestionText(reservation: Reservation, tables: TableI
 
 }
 
-function serverIsCut(serverName: string, serverInfo: ServerInfo[]) {
+function isOverdueTurn(
 
-  return serverInfo.some(
+  table: TableItem,
 
-    (server) => server.name.toLowerCase() === serverName.toLowerCase() && server.cut
+  settings: ReservationSettings
 
-  );
+) {
+
+  if (table.status !== "Seated" || !table.seatedAt) return false;
+
+  const minsSat = Math.floor((Date.now() - table.seatedAt) / 60000);
+
+  return minsSat > settings.averageTurnMinutes;
+
+}
+
+function estimatedTurnReadyTime(
+
+  seatedAt: number,
+
+  averageTurnMinutes: number
+
+) {
+
+  const readyTime = new Date(seatedAt + averageTurnMinutes * 60000);
+
+  return readyTime.toLocaleTimeString([], {
+
+    hour: "numeric",
+
+    minute: "2-digit",
+
+  });
 
 }
 
@@ -1436,7 +1390,7 @@ const defaultTables: TableItem[] = [
 
   makeTable("1", "4", 135, 665, 78, 42),
 
-  makeTable("DL4", "4", 45, 775, 75, 42, "Lounge"),
+    makeTable("DL4", "4", 45, 775, 75, 42, "Lounge"),
 
   makeTable("DL3", "4", 45, 860, 75, 42, "Lounge"),
 
@@ -1592,6 +1546,16 @@ export default function Home() {
 
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
 
+  const [textMessages, setTextMessages] = useState<TextMessage[]>([]);
+
+  const [guestHistory, setGuestHistory] = useState<GuestHistoryItem[]>([]);
+
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
+
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("Online");
+
+  const [serverSectionBoxes, setServerSectionBoxes] = useState<ServerSectionBox[]>([]);
+
   const [reservationSettings, setReservationSettings] =
 
     useState<ReservationSettings>(defaultReservationSettings);
@@ -1676,6 +1640,42 @@ export default function Home() {
 
     ]);
 
+    if (syncStatus !== "Online") {
+
+      setOfflineQueue((prev) => [
+
+        {
+
+          id: Date.now(),
+
+          action: message,
+
+          createdAt: Date.now(),
+
+          resolved: false,
+
+        },
+
+        ...prev,
+
+      ]);
+
+    }
+
+  }
+
+  function markOfflineQueueResolved(id: number) {
+
+    setOfflineQueue((prev) =>
+
+      prev.map((item) =>
+
+        item.id === id ? { ...item, resolved: true } : item
+
+      )
+
+    );
+
   }
 
   function unlockManager() {
@@ -1705,6 +1705,152 @@ export default function Home() {
     alert("Manager must unlock this first.");
 
     return false;
+
+  }
+
+  function updateGuestHistory(
+
+    name: string,
+
+    phone: string,
+
+    notes: string,
+
+    tags: GuestTag[]
+
+  ) {
+
+    if (!name.trim()) return;
+
+    const key = normalizeGuestKey(name, phone);
+
+    setGuestHistory((prev) => {
+
+      const existing = prev.find(
+
+        (guest) => normalizeGuestKey(guest.name, guest.phone) === key
+
+      );
+
+      if (existing) {
+
+        return prev.map((guest) =>
+
+          guest.id === existing.id
+
+            ? {
+
+                ...guest,
+
+                visits: guest.visits + 1,
+
+                lastVisit: Date.now(),
+
+                notes: notes || guest.notes,
+
+                tags: Array.from(new Set([...(guest.tags || []), ...tags])),
+
+              }
+
+            : guest
+
+        );
+
+      }
+
+      return [
+
+        {
+
+          id: Date.now(),
+
+          name,
+
+          phone,
+
+          visits: 1,
+
+          lastVisit: Date.now(),
+
+          notes,
+
+          tags,
+
+        },
+
+        ...prev,
+
+      ];
+
+    });
+
+  }
+
+  function createTextMessage(
+
+    guestName: string,
+
+    phone: string,
+
+    type: TextMessage["type"],
+
+    message: string
+
+  ) {
+
+    const newMessage: TextMessage = {
+
+      id: Date.now(),
+
+      guestName,
+
+      phone,
+
+      type,
+
+      message,
+
+      status: "Drafted",
+
+      createdAt: Date.now(),
+
+    };
+
+    setTextMessages((prev) => [newMessage, ...prev]);
+
+    addSyncLog(`${type} text drafted`);
+
+  }
+
+  function markTextMessageReady(id: number) {
+
+    setTextMessages((prev) =>
+
+      prev.map((message) =>
+
+        message.id === id ? { ...message, status: "Ready To Send" } : message
+
+      )
+
+    );
+
+  }
+
+  function markTextMessageSentPlaceholder(id: number) {
+
+    setTextMessages((prev) =>
+
+      prev.map((message) =>
+
+        message.id === id
+
+          ? { ...message, status: "Sent Placeholder" }
+
+          : message
+
+      )
+
+    );
 
   }
 
@@ -1741,6 +1887,24 @@ export default function Home() {
   }
 
   function markTextReadySent(id: number) {
+
+    const party = activeWaitlist.find((p) => p.id === id);
+
+    if (party?.pager) {
+
+      createTextMessage(
+
+        party.name,
+
+        party.pager,
+
+        "Table Ready",
+
+        `Hi ${party.name}, your table at Enrique's is ready. Please check in with the host stand.`
+
+      );
+
+    }
 
     setActiveWaitlist((prev) =>
 
@@ -1884,7 +2048,11 @@ export default function Home() {
 
     });
 
-    const seatedTables = serverTables.filter((table) => table.status === "Seated");
+    const seatedTables = serverTables.filter(
+
+      (table) => table.status === "Seated"
+
+    );
 
     const covers = seatedTables.reduce((sum, table) => {
 
@@ -1946,9 +2114,17 @@ export default function Home() {
 
       .sort((a, b) => {
 
-        if (a.seatedTables !== b.seatedTables) return a.seatedTables - b.seatedTables;
+        if (a.seatedTables !== b.seatedTables) {
 
-        if (a.covers !== b.covers) return a.covers - b.covers;
+          return a.seatedTables - b.seatedTables;
+
+        }
+
+        if (a.covers !== b.covers) {
+
+          return a.covers - b.covers;
+
+        }
 
         return a.index - b.index;
 
@@ -2056,7 +2232,11 @@ export default function Home() {
 
     const activeServers = serverWorkloads().filter((server) => !server.cut);
 
-    if (activeServers.length === 0) return "Add active servers to use section balancing.";
+    if (activeServers.length === 0) {
+
+      return "Add active servers to use section balancing.";
+
+    }
 
     const sorted = [...activeServers].sort((a, b) => {
 
@@ -2138,7 +2318,11 @@ export default function Home() {
 
       .filter((table) => availableSeats(table, activeTables) >= party)
 
-      .map((table) => estimateTableAvailableMinutes(table, reservationSettings));
+      .map((table) =>
+
+        estimateTableAvailableMinutes(table, reservationSettings)
+
+      );
 
     if (fittingTables.length === 0) return "no fit";
 
@@ -2278,6 +2462,34 @@ export default function Home() {
 
     setActiveReservations((prev) => [...prev, newReservation]);
 
+    updateGuestHistory(
+
+      newReservation.name,
+
+      newReservation.phone,
+
+      newReservation.notes,
+
+      finalTags
+
+    );
+
+    createTextMessage(
+
+      newReservation.name,
+
+      newReservation.phone,
+
+      "Reservation Confirmation",
+
+      `Hi ${newReservation.name}, your reservation at Enrique's is booked for ${displayStandardTime(
+
+        newReservation.time
+
+      )}. Reservations are held for ${reservationSettings.holdMinutes} minutes and majority of the party must be present to be seated.`
+
+    );
+
     addSyncLog("Reservation added locally");
 
     setReservationName("");
@@ -2322,7 +2534,11 @@ export default function Home() {
 
     setReservationTags((prev) =>
 
-      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
+      prev.includes(tag)
+
+        ? prev.filter((item) => item !== tag)
+
+        : [...prev, tag]
 
     );
 
@@ -2356,6 +2572,28 @@ export default function Home() {
 
   function markReservationTextConfirmed(id: number) {
 
+    const reservation = activeReservations.find((r) => r.id === id);
+
+    if (reservation) {
+
+      createTextMessage(
+
+        reservation.name,
+
+        reservation.phone,
+
+        "Reservation Confirmation",
+
+        `Hi ${reservation.name}, confirming your reservation at Enrique's for ${displayStandardTime(
+
+          reservation.time
+
+        )}.`
+
+      );
+
+    }
+
     setActiveReservations((prev) =>
 
       prev.map((reservation) =>
@@ -2376,11 +2614,37 @@ export default function Home() {
 
   function markReservationReminderSent(id: number) {
 
+    const reservation = activeReservations.find((r) => r.id === id);
+
+    if (reservation) {
+
+      createTextMessage(
+
+        reservation.name,
+
+        reservation.phone,
+
+        "Reminder",
+
+        `Hi ${reservation.name}, this is a reminder for your reservation at Enrique's at ${displayStandardTime(
+
+          reservation.time
+
+        )}.`
+
+      );
+
+    }
+
     setActiveReservations((prev) =>
 
       prev.map((reservation) =>
 
-        reservation.id === id ? { ...reservation, reminderSent: true } : reservation
+        reservation.id === id
+
+          ? { ...reservation, reminderSent: true }
+
+          : reservation
 
       )
 
@@ -2404,7 +2668,11 @@ export default function Home() {
 
       (reservation.notes || "").toLowerCase().includes(search) ||
 
-      (reservation.tags || []).some((tag) => tag.toLowerCase().includes(search))
+      (reservation.tags || []).some((tag) =>
+
+        tag.toLowerCase().includes(search)
+
+      )
 
     );
 
@@ -2590,7 +2858,13 @@ export default function Home() {
 
               readyFlash: false,
 
-              estimatedSales: estimatedSalesFromCovers(party, reservationSettings),
+              estimatedSales: estimatedSalesFromCovers(
+
+                party,
+
+                reservationSettings
+
+              ),
 
             }
 
@@ -2604,9 +2878,25 @@ export default function Home() {
 
       prev.map((r) =>
 
-        r.id === reservation.id ? { ...r, status: "Seated", tableId: best.id } : r
+        r.id === reservation.id
+
+          ? { ...r, status: "Seated", tableId: best.id }
+
+          : r
 
       )
+
+    );
+
+    updateGuestHistory(
+
+      reservation.name,
+
+      reservation.phone,
+
+      reservation.notes,
+
+      reservation.tags || []
 
     );
 
@@ -2750,13 +3040,17 @@ export default function Home() {
 
       countsByTime[reservation.time] =
 
-        (countsByTime[reservation.time] || 0) + reservationTotalGuests(reservation);
+        (countsByTime[reservation.time] || 0) +
+
+        reservationTotalGuests(reservation);
 
     }
 
     const busiestTime =
 
-      Object.entries(countsByTime).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
+      Object.entries(countsByTime).sort((a, b) => b[1] - a[1])[0]?.[0] ||
+
+      "N/A";
 
     const report: ShiftReport = {
 
@@ -2781,6 +3075,12 @@ export default function Home() {
     setShiftReports((prev) => [report, ...prev]);
 
     addSyncLog("Shift report generated");
+
+  }
+
+  function printShiftReport() {
+
+    window.print();
 
   }
 
@@ -2906,7 +3206,11 @@ export default function Home() {
 
     );
 
-    addSyncLog(floorCheckMode ? "Floor check table status updated" : "Table status updated");
+    addSyncLog(
+
+      floorCheckMode ? "Floor check table status updated" : "Table status updated"
+
+    );
 
   }
 
@@ -3154,7 +3458,7 @@ export default function Home() {
 
     const okay = window.confirm(
 
-      "Reset everything? This clears tables, waitlist, reservations, settings, reports, and training data."
+      "Reset everything? This clears tables, waitlist, reservations, settings, reports, texts, guest history, sync logs, and training data."
 
     );
 
@@ -3194,6 +3498,16 @@ export default function Home() {
 
     localStorage.removeItem(STORAGE_SYNC_LOGS);
 
+    localStorage.removeItem(STORAGE_TEXT_MESSAGES);
+
+    localStorage.removeItem(STORAGE_GUEST_HISTORY);
+
+    localStorage.removeItem(STORAGE_OFFLINE_QUEUE);
+
+    localStorage.removeItem(STORAGE_SYNC_STATUS);
+
+    localStorage.removeItem(STORAGE_SERVER_SECTION_BOXES);
+
     setTables(defaultTables);
 
     setTrainingTables(defaultTables);
@@ -3209,6 +3523,16 @@ export default function Home() {
     setShiftReports([]);
 
     setSyncLogs([]);
+
+    setTextMessages([]);
+
+    setGuestHistory([]);
+
+    setOfflineQueue([]);
+
+    setSyncStatus("Online");
+
+    setServerSectionBoxes([]);
 
     setReservationSettings(defaultReservationSettings);
 
@@ -3418,6 +3742,16 @@ export default function Home() {
 
       const savedSyncLogs = localStorage.getItem(STORAGE_SYNC_LOGS);
 
+      const savedTextMessages = localStorage.getItem(STORAGE_TEXT_MESSAGES);
+
+      const savedGuestHistory = localStorage.getItem(STORAGE_GUEST_HISTORY);
+
+      const savedOfflineQueue = localStorage.getItem(STORAGE_OFFLINE_QUEUE);
+
+      const savedSyncStatus = localStorage.getItem(STORAGE_SYNC_STATUS);
+
+      const savedServerSectionBoxes = localStorage.getItem(STORAGE_SERVER_SECTION_BOXES);
+
       if (savedTables) setTables(JSON.parse(savedTables));
 
       if (savedTrainingTables) setTrainingTables(JSON.parse(savedTrainingTables));
@@ -3484,6 +3818,18 @@ export default function Home() {
 
       if (savedTrainingReservations) setTrainingReservations(JSON.parse(savedTrainingReservations));
 
+      if (savedReservationSettings) {
+
+        setReservationSettings({
+
+          ...defaultReservationSettings,
+
+          ...JSON.parse(savedReservationSettings),
+
+        });
+
+      }
+
       if (savedTrainingMode) setTrainingMode(savedTrainingMode === "true");
 
       if (savedFloorLocked) setFloorLocked(savedFloorLocked === "true");
@@ -3502,15 +3848,29 @@ export default function Home() {
 
       if (savedSyncLogs) setSyncLogs(JSON.parse(savedSyncLogs));
 
-      if (savedReservationSettings) {
+      if (savedTextMessages) setTextMessages(JSON.parse(savedTextMessages));
 
-        setReservationSettings({
+      if (savedGuestHistory) setGuestHistory(JSON.parse(savedGuestHistory));
 
-          ...defaultReservationSettings,
+      if (savedOfflineQueue) setOfflineQueue(JSON.parse(savedOfflineQueue));
 
-          ...JSON.parse(savedReservationSettings),
+      if (
 
-        });
+        savedSyncStatus === "Online" ||
+
+        savedSyncStatus === "Offline" ||
+
+        savedSyncStatus === "Pending Sync"
+
+      ) {
+
+        setSyncStatus(savedSyncStatus);
+
+      }
+
+      if (savedServerSectionBoxes) {
+
+        setServerSectionBoxes(JSON.parse(savedServerSectionBoxes));
 
       }
 
@@ -3577,7 +3937,6 @@ export default function Home() {
     localStorage.setItem(STORAGE_ROTATION_INDEX, String(rotationIndex));
 
   }, [rotationIndex]);
-
 
   useEffect(() => {
 
@@ -3647,6 +4006,42 @@ export default function Home() {
 
   useEffect(() => {
 
+    localStorage.setItem(STORAGE_TEXT_MESSAGES, JSON.stringify(textMessages));
+
+  }, [textMessages]);
+
+  useEffect(() => {
+
+    localStorage.setItem(STORAGE_GUEST_HISTORY, JSON.stringify(guestHistory));
+
+  }, [guestHistory]);
+
+  useEffect(() => {
+
+    localStorage.setItem(STORAGE_OFFLINE_QUEUE, JSON.stringify(offlineQueue));
+
+  }, [offlineQueue]);
+
+  useEffect(() => {
+
+    localStorage.setItem(STORAGE_SYNC_STATUS, syncStatus);
+
+  }, [syncStatus]);
+
+  useEffect(() => {
+
+    localStorage.setItem(
+
+      STORAGE_SERVER_SECTION_BOXES,
+
+      JSON.stringify(serverSectionBoxes)
+
+    );
+
+  }, [serverSectionBoxes]);
+
+  useEffect(() => {
+
     localStorage.setItem(
 
       STORAGE_INFO,
@@ -3665,173 +4060,101 @@ export default function Home() {
 
   }, []);
 
-  const rotationNames = serverNamesFromAssignments().filter(
+  const slots = generateReservationSlots(
 
-    (name) => !serverIsCut(name, serverInfo)
+    reservationDate,
+
+    reservationSettings
 
   );
+
+  const upcomingReservations = todaysUpcomingReservations();
+
+  const holdingReservations = reservedTablesNow();
 
   const nextUp = nextServerName();
 
   const summary = shiftSummary();
 
-  const slots = generateReservationSlots(reservationDate, reservationSettings);
+  const activeReservationWarnings = reservationConflictWarnings(
 
-  const holdingReservations = reservedTablesNow();
+    {
 
-  const upcomingReservations = todaysUpcomingReservations();
+      date: reservationDate,
 
-  const activeReservationWarnings =
+      time: reservationTime,
 
-    reservationDate && reservationTime
+      adults: reservationAdults || "0",
 
-      ? reservationConflictWarnings(
+      kids: reservationKids || "0",
 
-          {
+    },
 
-            date: reservationDate,
+    activeReservations,
 
-            time: reservationTime,
+    reservationSettings
 
-            adults: reservationAdults || "0",
-
-            kids: reservationKids || "0",
-
-          },
-
-          activeReservations,
-
-          reservationSettings
-
-        )
-
-      : [];
+  );
 
   return (
 
-    <main style={{ padding: 4, fontFamily: "Arial", background: "#f3f4f6" }}>
+    <main
 
-      {trainingMode && (
+      style={{
 
-        <div
+        padding: 16,
+
+        fontFamily: "Arial",
+
+        background: "#f4f1e8",
+
+        minHeight: "100vh",
+
+      }}
+
+    >
+
+      <div
+
+        style={{
+
+          display: "flex",
+
+          gap: 8,
+
+          flexWrap: "wrap",
+
+          marginBottom: 10,
+
+          alignItems: "center",
+
+        }}
+
+      >
+
+        <button
+
+          onClick={() => setActiveTab("host")}
 
           style={{
 
-            padding: 10,
-
-            marginBottom: 8,
-
-            background: "#fde68a",
-
-            border: "3px solid #92400e",
+            padding: "8px 12px",
 
             borderRadius: 8,
 
-            fontWeight: "bold",
+            border: "2px solid #111827",
 
-            textAlign: "center",
+            background: activeTab === "host" ? "#dbeafe" : "white",
+
+            fontWeight: "bold",
 
           }}
 
         >
 
-          TRAINING MODE ON — host board and reservations are using practice data.
+          Host Board
 
-        </div>
-
-      )}
-
-      {floorCheckMode && (
-
-        <div
-
-          style={{
-
-            marginBottom: 8,
-
-            padding: 10,
-
-            background: "#dcfce7",
-
-            border: "3px solid #166534",
-
-            borderRadius: 8,
-
-            fontWeight: "bold",
-
-            textAlign: "center",
-
-            fontSize: 18,
-
-          }}
-
-        >
-
-          FLOOR CHECK MODE — Tap tables to quickly update statuses only.
-
-        </div>
-
-      )}
-
-      {appMode === "reservationsOnly" && (
-
-        <div
-
-          style={{
-
-            padding: 10,
-
-            marginBottom: 8,
-
-            background: "#dbeafe",
-
-            border: "3px solid #1d4ed8",
-
-            borderRadius: 8,
-
-            fontWeight: "bold",
-
-            textAlign: "center",
-
-          }}
-
-        >
-
-          RESERVATION IPAD MODE — Host Board is locked on this iPad.
-
-        </div>
-
-      )}
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-
-        {appMode === "full" && (
-
-          <button
-
-            onClick={() => setActiveTab("host")}
-
-            style={{
-
-              padding: "9px 14px",
-
-              borderRadius: 8,
-
-              border: "2px solid #111827",
-
-              background: activeTab === "host" ? "#bfdbfe" : "white",
-
-              fontWeight: "bold",
-
-            }}
-
-          >
-
-            Host Board
-
-          </button>
-
-        )}
+        </button>
 
         <button
 
@@ -3839,13 +4162,15 @@ export default function Home() {
 
           style={{
 
-            padding: "9px 14px",
+            padding: "8px 12px",
 
             borderRadius: 8,
 
             border: "2px solid #111827",
 
-            background: activeTab === "reservations" ? "#bfdbfe" : "white",
+            background:
+
+              activeTab === "reservations" ? "#dbeafe" : "white",
 
             fontWeight: "bold",
 
@@ -3857,69 +4182,65 @@ export default function Home() {
 
         </button>
 
-                {appMode === "full" && (
-
-          <>
-
-            <button
-
-              onClick={() => setActiveTab("timeline")}
-
-              style={{
-
-                padding: "9px 14px",
-
-                borderRadius: 8,
-
-                border: "2px solid #111827",
-
-                background: activeTab === "timeline" ? "#bfdbfe" : "white",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Timeline
-
-            </button>
-
-            <button
-
-              onClick={() => setActiveTab("reports")}
-
-              style={{
-
-                padding: "9px 14px",
-
-                borderRadius: 8,
-
-                border: "2px solid #111827",
-
-                background: activeTab === "reports" ? "#bfdbfe" : "white",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Reports
-
-            </button>
-
-          </>
-
-        )}
-
         <button
 
-          onClick={() => setTrainingMode((prev) => !prev)}
+          onClick={() => setActiveTab("timeline")}
 
           style={{
 
-            padding: "9px 14px",
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: activeTab === "timeline" ? "#dbeafe" : "white",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          Timeline
+
+        </button>
+
+        <button
+
+          onClick={() => setActiveTab("reports")}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: activeTab === "reports" ? "#dbeafe" : "white",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          Reports
+
+        </button>
+
+        <button
+
+          onClick={() =>
+
+            setTrainingMode((prev) => !prev)
+
+          }
+
+          style={{
+
+            padding: "8px 12px",
 
             borderRadius: 8,
 
@@ -3933,17 +4254,21 @@ export default function Home() {
 
         >
 
-          {trainingMode ? "Training ON" : "Training Mode"}
+          {trainingMode ? "Training ON" : "Training OFF"}
 
         </button>
 
         <button
 
-          onClick={() => setFloorCheckMode((prev) => !prev)}
+          onClick={() =>
+
+            setFloorCheckMode((prev) => !prev)
+
+          }
 
           style={{
 
-            padding: "9px 14px",
+            padding: "8px 12px",
 
             borderRadius: 8,
 
@@ -3957,39 +4282,41 @@ export default function Home() {
 
         >
 
-          {floorCheckMode ? "Floor Check ON" : "Floor Check Mode"}
+          {floorCheckMode ? "Floor Check ON" : "Floor Check OFF"}
 
         </button>
 
         <button
 
-          onClick={() => {
+          onClick={() =>
 
-            if (!requireManager()) return;
+            setAppMode((prev) =>
 
-            if (appMode === "full") {
+              prev === "full"
 
-              setAppMode("reservationsOnly");
+                ? "reservationsOnly"
 
-              setActiveTab("reservations");
+                : "full"
 
-            } else {
+            )
 
-              setAppMode("full");
-
-            }
-
-          }}
+          }
 
           style={{
 
-            padding: "9px 14px",
+            padding: "8px 12px",
 
             borderRadius: 8,
 
             border: "2px solid #111827",
 
-            background: appMode === "reservationsOnly" ? "#dbeafe" : "white",
+            background:
+
+              appMode === "reservationsOnly"
+
+                ? "#e9d5ff"
+
+                : "white",
 
             fontWeight: "bold",
 
@@ -3999,13 +4326,13 @@ export default function Home() {
 
           {appMode === "reservationsOnly"
 
-            ? "Exit Reservation iPad Mode"
+            ? "Reservations iPad"
 
-            : "Reservation iPad Mode"}
+            : "Full App"}
 
         </button>
 
-        {!managerUnlocked ? (
+                {!managerUnlocked ? (
 
           <>
 
@@ -4039,7 +4366,7 @@ export default function Home() {
 
               style={{
 
-                padding: "9px 14px",
+                padding: "8px 12px",
 
                 borderRadius: 8,
 
@@ -4067,7 +4394,7 @@ export default function Home() {
 
             style={{
 
-              padding: "9px 14px",
+              padding: "8px 12px",
 
               borderRadius: 8,
 
@@ -4087,7 +4414,127 @@ export default function Home() {
 
         )}
 
+        <select
+
+          value={syncStatus}
+
+          onChange={(e) => setSyncStatus(e.target.value as SyncStatus)}
+
+          style={{
+
+            padding: 8,
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          <option>Online</option>
+
+          <option>Offline</option>
+
+          <option>Pending Sync</option>
+
+        </select>
+
       </div>
+
+      {trainingMode && (
+
+        <div
+
+          style={{
+
+            padding: 10,
+
+            marginBottom: 8,
+
+            background: "#fde68a",
+
+            border: "3px solid #92400e",
+
+            borderRadius: 8,
+
+            fontWeight: "bold",
+
+            textAlign: "center",
+
+          }}
+
+        >
+
+          TRAINING MODE ON — practice data is separate from live data.
+
+        </div>
+
+      )}
+
+      {floorCheckMode && (
+
+        <div
+
+          style={{
+
+            padding: 10,
+
+            marginBottom: 8,
+
+            background: "#dcfce7",
+
+            border: "3px solid #166534",
+
+            borderRadius: 8,
+
+            fontWeight: "bold",
+
+            textAlign: "center",
+
+            fontSize: 18,
+
+          }}
+
+        >
+
+          FLOOR CHECK MODE — tap tables to update status only.
+
+        </div>
+
+      )}
+
+      {syncStatus !== "Online" && (
+
+        <div
+
+          style={{
+
+            padding: 10,
+
+            marginBottom: 8,
+
+            background: "#fee2e2",
+
+            border: "3px solid #991b1b",
+
+            borderRadius: 8,
+
+            fontWeight: "bold",
+
+            textAlign: "center",
+
+          }}
+
+        >
+
+          {syncStatus} — changes are saved locally and added to offline recovery.
+
+        </div>
+
+      )}
 
             {activeTab === "reservations" && (
 
@@ -4283,36 +4730,6 @@ export default function Home() {
 
               <div style={{ marginTop: 6 }}>
 
-                Average Spend / Guest{" "}
-
-                <input
-
-                  type="number"
-
-                  disabled={!managerUnlocked}
-
-                  value={reservationSettings.avgSpendPerGuest}
-
-                  onChange={(e) =>
-
-                    setReservationSettings((p) => ({
-
-                      ...p,
-
-                      avgSpendPerGuest: Number(e.target.value) || 25,
-
-                    }))
-
-                  }
-
-                  style={{ width: 70 }}
-
-                />
-
-              </div>
-
-              <div style={{ marginTop: 6 }}>
-
                 Hold Minutes{" "}
 
                 <input
@@ -4371,11 +4788,33 @@ export default function Home() {
 
               </div>
 
-              <div style={{ marginTop: 10, fontSize: 12 }}>
+              <div style={{ marginTop: 6 }}>
 
-                Sunday & Monday are blocked. SMS and live sync are placeholders until
+                Average Spend / Guest{" "}
 
-                connected to a backend.
+                <input
+
+                  type="number"
+
+                  disabled={!managerUnlocked}
+
+                  value={reservationSettings.avgSpendPerGuest}
+
+                  onChange={(e) =>
+
+                    setReservationSettings((p) => ({
+
+                      ...p,
+
+                      avgSpendPerGuest: Number(e.target.value) || 25,
+
+                    }))
+
+                  }
+
+                  style={{ width: 70 }}
+
+                />
 
               </div>
 
@@ -4551,7 +4990,11 @@ export default function Home() {
 
                       background: reservationTagColor(tag),
 
-                      fontWeight: reservationTags.includes(tag) ? "bold" : "normal",
+                      fontWeight: reservationTags.includes(tag)
+
+                        ? "bold"
+
+                        : "normal",
 
                     }}
 
@@ -4569,7 +5012,11 @@ export default function Home() {
 
                 Selected Time:{" "}
 
-                {reservationTime ? displayStandardTime(reservationTime) : "Tap slot"}
+                {reservationTime
+
+                  ? displayStandardTime(reservationTime)
+
+                  : "Tap slot"}
 
               </div>
 
@@ -4609,7 +5056,7 @@ export default function Home() {
 
           </div>
 
-          <input
+                    <input
 
             value={reservationSearch}
 
@@ -4621,7 +5068,7 @@ export default function Home() {
 
           />
 
-                    <div
+          <div
 
             style={{
 
@@ -4715,7 +5162,7 @@ export default function Home() {
 
                   )}
 
-                  {slotReservations.map((r) => (
+                                    {slotReservations.map((r) => (
 
                     <div
 
@@ -4808,14 +5255,6 @@ export default function Home() {
                           Notes: {r.notes}
 
                         </>
-
-                      )}
-
-                      {reservationTotalGuests(r) >=
-
-                        reservationSettings.largePartySize && (
-
-                        <div>⚠️ 20% auto gratuity</div>
 
                       )}
 
@@ -4965,50 +5404,6 @@ export default function Home() {
 
                       </div>
 
-                      {managerUnlocked && (
-
-                        <div style={{ marginTop: 5 }}>
-
-                          {guestTagOptions.map((tag) => (
-
-                            <button
-
-                              key={tag}
-
-                              onClick={(e) => {
-
-                                e.stopPropagation();
-
-                                toggleSavedReservationTag(r.id, tag);
-
-                              }}
-
-                              style={{
-
-                                marginRight: 3,
-
-                                marginBottom: 3,
-
-                                fontSize: 10,
-
-                              }}
-
-                            >
-
-                              {tag}
-
-                            </button>
-
-                          ))}
-
-                        </div>
-
-                      )}
-
-                      {r.textConfirmed && <div>✅ Text confirmed</div>}
-
-                      {r.reminderSent && <div>✅ Reminder sent</div>}
-
                     </div>
 
                   ))}
@@ -5031,33 +5426,31 @@ export default function Home() {
 
           <h1 style={{ marginTop: 0 }}>Reservation Timeline</h1>
 
-          <div style={{ marginBottom: 10 }}>
+          <input
 
-            <input
+            type="date"
 
-              type="date"
+            min={`${reservationSettings.year}-01-01`}
 
-              min={`${reservationSettings.year}-01-01`}
+            max={`${reservationSettings.year}-12-31`}
 
-              max={`${reservationSettings.year}-12-31`}
+            value={reservationDate}
 
-              value={reservationDate}
+            onChange={(e) => setReservationDate(e.target.value)}
 
-              onChange={(e) => setReservationDate(e.target.value)}
+            style={{
 
-              style={{
+              padding: 8,
 
-                padding: 8,
+              border: "2px solid #111827",
 
-                border: "2px solid #111827",
+              borderRadius: 8,
 
-                borderRadius: 8,
+              marginBottom: 10,
 
-              }}
+            }}
 
-            />
-
-          </div>
+          />
 
           <div
 
@@ -5151,7 +5544,11 @@ export default function Home() {
 
                     {slotReservations.length === 0 && (
 
-                      <span style={{ color: "#64748b", fontSize: 12 }}>Open</span>
+                      <span style={{ color: "#64748b", fontSize: 12 }}>
+
+                        Open
+
+                      </span>
 
                     )}
 
@@ -5179,7 +5576,9 @@ export default function Home() {
 
                       >
 
-                        <b>{reservation.name}</b> — {reservationGuestLabel(reservation)}
+                        <b>{reservation.name}</b> —{" "}
+
+                        {reservationGuestLabel(reservation)}
 
                         <br />
 
@@ -5189,61 +5588,7 @@ export default function Home() {
 
                         {reservationTableSuggestionText(reservation, activeTables)}
 
-                        {(reservation.tags || []).length > 0 && (
-
-                          <div style={{ marginTop: 4 }}>
-
-                            {(reservation.tags || []).map((tag) => (
-
-                              <span
-
-                                key={tag}
-
-                                style={{
-
-                                  display: "inline-block",
-
-                                  marginRight: 4,
-
-                                  marginBottom: 3,
-
-                                  padding: "2px 6px",
-
-                                  borderRadius: 10,
-
-                                  background: reservationTagColor(tag),
-
-                                  border: "1px solid #94a3b8",
-
-                                }}
-
-                              >
-
-                                {tag}
-
-                              </span>
-
-                            ))}
-
-                          </div>
-
-                        )}
-
-                        <div
-
-                          style={{
-
-                            marginTop: 6,
-
-                            display: "flex",
-
-                            gap: 4,
-
-                            flexWrap: "wrap",
-
-                          }}
-
-                        >
+                        <div style={{ marginTop: 6 }}>
 
                           <button
 
@@ -5257,13 +5602,13 @@ export default function Home() {
 
                             Arrived
 
-                          </button>
+                          </button>{" "}
 
                           <button onClick={() => seatReservation(reservation)}>
 
                             Seat
 
-                          </button>
+                          </button>{" "}
 
                           <button
 
@@ -5273,7 +5618,7 @@ export default function Home() {
 
                             Waitlist
 
-                          </button>
+                          </button>{" "}
 
                           <button
 
@@ -5313,35 +5658,21 @@ export default function Home() {
 
         <div>
 
-          <h1 style={{ marginTop: 0 }}>Reports & Sync</h1>
+          <h1 style={{ marginTop: 0 }}>Reports, Texts & Sync</h1>
 
-          <button
-
-            onClick={generateShiftReport}
-
-            style={{
-
-              padding: "9px 14px",
-
-              borderRadius: 8,
-
-              border: "2px solid #111827",
-
-              background: "#dcfce7",
-
-              fontWeight: "bold",
-
-              marginBottom: 10,
-
-            }}
-
-          >
+          <button onClick={generateShiftReport} style={{ padding: "9px 14px", fontWeight: "bold" }}>
 
             Generate Shift Report
 
+          </button>{" "}
+
+          <button onClick={printShiftReport} style={{ padding: "9px 14px", fontWeight: "bold" }}>
+
+            Print Report
+
           </button>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
 
             <div style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10 }}>
 
@@ -5363,57 +5694,121 @@ export default function Home() {
 
             <div style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10 }}>
 
-              Cancelled: <b>{summary.cancelled}</b>
-
-            </div>
-
-            <div style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10 }}>
-
               Estimated Sales: <b>${summary.estimatedSales}</b>
 
             </div>
 
           </div>
 
-          <div
+          <h2>Text Message Queue</h2>
 
-            style={{
+          {textMessages.map((message) => (
 
-              background: "white",
+            <div key={message.id} style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10, marginBottom: 8 }}>
 
-              border: "2px solid #111827",
+              <b>{message.type}</b> — {message.guestName}
 
-              borderRadius: 8,
+              <br />
 
-              padding: 10,
+              Phone: {message.phone}
 
-              marginBottom: 10,
+              <br />
 
-            }}
+              Status: {message.status}
 
-          >
+              <br />
 
-            <b>Multi-iPad Sync Placeholder</b>
+              {message.message}
 
-            <p style={{ margin: "6px 0", fontSize: 13 }}>
+              <br />
 
-              This version saves locally on this iPad. A backend like Supabase/Firebase
+              <button onClick={() => markTextMessageReady(message.id)}>Ready</button>{" "}
 
-              is needed later for true live syncing between multiple iPads.
+              <button onClick={() => markTextMessageSentPlaceholder(message.id)}>Sent Placeholder</button>
 
-            </p>
+            </div>
 
-            {syncLogs.slice(0, 8).map((log) => (
+          ))}
 
-              <div key={log.id} style={{ fontSize: 12 }}>
+          <h2>Guest History</h2>
 
-                {new Date(log.createdAt).toLocaleTimeString()} — {log.message}
+          {guestHistory.map((guest) => (
 
-              </div>
+            <div key={guest.id} style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10, marginBottom: 8 }}>
 
-            ))}
+              <b>{guest.name}</b> — Visits: {guest.visits}
 
-          </div>
+              <br />
+
+              Phone: {guest.phone}
+
+              <br />
+
+              Last Visit: {formatPrintDate(guest.lastVisit)}
+
+              <br />
+
+              Notes: {guest.notes}
+
+            </div>
+
+          ))}
+
+          <h2>Offline Recovery Queue</h2>
+
+          {offlineQueue.map((item) => (
+
+            <div key={item.id} style={{ background: item.resolved ? "#dcfce7" : "#fee2e2", border: "2px solid #111827", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+
+              {item.action} — {formatPrintDate(item.createdAt)}
+
+              <br />
+
+              Status: {item.resolved ? "Resolved" : "Needs Sync"}
+
+              <br />
+
+              {!item.resolved && (
+
+                <button onClick={() => markOfflineQueueResolved(item.id)}>Mark Resolved</button>
+
+              )}
+
+            </div>
+
+          ))}
+
+                    <h2>Sync Logs</h2>
+
+          {syncLogs.map((log) => (
+
+            <div
+
+              key={log.id}
+
+              style={{
+
+                background: "white",
+
+                border: "2px solid #111827",
+
+                borderRadius: 8,
+
+                padding: 10,
+
+                marginBottom: 8,
+
+                fontSize: 13,
+
+              }}
+
+            >
+
+              {formatPrintDate(log.createdAt)} — {log.message}
+
+            </div>
+
+          ))}
 
           {shiftReports.map((report) => (
 
@@ -5431,13 +5826,13 @@ export default function Home() {
 
                 padding: 10,
 
-                marginBottom: 8,
+                marginTop: 8,
 
               }}
 
             >
 
-              <b>{new Date(report.createdAt).toLocaleString()}</b>
+              <b>{formatPrintDate(report.createdAt)}</b>
 
               <br />
 
@@ -5447,7 +5842,6 @@ export default function Home() {
 
               <br />
 
-         
               No-shows: {report.noShows} | Cancelled: {report.cancelled}
 
               <br />
@@ -5582,25 +5976,19 @@ export default function Home() {
 
               <>
 
-                <button onClick={combineSelectedTables} style={{ padding: "8px 12px" }}>
+                <button onClick={combineSelectedTables}>
 
                   Combine Selected
 
                 </button>
 
-                <button onClick={uncombineSelectedTables} style={{ padding: "8px 12px" }}>
+                <button onClick={uncombineSelectedTables}>
 
                   Uncombine Selected
 
                 </button>
 
-                <button
-
-                  onClick={() => setSelectedCombineIds([])}
-
-                  style={{ padding: "8px 12px" }}
-
-                >
+                <button onClick={() => setSelectedCombineIds([])}>
 
                   Clear Selection
 
@@ -5636,7 +6024,7 @@ export default function Home() {
 
           </div>
 
-          <div
+                    <div
 
             style={{
 
@@ -5672,21 +6060,55 @@ export default function Home() {
 
             >
 
-              <div style={{ fontWeight: "bold", fontSize: 15 }}>Shift Dashboard</div>
+              <div style={{ fontWeight: "bold", fontSize: 15 }}>
 
-              <div>Seated: {summary.seated} | Covers: {summary.covers}</div>
+                Shift Dashboard
 
-              <div>Wait: {summary.wait} | Over Wait: {summary.overWait}</div>
+              </div>
 
-              <div>Priority/VIP: {summary.priority}</div>
+              <div>
 
-              <div>Open: {summary.open} | Boxed: {summary.boxed} | Dirty: {summary.dirty}</div>
+                Seated: {summary.seated} | Covers: {summary.covers}
 
-              <div>Reservations: {summary.reservationsToday}</div>
+              </div>
 
-              <div>Active Holds: {holdingReservations.length}</div>
+              <div>
 
-              <div>Est. Sales: ${summary.estimatedSales}</div>
+                Wait: {summary.wait} | Over Wait: {summary.overWait}
+
+              </div>
+
+              <div>
+
+                Priority/VIP: {summary.priority}
+
+              </div>
+
+              <div>
+
+                Open: {summary.open} | Boxed: {summary.boxed} | Dirty:{" "}
+
+                {summary.dirty}
+
+              </div>
+
+              <div>
+
+                Reservations: {summary.reservationsToday}
+
+              </div>
+
+              <div>
+
+                Servers Cut: {summary.serversCut}
+
+              </div>
+
+              <div>
+
+                Est. Sales: ${summary.estimatedSales}
+
+              </div>
 
               <div style={{ marginTop: 6, fontWeight: "bold" }}>
 
@@ -5716,7 +6138,11 @@ export default function Home() {
 
             >
 
-              <div style={{ fontWeight: "bold", fontSize: 15 }}>Night Map</div>
+              <div style={{ fontWeight: "bold", fontSize: 15 }}>
+
+                Night Map
+
+              </div>
 
               <input
 
@@ -5726,7 +6152,13 @@ export default function Home() {
 
                   if (!managerUnlocked) return;
 
-                  setNightMap((prev) => ({ ...prev, date: e.target.value }));
+                  setNightMap((prev) => ({
+
+                    ...prev,
+
+                    date: e.target.value,
+
+                  }));
 
                 }}
 
@@ -5744,7 +6176,13 @@ export default function Home() {
 
                   if (!managerUnlocked) return;
 
-                  setNightMap((prev) => ({ ...prev, manager: e.target.value }));
+                  setNightMap((prev) => ({
+
+                    ...prev,
+
+                    manager: e.target.value,
+
+                  }));
 
                 }}
 
@@ -5764,7 +6202,13 @@ export default function Home() {
 
                   if (!managerUnlocked) return;
 
-                  setNightMap((prev) => ({ ...prev, notes: e.target.value }));
+                  setNightMap((prev) => ({
+
+                    ...prev,
+
+                    notes: e.target.value,
+
+                  }));
 
                 }}
 
@@ -5800,7 +6244,15 @@ export default function Home() {
 
                 onChange={(e) => setHostInfo(e.target.value)}
 
-                style={{ width: 210, height: 85, padding: 8 }}
+                style={{
+
+                  width: 210,
+
+                  height: 85,
+
+                  padding: 8,
+
+                }}
 
               />
 
@@ -5818,7 +6270,13 @@ export default function Home() {
 
                 onChange={(e) => setTakeoutInfo(e.target.value)}
 
-                style={{ width: 160, padding: 8 }}
+                style={{
+
+                  width: 160,
+
+                  padding: 8,
+
+                }}
 
               />
 
@@ -5836,7 +6294,15 @@ export default function Home() {
 
                 onChange={(e) => setCasaInfo(e.target.value)}
 
-                style={{ width: 210, height: 85, padding: 8 }}
+                style={{
+
+                  width: 210,
+
+                  height: 85,
+
+                  padding: 8,
+
+                }}
 
               />
 
@@ -5854,7 +6320,15 @@ export default function Home() {
 
                 onChange={(e) => setSanMiguelInfo(e.target.value)}
 
-                style={{ width: 210, height: 85, padding: 8 }}
+                style={{
+
+                  width: 210,
+
+                  height: 85,
+
+                  padding: 8,
+
+                }}
 
               />
 
@@ -5950,7 +6424,7 @@ export default function Home() {
 
                   onClick={rotateServer}
 
-                  disabled={rotationNames.length === 0}
+                  disabled={serverNamesFromAssignments().length === 0}
 
                   style={{
 
@@ -5984,7 +6458,11 @@ export default function Home() {
 
                   style={{
 
-                    border: `3px solid ${workload.cut ? "#64748b" : workload.color}`,
+                    border: `3px solid ${
+
+                      workload.cut ? "#64748b" : workload.color
+
+                    }`,
 
                     borderRadius: 8,
 
@@ -5992,9 +6470,9 @@ export default function Home() {
 
                     padding: 10,
 
-                    minWidth: 160,
+                    minWidth: 170,
 
-                    minHeight: 120,
+                    minHeight: 135,
 
                     fontSize: 13,
 
@@ -6008,19 +6486,25 @@ export default function Home() {
 
                       fontWeight: "bold",
 
-                      color: workload.cut ? "#475569" : workload.color,
+                      color: workload.cut
+
+                        ? "#475569"
+
+                        : workload.color,
 
                     }}
 
                   >
 
-                    {workload.server} {workload.cut ? "(CUT)" : ""}
+                    {workload.server}{" "}
+
+                    {workload.cut ? "(CUT)" : ""}
 
                   </div>
 
                   <div>
 
-                    Start:{" "}
+                    Start:
 
                     <input
 
@@ -6028,13 +6512,25 @@ export default function Home() {
 
                       onChange={(e) =>
 
-                        updateServerStartTime(workload.server, e.target.value)
+                        updateServerStartTime(
+
+                          workload.server,
+
+                          e.target.value
+
+                        )
 
                       }
 
                       placeholder="4:00 PM"
 
-                      style={{ width: 75 }}
+                      style={{
+
+                        width: 78,
+
+                        marginLeft: 5,
+
+                      }}
 
                     />
 
@@ -6042,7 +6538,7 @@ export default function Home() {
 
                   <div>
 
-                    Goal:{" "}
+                    Goal:
 
                     <input
 
@@ -6050,27 +6546,59 @@ export default function Home() {
 
                       onChange={(e) =>
 
-                        updateServerSalesGoal(workload.server, e.target.value)
+                        updateServerSalesGoal(
+
+                          workload.server,
+
+                          e.target.value
+
+                        )
 
                       }
 
-                      style={{ width: 65 }}
+                      style={{
+
+                        width: 70,
+
+                        marginLeft: 5,
+
+                      }}
 
                     />
 
                   </div>
 
-                  <div>Assigned: {workload.assignedCount}</div>
+                  <div>
 
-                  <div>Seated: {workload.seatedCount}</div>
+                    Assigned: {workload.assignedCount}
 
-                  <div>Covers: {workload.covers}</div>
+                  </div>
 
-                  <div>Est: ${workload.estimatedSales}</div>
+                  <div>
+
+                    Seated: {workload.seatedCount}
+
+                  </div>
+
+                  <div>
+
+                    Covers: {workload.covers}
+
+                  </div>
+
+                  <div>
+
+                    Est: ${workload.estimatedSales}
+
+                  </div>
 
                   <button
 
-                    onClick={() => toggleServerCut(workload.server)}
+                    onClick={() =>
+
+                      toggleServerCut(workload.server)
+
+                    }
 
                     style={{
 
@@ -6082,7 +6610,11 @@ export default function Home() {
 
                       border: "2px solid #111827",
 
-                      background: workload.cut ? "#dcfce7" : "#fee2e2",
+                      background: workload.cut
+
+                        ? "#dcfce7"
+
+                        : "#fee2e2",
 
                       fontWeight: "bold",
 
@@ -6102,7 +6634,7 @@ export default function Home() {
 
           )}
 
-          {managerUnlocked && !floorCheckMode && (
+                    {managerUnlocked && !floorCheckMode && (
 
             <div
 
@@ -6220,7 +6752,7 @@ export default function Home() {
 
           )}
 
-                    {!floorCheckMode && (
+          {!floorCheckMode && (
 
             <div
 
@@ -6380,7 +6912,7 @@ export default function Home() {
 
           )}
 
-          {!floorCheckMode && upcomingReservations.length > 0 && (
+                    {!floorCheckMode && upcomingReservations.length > 0 && (
 
             <div
 
@@ -6448,7 +6980,13 @@ export default function Home() {
 
                     <br />
 
-                    Suggestion: {reservationTableSuggestionText(reservation, activeTables)}
+                    Suggestion: {reservationTableSuggestionText(
+
+                      reservation,
+
+                      activeTables
+
+                    )}
 
                     {(reservation.tags || []).length > 0 && (
 
@@ -6510,7 +7048,13 @@ export default function Home() {
 
                     )}
 
-                    {isReservationWithinHoldWindow(reservation, reservationSettings) && (
+                    {isReservationWithinHoldWindow(
+
+                      reservation,
+
+                      reservationSettings
+
+                    ) && (
 
                       <div style={{ color: "#dc2626", fontWeight: "bold" }}>
 
@@ -6542,7 +7086,11 @@ export default function Home() {
 
                       </button>{" "}
 
-                      <button onClick={() => addReservationAsWaitlist(reservation)}>
+                      <button
+
+                        onClick={() => addReservationAsWaitlist(reservation)}
+
+                      >
 
                         Waitlist
 
@@ -6850,19 +7398,23 @@ export default function Home() {
 
           )}
 
-          {combineMode && !floorCheckMode && (
+                    {combineMode && !floorCheckMode && (
 
             <div style={{ marginBottom: 8, fontWeight: "bold" }}>
 
               Selected to combine:{" "}
 
-              {selectedCombineIds.length > 0 ? selectedCombineIds.join(", ") : "none"}
+              {selectedCombineIds.length > 0
+
+                ? selectedCombineIds.join(", ")
+
+                : "none"}
 
             </div>
 
           )}
 
-                    <div style={{ width: "100%", overflowX: "auto" }}>
+          <div style={{ width: "100%", overflowX: "auto" }}>
 
             <div
 
@@ -7026,7 +7578,7 @@ export default function Home() {
 
               </div>
 
-              <div
+                            <div
 
                 style={{
 
@@ -7074,7 +7626,19 @@ export default function Home() {
 
                 </div>
 
-                <div style={{ padding: 16, fontSize: 16, whiteSpace: "pre-line" }}>
+                <div
+
+                  style={{
+
+                    padding: 16,
+
+                    fontSize: 16,
+
+                    whiteSpace: "pre-line",
+
+                  }}
+
+                >
 
                   {casaInfo}
 
@@ -7082,7 +7646,7 @@ export default function Home() {
 
               </div>
 
-                            <div
+              <div
 
                 style={{
 
@@ -7186,113 +7750,29 @@ export default function Home() {
 
               </div>
 
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 835,
-
-                  top: 675,
-
-                  width: 220,
-
-                  height: 45,
-
-                  background: "#dbeafe",
-
-                  border: "1px solid #64748b",
-
-                  textAlign: "center",
-
-                  paddingTop: 10,
-
-                  fontSize: 13,
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                Friday Lunch Buffet 11 - 2 pm
-
-              </div>
-
                             {activeTables.map((table, index) => {
 
-                const fitsSelectedParty =
-
-                  selectedParty &&
-
-                  table.status === "Open" &&
-
-                  availableSeats(table, activeTables) >= selectedSize;
-
-                const isBestTable = bestTable?.id === table.id;
-
-                const isSelectedForCombine =
-
-                  selectedCombineIds.includes(table.id);
+                const selected = selectedCombineIds.includes(table.id);
 
                 const assignedServer =
 
                   assignedServerForTable(table.id) || table.server;
 
-                const serverColor = getServerColor(assignedServer);
+                const overdue =
 
-                const serverCut =
+                  table.status === "Seated" &&
 
-                  assignedServer &&
-
-                  serverIsCut(assignedServer, serverInfo);
-
-                const heldForReservation = holdingReservations.some(
-
-                  (r) =>
-
-                    reservationTotalGuests(r) <=
-
-                      availableSeats(table, activeTables) &&
-
-                    table.status === "Open"
-
-                );
-
-                const estimatedTurn =
-
-                  table.status === "Seated" && table.seatedAt
-
-                    ? estimatedTurnReadyTime(
-
-                        table.seatedAt,
-
-                        reservationSettings.averageTurnMinutes
-
-                      )
-
-                    : "";
+                  isOverdueTurn(table, reservationSettings);
 
                 return (
 
-                  <button
+                  <div
 
                     key={table.id}
 
-                    onPointerDown={(e) => {
-
-                      e.preventDefault();
-
-                      startDrag(index);
-
-                    }}
-
-                    onDoubleClick={() => clearTable(index)}
+                    onPointerDown={() => startDrag(index)}
 
                     onClick={() => updateTable(index)}
-
-                    title={table.combinedLabel || ""}
 
                     style={{
 
@@ -7306,185 +7786,223 @@ export default function Home() {
 
                       height: table.h,
 
-                      background: heldForReservation
-
-                        ? "#fef3c7"
-
-                        : isSelectedForCombine
-
-                        ? "#ddd6fe"
-
-                        : fitsSelectedParty
-
-                        ? isBestTable
-
-                          ? "#86efac"
-
-                          : "#dcfce7"
-
-                        : turnBackground(table),
-
-                      border: heldForReservation
-
-                        ? "5px solid #dc2626"
-
-                        : table.readyFlash
-
-                        ? "5px solid #22c55e"
-
-                        : isSelectedForCombine
-
-                        ? "4px solid #7c3aed"
-
-                        : table.combinedId
-
-                        ? "4px solid #a855f7"
-
-                        : assignedServer
-
-                        ? `4px solid ${
-
-                            serverCut ? "#64748b" : serverColor
-
-                          }`
-
-                        : table.status === "Boxed"
-
-                        ? "4px solid #f59e0b"
-
-                        : isBestTable
-
-                        ? "4px solid #16a34a"
-
-                        : editMode
-
-                        ? "3px dashed #111827"
-
-                        : "2px solid #1e3a8a",
-
-                      boxShadow: heldForReservation
-
-                        ? "0 0 16px #dc2626"
-
-                        : table.readyFlash
-
-                        ? "0 0 14px #22c55e"
-
-                        : isOverdueTurn(table, reservationSettings)
-
-                        ? "0 0 18px #f97316"
-
-                        : "none",
-
                       borderRadius:
 
                         table.shape === "round"
 
-                          ? "9999px"
+                          ? "999px"
 
                           : table.shape === "booth"
 
-                          ? "999px"
+                          ? "16px"
 
-                          : 8,
+                          : "8px",
 
-                      color: "#006ee6",
+                      border: selected
+
+                        ? "5px solid #7c3aed"
+
+                        : overdue
+
+                        ? "5px solid #dc2626"
+
+                        : "3px solid #111827",
+
+                      background: turnBackground(table),
+
+                      display: "flex",
+
+                      flexDirection: "column",
+
+                      alignItems: "center",
+
+                      justifyContent: "center",
 
                       fontWeight: "bold",
 
-                      fontSize: floorCheckMode ? 11 : 10,
-
-                      lineHeight: 1.05,
-
-                      overflow: "hidden",
-
-                      zIndex: draggingIndex === index ? 20 : 5,
-
-                      touchAction: "none",
-
                       cursor:
 
-                        editMode && !floorLocked ? "grab" : "pointer",
+                        editMode && !floorLocked
 
-                      opacity: serverCut ? 0.72 : 1,
+                          ? "grab"
+
+                          : "pointer",
+
+                      userSelect: "none",
+
+                      zIndex: selected ? 6 : 4,
+
+                      boxShadow: table.readyFlash
+
+                        ? "0 0 0 5px rgba(34,197,94,.4)"
+
+                        : undefined,
+
+                      transition: "all .15s ease",
 
                     }}
 
                   >
 
-                    {table.id}
+                    <div style={{ fontSize: 14 }}>
 
-                    <br />
+                      {table.id}
 
-                    {table.guest
+                    </div>
 
-                      ? `${table.guest} ${table.partySize || ""}`
+                    <div style={{ fontSize: 12 }}>
 
-                      : table.combinedId
+                      {table.seats}
 
-                      ? `${availableSeats(table, activeTables)} seats`
+                    </div>
 
-                      : table.seats}
+                    {table.guest && (
 
-                    <br />
+                      <div
 
-                    {heldForReservation
+                        style={{
 
-                      ? "RES HOLD"
+                          fontSize: 10,
 
-                      : table.status === "Seated"
+                          textAlign: "center",
 
-                      ? minutesSince(table.seatedAt)
+                          padding: "0 2px",
 
-                      : table.status}
+                        }}
+
+                      >
+
+                        {table.guest}
+
+                      </div>
+
+                    )}
+
+                    {table.partySize && (
+
+                      <div style={{ fontSize: 10 }}>
+
+                        {table.partySize} guests
+
+                      </div>
+
+                    )}
 
                     {assignedServer && (
 
-                      <>
+                      <div
 
-                        <br />
+                        style={{
+
+                          fontSize: 10,
+
+                          background: getServerColor(assignedServer),
+
+                          color: "white",
+
+                          padding: "1px 5px",
+
+                          borderRadius: 10,
+
+                          marginTop: 2,
+
+                        }}
+
+                      >
 
                         {assignedServer}
 
-                      </>
+                      </div>
 
                     )}
 
-                    {estimatedTurn && table.status === "Seated" && (
+                    {table.status === "Seated" &&
 
-                      <>
+                      table.seatedAt && (
 
-                        <br />
+                        <div
 
-                        {estimatedTurn}
+                          style={{
 
-                      </>
+                            fontSize: 9,
+
+                            marginTop: 2,
+
+                            textAlign: "center",
+
+                          }}
+
+                        >
+
+                          {minutesSince(table.seatedAt)}
+
+                        </div>
+
+                      )}
+
+                    {table.combinedLabel && (
+
+                      <div
+
+                        style={{
+
+                          position: "absolute",
+
+                          bottom: -18,
+
+                          background: "#ede9fe",
+
+                          border: "1px solid #7c3aed",
+
+                          borderRadius: 10,
+
+                          padding: "1px 5px",
+
+                          fontSize: 9,
+
+                          whiteSpace: "nowrap",
+
+                        }}
+
+                      >
+
+                        {table.combinedLabel}
+
+                      </div>
 
                     )}
 
-                    {table.estimatedSales && (
+                    {overdue && (
 
-                      <>
+                      <div
 
-                        <br />${table.estimatedSales}
+                        style={{
 
-                      </>
+                          position: "absolute",
+
+                          top: -16,
+
+                          background: "#dc2626",
+
+                          color: "white",
+
+                          borderRadius: 8,
+
+                          padding: "1px 6px",
+
+                          fontSize: 9,
+
+                        }}
+
+                      >
+
+                        OVERDUE
+
+                      </div>
 
                     )}
 
-                    {serverCut && (
-
-                      <>
-
-                        <br />
-
-                        CUT
-
-                      </>
-
-                    )}
-
-                  </button>
+                  </div>
 
                 );
 
@@ -7496,9 +8014,9 @@ export default function Home() {
 
           <p style={{ marginTop: 8, fontSize: 14 }}>
 
-            Floor Check Mode is for quick table updates only. SMS and multi-iPad sync are
+            Floor Check Mode is for quick table updates only. Texting, live sync, and
 
-            placeholders until a backend is connected.
+            offline recovery are structured as placeholders until connected to a backend.
 
           </p>
 
@@ -7509,7 +8027,3 @@ export default function Home() {
     </main>
 
   );
-
-}
-
-              
