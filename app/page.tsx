@@ -3716,7 +3716,7 @@ export default function Home() {
 
     try {
 
-  async function loadCloudState() {
+    const loadCloudState = async () => {
 
     const { data } = await supabase
 
@@ -3752,7 +3752,7 @@ export default function Home() {
 
   setCloudLoaded(true);
 
-}
+};
 
 loadCloudState();
 
