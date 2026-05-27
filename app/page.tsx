@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { supabase } from "./supabaseClient";
+
 type Status = "Open" | "Seated" | "Boxed" | "Dirty";
 
 type Section =
@@ -1394,7 +1396,7 @@ const defaultTables: TableItem[] = [
 
   makeTable("1", "4", 135, 665, 78, 42),
 
-    makeTable("DL4", "4", 45, 775, 75, 42, "Lounge"),
+  makeTable("DL4", "4", 45, 775, 75, 42, "Lounge"),
 
   makeTable("DL3", "4", 45, 860, 75, 42, "Lounge"),
 
@@ -1591,6 +1593,8 @@ export default function Home() {
   const [newTableShape, setNewTableShape] = useState<TableShape>("rectangle");
 
   const [, setTick] = useState(0);
+
+  const [cloudLoaded, setCloudLoaded] = useState(false);
 
   const activeReservations = trainingMode ? trainingReservations : reservations;
 
@@ -3712,6 +3716,46 @@ export default function Home() {
 
     try {
 
+  async function loadCloudState() {
+
+    const { data } = await supabase
+
+    .from("host_app_state")
+
+    .select("*")
+
+    .eq("id", "main")
+
+    .single();
+
+  if (!data?.data) {
+
+    setCloudLoaded(true);
+
+    return;
+
+  }
+
+  const cloud = data.data;
+
+  if (cloud.tables) setTables(cloud.tables);
+
+  if (cloud.waitlist) setWaitlist(cloud.waitlist);
+
+  if (cloud.reservations) setReservations(cloud.reservations);
+
+  if (cloud.serverAssignments)
+
+    setServerAssignments(cloud.serverAssignments);
+
+  if (cloud.serverInfo) setServerInfo(cloud.serverInfo);
+
+  setCloudLoaded(true);
+
+}
+
+loadCloudState();
+
       const savedTables = localStorage.getItem(STORAGE_TABLES);
 
       const savedTrainingTables = localStorage.getItem(STORAGE_TRAINING_TABLES);
@@ -3908,6 +3952,52 @@ export default function Home() {
 
   useEffect(() => {
 
+  if (!cloudLoaded) return;
+
+  async function syncCloud() {
+
+    await supabase.from("host_app_state").upsert({
+
+      id: "main",
+
+      data: {
+
+        tables,
+
+        waitlist,
+
+        reservations,
+
+        serverAssignments,
+
+        serverInfo,
+
+      },
+
+    });
+
+  }
+
+  syncCloud();
+
+}, [
+
+  tables,
+
+  waitlist,
+
+  reservations,
+
+  serverAssignments,
+
+  serverInfo,
+
+  cloudLoaded,
+
+]);
+  
+  useEffect(() => {
+
     localStorage.setItem(STORAGE_TRAINING_TABLES, JSON.stringify(trainingTables));
 
   }, [trainingTables]);
@@ -4063,6 +4153,72 @@ export default function Home() {
     return () => clearInterval(timer);
 
   }, []);
+
+  useEffect(() => {
+
+  const channel = supabase
+
+    .channel("host-live-sync")
+
+    .on(
+
+      "postgres_changes",
+
+      {
+
+        event: "*",
+
+        schema: "public",
+
+        table: "host_app_state",
+
+      },
+
+      async () => {
+
+        const { data } = await supabase
+
+          .from("host_app_state")
+
+          .select("*")
+
+          .eq("id", "main")
+
+          .single();
+
+        if (!data?.data) return;
+
+        const cloud = data.data;
+
+        if (cloud.tables) setTables(cloud.tables);
+
+        if (cloud.waitlist) setWaitlist(cloud.waitlist);
+
+        if (cloud.reservations)
+
+          setReservations(cloud.reservations);
+
+        if (cloud.serverAssignments)
+
+          setServerAssignments(cloud.serverAssignments);
+
+        if (cloud.serverInfo)
+
+          setServerInfo(cloud.serverInfo);
+
+      }
+
+    )
+
+    .subscribe();
+
+  return () => {
+
+    supabase.removeChannel(channel);
+
+  };
+
+}, []);
 
   const slots = generateReservationSlots(
 
