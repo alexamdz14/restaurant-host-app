@@ -416,7 +416,9 @@ const guestTagOptions: GuestTag[] = [
 
   "Booth",
 
-  "Frequent Guest",
+  "Frequent Guest"
+  
+  "Wheelchair",
 
 ];
 
@@ -4292,6 +4294,50 @@ loadCloudState();
 
       >
 
+        <button
+
+  onClick={async () => {
+
+    const { error } = await supabase.from("host_app_state").upsert({
+
+      id: "main",
+
+      data: {
+
+        test: "connected",
+
+        tables,
+
+        waitlist,
+
+        reservations,
+
+        serverAssignments,
+
+        serverInfo,
+
+      },
+
+    });
+
+    if (error) {
+
+      alert(error.message);
+
+    } else {
+
+      alert("Supabase saved successfully");
+
+    }
+
+  }}
+
+>
+
+  Test Supabase Save
+
+</button>
+        
         <button
 
           onClick={() => setActiveTab("host")}
