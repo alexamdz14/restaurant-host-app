@@ -416,9 +416,7 @@ const guestTagOptions: GuestTag[] = [
 
   "Booth",
 
-  "Frequent Guest"
-  
-  "Wheelchair",
+  "Frequent Guest",
 
 ];
 
