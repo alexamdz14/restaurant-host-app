@@ -4270,15 +4270,11 @@ function printServerSections() {
 
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-    return {
+    return `${server.name}${serverShouldBeCut(server) ? " (CUT)" : ""}: ${
 
-      name: server.name,
+      tableIds.length ? tableIds.join(", ") : "None assigned"
 
-      tables: tableIds,
-
-      cut: serverShouldBeCut(server),
-
-    };
+    }`;
 
   });
 
@@ -4286,77 +4282,25 @@ function printServerSections() {
 
   if (!printWindow) return;
 
-  printWindow.document.write(`
+  printWindow.document.write(
 
-    <html>
+    "<html><head><title>Server Sections</title></head><body>" +
 
-      <head>
+      "<h1>ENRIQUE'S SERVER SECTIONS</h1>" +
 
-        <title>Server Sections</title>
+      "<p>" +
 
-        <style>
+      new Date().toLocaleString() +
 
-          body { font-family: Arial, sans-serif; padding: 24px; }
+      "</p>" +
 
-          h1 { text-align: center; margin-bottom: 24px; }
+      rows.map((row) => "<div style='border:2px solid #111827;padding:14px;margin-bottom:14px;font-size:20px;'>" + row + "</div>").join("") +
 
-          .server { border: 2px solid #111827; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+      "<script>window.print();</script>" +
 
-          .name { font-size: 22px; font-weight: bold; margin-bottom: 8px; }
+    "</body></html>"
 
-          .tables { font-size: 18px; }
-
-          .cut { color: #64748b; font-weight: bold; }
-
-        </style>
-
-      </head>
-
-      <body>
-
-        <h1>ENRIQUE'S SERVER SECTIONS</h1>
-
-        <p>${new Date().toLocaleString()}</p>
-
-        ${rows
-
-          .map(
-
-            (row) => `
-
-              <div class="server">
-
-                <div class="name">
-
-                  ${row.name} ${row.cut ? '<span class="cut">(CUT)</span>' : ""}
-
-                </div>
-
-                <div class="tables">
-
-                  Tables: ${row.tables.length ? row.tables.join(", ") : "None assigned"}
-
-                </div>
-
-              </div>
-
-            `
-
-          )
-
-          .join("")}
-
-        <script>
-
-          window.print();
-
-        </script>
-
-      </body>
-
-    </html>
-
-  `);
+  );
 
   printWindow.document.close();
 
