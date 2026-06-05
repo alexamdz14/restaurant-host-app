@@ -5771,29 +5771,7 @@ const timelineCellStyle: React.CSSProperties = {
   fontSize: 13,
 
 };
-
-  const timelineHeaderStyle: React.CSSProperties = {
-
-      border: "1px solid #111827",
-
-      padding: 6,
-
-      background: "#e5e7eb",
-
-      fontWeight: "bold",
-
-    };
-
-  const timelineCellStyle: React.CSSProperties = {
-
-      border: "1px solid #111827",
-
-      padding: 6,
-
-      fontSize: 13,
-
-    };
-
+  
   return (
 
     <main
