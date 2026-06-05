@@ -200,9 +200,25 @@ type ServerInfo = {
 
   startTime: string;
 
+  cutTime: string;
+
   cut: boolean;
 
   salesGoal: number;
+
+};
+
+type ReservedTableHold = {
+
+  tableId: string;
+
+  name: string;
+
+  time: string;
+
+  notes: string;
+
+  createdAt: number;
 
 };
 
@@ -308,54 +324,6 @@ type ServerSectionBox = {
 
 };
 
-const GRID = 5;
-
-const STORAGE_TABLES = "hostTables_v40";
-
-const STORAGE_TRAINING_TABLES = "hostTrainingTables_v40";
-
-const STORAGE_WAITLIST = "hostWaitlist_v40";
-
-const STORAGE_TRAINING_WAITLIST = "hostTrainingWaitlist_v40";
-
-const STORAGE_ASSIGNMENTS = "hostServerAssignments_v40";
-
-const STORAGE_SERVER_INFO = "hostServerInfo_v40";
-
-const STORAGE_INFO = "hostInfoBoxes_v40";
-
-const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v40";
-
-const STORAGE_RESERVATIONS = "hostReservations_v40";
-
-const STORAGE_TRAINING_RESERVATIONS = "hostTrainingReservations_v40";
-
-const STORAGE_RESERVATION_SETTINGS = "hostReservationSettings_v40";
-
-const STORAGE_TRAINING_MODE = "hostTrainingMode_v40";
-
-const STORAGE_FLOOR_LOCKED = "hostFloorLocked_v40";
-
-const STORAGE_APP_MODE = "hostAppMode_v40";
-
-const STORAGE_NIGHT_MAP = "hostNightMap_v40";
-
-const STORAGE_SHIFT_REPORTS = "hostShiftReports_v40";
-
-const STORAGE_SYNC_LOGS = "hostSyncLogs_v40";
-
-const STORAGE_TEXT_MESSAGES = "hostTextMessages_v40";
-
-const STORAGE_GUEST_HISTORY = "hostGuestHistory_v40";
-
-const STORAGE_OFFLINE_QUEUE = "hostOfflineQueue_v40";
-
-const STORAGE_SYNC_STATUS = "hostSyncStatus_v40";
-
-const STORAGE_SERVER_SECTION_BOXES =
-
-  "hostServerSectionBoxes_v40";
-
 type AppMode = "full" | "reservationsOnly";
 
 type NightMapInfo = {
@@ -367,6 +335,58 @@ type NightMapInfo = {
   notes: string;
 
 };
+
+const GRID = 5;
+
+const STORAGE_TABLES = "hostTables_v43";
+
+const STORAGE_TRAINING_TABLES = "hostTrainingTables_v43";
+
+const STORAGE_WAITLIST = "hostWaitlist_v43";
+
+const STORAGE_TRAINING_WAITLIST = "hostTrainingWaitlist_v43";
+
+const STORAGE_ASSIGNMENTS = "hostServerAssignments_v43";
+
+const STORAGE_SERVER_INFO = "hostServerInfo_v43";
+
+const STORAGE_INFO = "hostInfoBoxes_v43";
+
+const STORAGE_ROTATION_INDEX = "hostServerRotationIndex_v43";
+
+const STORAGE_RESERVATIONS = "hostReservations_v43";
+
+const STORAGE_TRAINING_RESERVATIONS = "hostTrainingReservations_v43";
+
+const STORAGE_RESERVATION_SETTINGS = "hostReservationSettings_v43";
+
+const STORAGE_TRAINING_MODE = "hostTrainingMode_v43";
+
+const STORAGE_FLOOR_LOCKED = "hostFloorLocked_v43";
+
+const STORAGE_APP_MODE = "hostAppMode_v43";
+
+const STORAGE_NIGHT_MAP = "hostNightMap_v43";
+
+const STORAGE_SHIFT_REPORTS = "hostShiftReports_v43";
+
+const STORAGE_SYNC_LOGS = "hostSyncLogs_v43";
+
+const STORAGE_TEXT_MESSAGES = "hostTextMessages_v43";
+
+const STORAGE_GUEST_HISTORY = "hostGuestHistory_v43";
+
+const STORAGE_OFFLINE_QUEUE = "hostOfflineQueue_v43";
+
+const STORAGE_SYNC_STATUS = "hostSyncStatus_v43";
+
+const STORAGE_SERVER_SECTION_BOXES = "hostServerSectionBoxes_v43";
+
+const STORAGE_RESERVED_TABLES = "hostReservedTables_v43";
+
+const STORAGE_BATHROOM_CHECK = "hostBathroomCheck_v43";
+
+const STORAGE_BAR_INFO = "hostBarInfo_v43";
 
 const snap = (n: number) => Math.round(n / GRID) * GRID;
 
@@ -536,7 +556,7 @@ function statusColor(status: Status) {
 
   if (status === "Boxed") return "#fde68a";
 
-  if (status === "Dirty") return "#f87171";
+  if (status === "Dirty") return "#fecaca";
 
   return "#e5e7eb";
 
@@ -582,6 +602,116 @@ function seatNumber(seats: string) {
 
 }
 
+function seatBadgeColor(seats: string) {
+
+  const count = seatNumber(seats);
+
+  if (count <= 2) return "#e5e7eb";
+
+  if (count <= 4) return "#dbeafe";
+
+  if (count <= 6) return "#dcfce7";
+
+  return "#ffedd5";
+
+}
+
+function turnBackground(table: TableItem) {
+
+  return statusColor(table.status);
+
+}
+
+function parseStandardTimeToMinutes(value: string) {
+
+  if (!value.trim()) return null;
+
+  const clean = value.trim().toLowerCase();
+
+  const match = clean.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+
+  if (!match) return null;
+
+  let hours = Number(match[1]);
+
+  const minutes = Number(match[2] || "0");
+
+  const suffix = match[3];
+
+  if (suffix === "pm" && hours !== 12) hours += 12;
+
+  if (suffix === "am" && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+
+}
+
+function currentMinutesNow() {
+
+  const now = new Date();
+
+  return now.getHours() * 60 + now.getMinutes();
+
+}
+
+function serverShouldBeCut(server: ServerInfo) {
+
+  if (server.cut) return true;
+
+  const cutMinutes = parseStandardTimeToMinutes(server.cutTime);
+
+  if (cutMinutes === null) return false;
+
+  return currentMinutesNow() >= cutMinutes;
+
+}
+
+function serverIsCut(serverName: string, serverInfo: ServerInfo[]) {
+
+  return serverInfo.some(
+
+    (server) =>
+
+      server.name.toLowerCase() === serverName.toLowerCase() &&
+
+      serverShouldBeCut(server)
+
+  );
+
+}
+
+function bathroomCheckDue(lastChecked: number) {
+
+  return Date.now() - lastChecked >= 60 * 60000;
+
+}
+
+function pagerDisplay(pager?: string) {
+
+  if (!pager) return "";
+
+  const clean = pager.replace(/^P/i, "").trim();
+
+  return `P${clean}`;
+
+  function reservationArrivalCountdown(date: string, time: string) {
+
+  if (!date || !time) return "";
+
+  const reservationTimeMs = new Date(`${date}T${time}:00`).getTime();
+
+  const diff = reservationTimeMs - Date.now();
+
+  const minutes = Math.floor(diff / 60000);
+
+  if (minutes < -15) return "Past arrival";
+
+  if (minutes <= 15) return "ARRIVING NOW";
+
+  return `Arrives in ${minutes} min`;
+
+}
+
 function quotedWaitMaxMinutes(quotedWait?: string) {
 
   if (!quotedWait) return 0;
@@ -604,11 +734,7 @@ function isOverQuotedWait(party: WaitParty) {
 
   if (!maxMinutes) return false;
 
-  const waitedMinutes = Math.floor(
-
-    (Date.now() - party.createdAt) / 60000
-
-  );
+  const waitedMinutes = Math.floor((Date.now() - party.createdAt) / 60000);
 
   return waitedMinutes > maxMinutes;
 
@@ -654,31 +780,17 @@ function reservationGuestLabel(
 
   const kids = parseInt(reservation.kids || "0", 10) || 0;
 
-  if (adults > 0 && kids > 0) return `${adults}A + ${kids}K = ${adults + kids}`;
+  if (adults > 0 && kids > 0) {
+
+    return `${adults}A + ${kids}K = ${adults + kids}`;
+
+  }
 
   if (adults > 0) return `${adults}A`;
 
   if (kids > 0) return `${kids}K`;
 
   return "0";
-
-}
-
-function turnBackground(table: TableItem) {
-
-  if (table.status !== "Seated" || !table.seatedAt) {
-
-    return statusColor(table.status);
-
-  }
-
-  const mins = Math.floor((Date.now() - table.seatedAt) / 60000);
-
-  if (mins >= 60) return "#fecaca";
-
-  if (mins >= 45) return "#fde68a";
-
-  return statusColor(table.status);
 
 }
 
@@ -736,7 +848,11 @@ function dayName(dateString: string) {
 
   const date = new Date(`${dateString}T12:00:00`);
 
-  return date.toLocaleDateString("en-US", { weekday: "long" });
+  return date.toLocaleDateString("en-US", {
+
+    weekday: "long",
+
+  });
 
 }
 
@@ -747,7 +863,7 @@ function isClosedDay(dateString: string) {
   return day === "Sunday" || day === "Monday";
 
 }
-
+}
 function timeToMinutes(time: string) {
 
   const [hours, minutes] = time.split(":").map(Number);
@@ -762,7 +878,13 @@ function minutesToTime(total: number) {
 
   const minutes = total % 60;
 
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+
+    2,
+
+    "0"
+
+  )}`;
 
 }
 
@@ -784,7 +906,13 @@ function displayStandardTime(time: string) {
 
   if (!time) return "";
 
-  if (time.toLowerCase().includes("am") || time.toLowerCase().includes("pm")) {
+  if (
+
+    time.toLowerCase().includes("am") ||
+
+    time.toLowerCase().includes("pm")
+
+  ) {
 
     return time;
 
@@ -796,7 +924,13 @@ function displayStandardTime(time: string) {
 
 }
 
-function getHoursForDate(dateString: string, settings: ReservationSettings) {
+function getHoursForDate(
+
+  dateString: string,
+
+  settings: ReservationSettings
+
+) {
 
   const day = dayName(dateString);
 
@@ -988,9 +1122,19 @@ function turnPredictionDetail(
 
   if (table.status === "Seated" && table.seatedAt) {
 
-    const satMinutes = Math.floor((Date.now() - table.seatedAt) / 60000);
+    const satMinutes = Math.floor(
 
-    const remaining = Math.max(0, settings.averageTurnMinutes - satMinutes);
+      (Date.now() - table.seatedAt) / 60000
+
+    );
+
+    const remaining = Math.max(
+
+      0,
+
+      settings.averageTurnMinutes - satMinutes
+
+    );
 
     if (remaining === 0) return "Past expected turn time";
 
@@ -1010,19 +1154,19 @@ function isSameDayWarning(date: string, time: string) {
 
   const reservationMs = reservationDateTimeMs(date, time);
 
-  const oneHourFromNow = now.getTime() + 60 * 60000;
-
   const today =
 
     date ===
 
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
 
-      now.getDate()
+      2,
 
-    ).padStart(2, "0")}`;
+      "0"
 
-  return today && reservationMs <= oneHourFromNow;
+    )}-${String(now.getDate()).padStart(2, "0")}`;
+
+  return today && reservationMs <= now.getTime() + 60 * 60000;
 
 }
 
@@ -1040,7 +1184,13 @@ function slotStats(
 
   const slotReservations = reservations.filter(
 
-    (r) => r.date === date && r.time === time && r.status !== "Cancelled"
+    (r) =>
+
+      r.date === date &&
+
+      r.time === time &&
+
+      r.status !== "Cancelled"
 
   );
 
@@ -1150,23 +1300,19 @@ function reservationConflictWarnings(
 
   }
 
-  warnings.push(`Hold policy: reservations held for ${settings.holdMinutes} minutes only`);
+  warnings.push(
 
-  warnings.push("Seating policy: majority of party must be present to be seated");
-
-  return warnings;
-
-}
-
-function serverIsCut(serverName: string, serverInfo: ServerInfo[]) {
-
-  return serverInfo.some(
-
-    (server) =>
-
-      server.name.toLowerCase() === serverName.toLowerCase() && server.cut
+    `Hold policy: reservations held for ${settings.holdMinutes} minutes only`
 
   );
+
+  warnings.push(
+
+    "Seating policy: majority of party must be present to be seated"
+
+  );
+
+  return warnings;
 
 }
 
@@ -1245,6 +1391,12 @@ function reservationTableSuggestionText(
 ) {
 
   const totalGuests = reservationTotalGuests(reservation);
+
+  if (reservation.tableId) {
+
+    return `Reserved table: ${reservation.tableId}`;
+
+  }
 
   const directFits = findBestTablesForParty(totalGuests, tables);
 
@@ -1396,7 +1548,7 @@ const defaultTables: TableItem[] = [
 
   makeTable("1", "4", 135, 665, 78, 42),
 
-  makeTable("DL4", "4", 45, 775, 75, 42, "Lounge"),
+    makeTable("DL4", "4", 45, 775, 75, 42, "Lounge"),
 
   makeTable("DL3", "4", 45, 860, 75, 42, "Lounge"),
 
@@ -1448,9 +1600,41 @@ const defaultTables: TableItem[] = [
 
   makeTable("Casa 4", "4", 1070, 960, 60, 42, "Casa"),
 
-  makeTable("San Miguel 1", "12", 1310, 410, 145, 60, "San Miguel"),
+  makeTable(
 
-  makeTable("San Miguel 2", "12", 1310, 510, 145, 60, "San Miguel"),
+    "San Miguel 1",
+
+    "12",
+
+    1310,
+
+    410,
+
+    145,
+
+    60,
+
+    "San Miguel"
+
+  ),
+
+  makeTable(
+
+    "San Miguel 2",
+
+    "12",
+
+    1310,
+
+    510,
+
+    145,
+
+    60,
+
+    "San Miguel"
+
+  ),
 
 ];
 
@@ -1462,149 +1646,343 @@ export default function Home() {
 
   >("host");
 
-  const [appMode, setAppMode] = useState<AppMode>("full");
+  const [appMode, setAppMode] =
 
-  const [trainingMode, setTrainingMode] = useState(false);
+    useState<AppMode>("full");
 
-  const [managerUnlocked, setManagerUnlocked] = useState(false);
+  const [trainingMode, setTrainingMode] =
 
-  const [managerPinInput, setManagerPinInput] = useState("");
+    useState(false);
 
-  const [floorCheckMode, setFloorCheckMode] = useState(false);
+  const [managerUnlocked, setManagerUnlocked] =
 
-  const [editMode, setEditMode] = useState(false);
+    useState(false);
 
-  const [floorLocked, setFloorLocked] = useState(true);
+  const [managerPinInput, setManagerPinInput] =
 
-  const [combineMode, setCombineMode] = useState(false);
+    useState("");
 
-  const [selectedCombineIds, setSelectedCombineIds] = useState<string[]>([]);
+  const [floorCheckMode, setFloorCheckMode] =
 
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+    useState(false);
 
-  const [tables, setTables] = useState<TableItem[]>(defaultTables);
+  const [editMode, setEditMode] =
 
-  const [trainingTables, setTrainingTables] = useState<TableItem[]>(defaultTables);
+    useState(false);
 
-  const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
+  const [floorLocked, setFloorLocked] =
 
-  const [trainingWaitlist, setTrainingWaitlist] = useState<WaitParty[]>([]);
+    useState(true);
 
-  const [guestName, setGuestName] = useState("");
+  const [combineMode, setCombineMode] =
 
-  const [partySize, setPartySize] = useState("");
+    useState(false);
 
-  const [pager, setPager] = useState("");
+  const [selectedCombineIds, setSelectedCombineIds] =
 
-  const [quotedWait, setQuotedWait] = useState("15-20");
+    useState<string[]>([]);
 
-  const [waitNotes, setWaitNotes] = useState("");
+  const [draggingIndex, setDraggingIndex] =
 
-  const [waitPriority, setWaitPriority] = useState(false);
+    useState<number | null>(null);
 
-  const [partyType, setPartyType] = useState<PartyType>("Walk-in");
+  const [tables, setTables] =
 
-  const [selectedPartyId, setSelectedPartyId] = useState<number | null>(null);
+    useState<TableItem[]>(defaultTables);
 
-  const [serverAssignments, setServerAssignments] = useState(
+  const [trainingTables, setTrainingTables] =
 
-    "Maria: 1,2,3\nJose: 20,21,22"
+    useState<TableItem[]>(defaultTables);
 
-  );
+  const [waitlist, setWaitlist] =
 
-  const [serverInfo, setServerInfo] = useState<ServerInfo[]>([
+    useState<WaitParty[]>([]);
 
-    { name: "Maria", startTime: "4:00 PM", cut: false, salesGoal: 500 },
+  const [trainingWaitlist, setTrainingWaitlist] =
 
-    { name: "Jose", startTime: "4:00 PM", cut: false, salesGoal: 500 },
+    useState<WaitParty[]>([]);
 
-  ]);
+  const [guestName, setGuestName] =
 
-  const [rotationIndex, setRotationIndex] = useState(0);
+    useState("");
 
-  const [hostInfo, setHostInfo] = useState(
+  const [partySize, setPartySize] =
 
-    "PODIUM:\nSEATER 1:\nSEATER 2:\nSEATER 3:"
+    useState("");
 
-  );
+  const [pager, setPager] =
 
-  const [takeoutInfo, setTakeoutInfo] = useState("Take-Out");
+    useState("");
 
-  const [casaInfo, setCasaInfo] = useState(
+  const [quotedWait, setQuotedWait] =
 
-    "GUEST NAME:\n\nARRIVAL TIME:\n\nGUEST COUNT:\n\nSERVER:"
+    useState("15-20");
 
-  );
+  const [waitNotes, setWaitNotes] =
 
-  const [sanMiguelInfo, setSanMiguelInfo] = useState(
+    useState("");
 
-    "GUEST NAME:\n\nARRIVAL TIME:\n\nGUESTS:\n\nSERVER:"
+  const [waitPriority, setWaitPriority] =
 
-  );
+    useState(false);
 
-  const [nightMap, setNightMap] = useState<NightMapInfo>(defaultNightMap);
+  const [partyType, setPartyType] =
 
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+    useState<PartyType>("Walk-in");
 
-  const [trainingReservations, setTrainingReservations] = useState<Reservation[]>([]);
+  const [selectedPartyId, setSelectedPartyId] =
 
-  const [shiftReports, setShiftReports] = useState<ShiftReport[]>([]);
+    useState<number | null>(null);
 
-  const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
+  const [serverAssignments, setServerAssignments] =
 
-  const [textMessages, setTextMessages] = useState<TextMessage[]>([]);
+    useState(
 
-  const [guestHistory, setGuestHistory] = useState<GuestHistoryItem[]>([]);
+      "Maria: 1,2,3\nJose: 20,21,22"
 
-  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
+    );
 
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>("Online");
+  const [serverInfo, setServerInfo] =
 
-  const [serverSectionBoxes, setServerSectionBoxes] = useState<ServerSectionBox[]>([]);
+    useState<ServerInfo[]>([
+
+      {
+
+        name: "Maria",
+
+        startTime: "4:00 PM",
+
+        cutTime: "",
+
+        cut: false,
+
+        salesGoal: 500,
+
+      },
+
+      {
+
+        name: "Jose",
+
+        startTime: "4:00 PM",
+
+        cutTime: "",
+
+        cut: false,
+
+        salesGoal: 500,
+
+      },
+
+    ]);
+
+  const [reservedTables, setReservedTables] =
+
+    useState<ReservedTableHold[]>([]);
+
+  const [bathroomLastChecked, setBathroomLastChecked] =
+
+    useState(Date.now());
+
+  const [selectedServerForAssign, setSelectedServerForAssign] =
+
+    useState("");
+
+  const [sectionAssignMode, setSectionAssignMode] =
+
+    useState(false);
+
+  const [reserveTableId, setReserveTableId] =
+
+    useState("");
+
+  const [reserveName, setReserveName] =
+
+    useState("");
+
+  const [reserveTime, setReserveTime] =
+
+    useState("");
+
+  const [reserveNotes, setReserveNotes] =
+
+    useState("");
+
+  const [barInfo, setBarInfo] =
+
+    useState(
+
+      "BAR:\nBARTENDER:\nBARBACK:\nNOTES:"
+
+    );
+
+  const [rotationIndex, setRotationIndex] =
+
+    useState(0);
+
+  const [hostInfo, setHostInfo] =
+
+    useState(
+
+      "PODIUM:\nSEATER 1:\nSEATER 2:\nSEATER 3:"
+
+    );
+
+  const [takeoutInfo, setTakeoutInfo] =
+
+    useState("Take-Out");
+
+  const [casaInfo, setCasaInfo] =
+
+    useState(
+
+      "GUEST NAME:\n\nARRIVAL TIME:\n\nGUEST COUNT:\n\nSERVER:"
+
+    );
+
+  const [sanMiguelInfo, setSanMiguelInfo] =
+
+    useState(
+
+      "GUEST NAME:\n\nARRIVAL TIME:\n\nGUESTS:\n\nSERVER:"
+
+    );
+
+  const [nightMap, setNightMap] =
+
+    useState<NightMapInfo>(defaultNightMap);
+
+  const [reservations, setReservations] =
+
+    useState<Reservation[]>([]);
+
+  const [trainingReservations, setTrainingReservations] =
+
+    useState<Reservation[]>([]);
+
+  const [shiftReports, setShiftReports] =
+
+    useState<ShiftReport[]>([]);
+
+  const [syncLogs, setSyncLogs] =
+
+    useState<SyncLog[]>([]);
+
+  const [textMessages, setTextMessages] =
+
+    useState<TextMessage[]>([]);
+
+  const [guestHistory, setGuestHistory] =
+
+    useState<GuestHistoryItem[]>([]);
+
+  const [offlineQueue, setOfflineQueue] =
+
+    useState<OfflineQueueItem[]>([]);
+
+  const [syncStatus, setSyncStatus] =
+
+    useState<SyncStatus>("Online");
+
+  const [serverSectionBoxes, setServerSectionBoxes] =
+
+    useState<ServerSectionBox[]>([]);
 
   const [reservationSettings, setReservationSettings] =
 
-    useState<ReservationSettings>(defaultReservationSettings);
+    useState<ReservationSettings>(
 
-  const [reservationDate, setReservationDate] = useState("2026-01-01");
+      defaultReservationSettings
 
-  const [reservationTime, setReservationTime] = useState("");
+    );
 
-  const [reservationName, setReservationName] = useState("");
+  const [reservationDate, setReservationDate] =
 
-  const [reservationPhone, setReservationPhone] = useState("");
+    useState("2026-01-01");
 
-  const [reservationAdults, setReservationAdults] = useState("");
+  const [reservationTime, setReservationTime] =
 
-  const [reservationKids, setReservationKids] = useState("");
+    useState("");
 
-  const [reservationNotes, setReservationNotes] = useState("");
+  const [reservationName, setReservationName] =
 
-  const [reservationSearch, setReservationSearch] = useState("");
+    useState("");
 
-  const [reservationTags, setReservationTags] = useState<GuestTag[]>([]);
+  const [reservationPhone, setReservationPhone] =
 
-  const [newTableId, setNewTableId] = useState("");
+    useState("");
 
-  const [newTableSeats, setNewTableSeats] = useState("");
+  const [reservationAdults, setReservationAdults] =
 
-  const [newTableSection, setNewTableSection] = useState<Section>("Main");
+    useState("");
 
-  const [newTableShape, setNewTableShape] = useState<TableShape>("rectangle");
+  const [reservationKids, setReservationKids] =
+
+    useState("");
+
+  const [reservationNotes, setReservationNotes] =
+
+    useState("");
+
+  const [reservationTableId, setReservationTableId] =
+
+    useState("");
+
+  const [reservationSearch, setReservationSearch] =
+
+    useState("");
+
+  const [reservationTags, setReservationTags] =
+
+    useState<GuestTag[]>([]);
+
+  const [newTableId, setNewTableId] =
+
+    useState("");
+
+  const [newTableSeats, setNewTableSeats] =
+
+    useState("");
+
+  const [newTableSection, setNewTableSection] =
+
+    useState<Section>("Main");
+
+  const [newTableShape, setNewTableShape] =
+
+    useState<TableShape>("rectangle");
 
   const [, setTick] = useState(0);
 
-  const [cloudLoaded, setCloudLoaded] = useState(false);
+  const [cloudLoaded, setCloudLoaded] =
 
-  const activeReservations = trainingMode ? trainingReservations : reservations;
+    useState(false);
 
-  const activeWaitlist = trainingMode ? trainingWaitlist : waitlist;
+  const activeReservations = trainingMode
 
-  const activeTables = trainingMode ? trainingTables : tables;
+    ? trainingReservations
+
+    : reservations;
+
+  const activeWaitlist = trainingMode
+
+    ? trainingWaitlist
+
+    : waitlist;
+
+  const activeTables = trainingMode
+
+    ? trainingTables
+
+    : tables;
 
   function setActiveReservations(
 
-    updater: Reservation[] | ((prev: Reservation[]) => Reservation[])
+    updater:
+
+      | Reservation[]
+
+      | ((prev: Reservation[]) => Reservation[])
 
   ) {
 
@@ -1616,7 +1994,11 @@ export default function Home() {
 
   function setActiveWaitlist(
 
-    updater: WaitParty[] | ((prev: WaitParty[]) => WaitParty[])
+    updater:
+
+      | WaitParty[]
+
+      | ((prev: WaitParty[]) => WaitParty[])
 
   ) {
 
@@ -1628,7 +2010,11 @@ export default function Home() {
 
   function setActiveTables(
 
-    updater: TableItem[] | ((prev: TableItem[]) => TableItem[])
+    updater:
+
+      | TableItem[]
+
+      | ((prev: TableItem[]) => TableItem[])
 
   ) {
 
@@ -1642,7 +2028,15 @@ export default function Home() {
 
     setSyncLogs((prev) => [
 
-      { id: Date.now(), message, createdAt: Date.now() },
+      {
+
+        id: Date.now(),
+
+        message,
+
+        createdAt: Date.now(),
+
+      },
 
       ...prev.slice(0, 19),
 
@@ -1678,7 +2072,11 @@ export default function Home() {
 
       prev.map((item) =>
 
-        item.id === id ? { ...item, resolved: true } : item
+        item.id === id
+
+          ? { ...item, resolved: true }
+
+          : item
 
       )
 
@@ -1690,7 +2088,9 @@ export default function Home() {
 
     const enteredPin = managerPinInput.trim();
 
-    const correctPin = reservationSettings.managerPin.trim();
+    const correctPin =
+
+      reservationSettings.managerPin.trim();
 
     if (enteredPin === correctPin) {
 
@@ -1716,6 +2116,136 @@ export default function Home() {
 
   }
 
+  function markBathroomChecked() {
+
+    setBathroomLastChecked(Date.now());
+
+    addSyncLog("Bathroom check marked complete");
+
+  }
+
+  function tableIsReserved(tableId: string) {
+
+    const manualHold = reservedTables.some(
+
+      (hold) => hold.tableId === tableId
+
+    );
+
+    const reservationHold = activeReservations.some(
+
+      (reservation) =>
+
+        reservation.tableId === tableId &&
+
+        reservation.status !== "Cancelled" &&
+
+        reservation.status !== "NoShow" &&
+
+        reservation.status !== "Seated"
+
+    );
+
+    return manualHold || reservationHold;
+
+  }
+
+  function reservedTableInfo(tableId: string) {
+
+    const manual = reservedTables.find(
+
+      (hold) => hold.tableId === tableId
+
+    );
+
+    if (manual) return manual;
+
+    const reservation = activeReservations.find(
+
+      (r) =>
+
+        r.tableId === tableId &&
+
+        r.status !== "Cancelled" &&
+
+        r.status !== "NoShow" &&
+
+        r.status !== "Seated"
+
+    );
+
+    if (!reservation) return undefined;
+
+    return {
+
+      tableId,
+
+      name: reservation.name,
+
+      time: displayStandardTime(reservation.time),
+
+      notes: reservation.notes,
+
+      createdAt: reservation.createdAt,
+
+    };
+
+  }
+
+  function reserveSelectedTable() {
+
+    if (!reserveTableId || !reserveName.trim()) return;
+
+    const hold: ReservedTableHold = {
+
+      tableId: reserveTableId,
+
+      name: reserveName.trim(),
+
+      time: reserveTime.trim(),
+
+      notes: reserveNotes.trim(),
+
+      createdAt: Date.now(),
+
+    };
+
+    setReservedTables((prev) => [
+
+      ...prev.filter(
+
+        (item) => item.tableId !== reserveTableId
+
+      ),
+
+      hold,
+
+    ]);
+
+    setReserveTableId("");
+
+    setReserveName("");
+
+    setReserveTime("");
+
+    setReserveNotes("");
+
+    addSyncLog("Table reserved/held");
+
+  }
+
+  function clearReservedTable(tableId: string) {
+
+    setReservedTables((prev) =>
+
+      prev.filter((hold) => hold.tableId !== tableId)
+
+    );
+
+    addSyncLog("Reserved table cleared");
+
+  }
+
   function updateGuestHistory(
 
     name: string,
@@ -1736,7 +2266,15 @@ export default function Home() {
 
       const existing = prev.find(
 
-        (guest) => normalizeGuestKey(guest.name, guest.phone) === key
+        (guest) =>
+
+          normalizeGuestKey(
+
+            guest.name,
+
+            guest.phone
+
+          ) === key
 
       );
 
@@ -1756,7 +2294,17 @@ export default function Home() {
 
                 notes: notes || guest.notes,
 
-                tags: Array.from(new Set([...(guest.tags || []), ...tags])),
+                tags: Array.from(
+
+                  new Set([
+
+                    ...(guest.tags || []),
+
+                    ...tags,
+
+                  ])
+
+                ),
 
               }
 
@@ -1824,7 +2372,13 @@ export default function Home() {
 
     };
 
-    setTextMessages((prev) => [newMessage, ...prev]);
+    setTextMessages((prev) => [
+
+      newMessage,
+
+      ...prev,
+
+    ]);
 
     addSyncLog(`${type} text drafted`);
 
@@ -1836,23 +2390,15 @@ export default function Home() {
 
       prev.map((message) =>
 
-        message.id === id ? { ...message, status: "Ready To Send" } : message
-
-      )
-
-    );
-
-  }
-
-  function markTextMessageSentPlaceholder(id: number) {
-
-    setTextMessages((prev) =>
-
-      prev.map((message) =>
-
         message.id === id
 
-          ? { ...message, status: "Sent Placeholder" }
+          ? {
+
+              ...message,
+
+              status: "Ready To Send",
+
+            }
 
           : message
 
@@ -1862,41 +2408,41 @@ export default function Home() {
 
   }
 
-  function cycleWaitStatus(id: number) {
+  function markTextMessageSentPlaceholder(
 
-    setActiveWaitlist((prev) =>
+    id: number
 
-      prev.map((p) => {
+  ) {
 
-        if (p.id !== id) return p;
+    setTextMessages((prev) =>
 
-        const order: WaitStatus[] = ["Waiting", "Paged", "Returned", "NoShow"];
+      prev.map((message) =>
 
-        const currentStatus = p.status || "Waiting";
+        message.id === id
 
-        const next = order[(order.indexOf(currentStatus) + 1) % order.length];
+          ? {
 
-        return {
+              ...message,
 
-          ...p,
+              status: "Sent Placeholder",
 
-          status: next,
+            }
 
-          pagedAt: next === "Paged" ? Date.now() : p.pagedAt,
+          : message
 
-        };
-
-      })
+      )
 
     );
 
-    addSyncLog("Waitlist status updated");
-
   }
 
-  function markTextReadySent(id: number) {
+  function pageWaitlistParty(id: number) {
 
-    const party = activeWaitlist.find((p) => p.id === id);
+    const party = activeWaitlist.find(
+
+      (p) => p.id === id
+
+    );
 
     if (party?.pager) {
 
@@ -1924,11 +2470,11 @@ export default function Home() {
 
               ...p,
 
-              textReadySent: true,
-
               status: "Paged",
 
               pagedAt: Date.now(),
+
+              textReadySent: true,
 
             }
 
@@ -1938,425 +2484,135 @@ export default function Home() {
 
     );
 
-    addSyncLog("Text-ready placeholder marked");
+    addSyncLog("Waitlist party paged");
 
   }
 
-  function serverNamesFromAssignments() {
+  function returnWaitlistParty(id: number) {
 
-    return serverAssignments
+    setActiveWaitlist((prev) =>
 
-      .split("\n")
-
-      .map((line) => line.split(":")[0]?.trim())
-
-      .filter((name): name is string => Boolean(name));
-
-  }
-
-  function syncServerInfoFromAssignments() {
-
-    const names = serverNamesFromAssignments();
-
-    setServerInfo((prev) =>
-
-      names.map((name) => {
-
-        const existing = prev.find(
-
-          (server) => server.name.toLowerCase() === name.toLowerCase()
-
-        );
-
-        return existing || { name, startTime: "", cut: false, salesGoal: 500 };
-
-      })
+      prev.filter((p) => p.id !== id)
 
     );
 
-    addSyncLog("Server assignments synced locally");
+    if (selectedPartyId === id) {
+
+      setSelectedPartyId(null);
+
+    }
+
+    addSyncLog(
+
+      "Waitlist party returned and removed"
+
+    );
 
   }
 
-  function updateServerStartTime(serverName: string, startTime: string) {
+  function markWaitlistNoShow(id: number) {
 
-    setServerInfo((prev) =>
+    setActiveWaitlist((prev) =>
 
-      prev.map((server) =>
+      prev.map((p) =>
 
-        server.name === serverName ? { ...server, startTime } : server
+        p.id === id
+
+          ? {
+
+              ...p,
+
+              status: "NoShow",
+
+            }
+
+          : p
 
       )
 
     );
 
-  }
+    addSyncLog(
 
-  function updateServerSalesGoal(serverName: string, salesGoal: string) {
-
-    setServerInfo((prev) =>
-
-      prev.map((server) =>
-
-        server.name === serverName
-
-          ? { ...server, salesGoal: Number(salesGoal) || 0 }
-
-          : server
-
-      )
+      "Waitlist party marked no-show"
 
     );
 
   }
 
-  function toggleServerCut(serverName: string) {
+  function addToWaitlist() {
 
-    setServerInfo((prev) =>
+    if (!guestName.trim()) return;
 
-      prev.map((server) =>
+    if (!partySize.trim()) return;
 
-        server.name === serverName ? { ...server, cut: !server.cut } : server
+    setActiveWaitlist((prev) => [
 
-      )
+      ...prev,
 
-    );
+      {
 
-    addSyncLog(`${serverName} cut status changed`);
+        id: Date.now(),
+
+        name: guestName.trim(),
+
+        size: partySize.trim(),
+
+        pager: pager.trim().replace(/^P/i, ""),
+
+        status: "Waiting",
+
+        quotedWait,
+
+        pagedAt: undefined,
+
+        priority: waitPriority,
+
+        notes: waitNotes.trim(),
+
+        partyType: partyType,
+
+        textReadySent: false,
+
+        createdAt: Date.now(),
+
+      },
+
+    ]);
+
+    setGuestName("");
+
+    setPartySize("");
+
+    setPager("");
+
+    setQuotedWait("15-20");
+
+    setWaitNotes("");
+
+    setWaitPriority(false);
+
+    setPartyType("Walk-in");
+
+    addSyncLog("Waitlist party added");
 
   }
 
-  function assignedServerForTable(tableId: string) {
+  function removeFromWaitlist(id: number) {
 
-    const lines = serverAssignments.split("\n");
+    setActiveWaitlist((prev) =>
 
-    for (const line of lines) {
+      prev.filter((p) => p.id !== id)
 
-      const [serverName, tableList] = line.split(":");
+    );
 
-      if (!serverName || !tableList) continue;
+    if (selectedPartyId === id) {
 
-      const ids = tableList.split(",").map((id) => id.trim());
-
-      if (ids.includes(tableId)) return serverName.trim();
+      setSelectedPartyId(null);
 
     }
 
-    return "";
-
-  }
-
-  function getServerWorkload(server: string) {
-
-    const serverTables = activeTables.filter((table) => {
-
-      const assigned = assignedServerForTable(table.id) || table.server;
-
-      return assigned === server;
-
-    });
-
-    const seatedTables = serverTables.filter(
-
-      (table) => table.status === "Seated"
-
-    );
-
-    const covers = seatedTables.reduce((sum, table) => {
-
-      if (table.partySize) return sum + (parseInt(table.partySize, 10) || 0);
-
-      return sum + seatNumber(table.seats);
-
-    }, 0);
-
-    return {
-
-      seatedTables: seatedTables.length,
-
-      covers,
-
-      estimatedSales: estimatedSalesFromCovers(covers, reservationSettings),
-
-    };
-
-  }
-
-  function nextServerName() {
-
-    const names = serverNamesFromAssignments().filter(
-
-      (name) => !serverIsCut(name, serverInfo)
-
-    );
-
-    if (names.length === 0) return "";
-
-    const orderedNames = [
-
-      ...names.slice(rotationIndex),
-
-      ...names.slice(0, rotationIndex),
-
-    ];
-
-    const ranked = orderedNames
-
-      .map((name, index) => {
-
-        const workload = getServerWorkload(name);
-
-        return {
-
-          name,
-
-          index,
-
-          seatedTables: workload.seatedTables,
-
-          covers: workload.covers,
-
-        };
-
-      })
-
-      .sort((a, b) => {
-
-        if (a.seatedTables !== b.seatedTables) {
-
-          return a.seatedTables - b.seatedTables;
-
-        }
-
-        if (a.covers !== b.covers) {
-
-          return a.covers - b.covers;
-
-        }
-
-        return a.index - b.index;
-
-      });
-
-    return ranked[0]?.name || "";
-
-  }
-
-  function rotateServer() {
-
-    const names = serverNamesFromAssignments().filter(
-
-      (name) => !serverIsCut(name, serverInfo)
-
-    );
-
-    const smartNext = nextServerName();
-
-    if (names.length === 0 || !smartNext) return;
-
-    const currentIndex = names.indexOf(smartNext);
-
-    setRotationIndex((currentIndex + 1) % names.length);
-
-  }
-
-  function serverGroups() {
-
-    const groups: Record<string, TableItem[]> = {};
-
-    for (const table of activeTables) {
-
-      const server = assignedServerForTable(table.id);
-
-      if (!server) continue;
-
-      if (!groups[server]) groups[server] = [];
-
-      groups[server].push(table);
-
-    }
-
-    return groups;
-
-  }
-
-  function serverWorkloads() {
-
-    return serverNamesFromAssignments().map((server) => {
-
-      const assignedTables = activeTables.filter(
-
-        (table) => assignedServerForTable(table.id) === server
-
-      );
-
-      const seatedTables = assignedTables.filter(
-
-        (table) => table.status === "Seated"
-
-      );
-
-      const covers = seatedTables.reduce((sum, table) => {
-
-        if (table.partySize) return sum + (parseInt(table.partySize, 10) || 0);
-
-        return sum + seatNumber(table.seats);
-
-      }, 0);
-
-      const info = serverInfo.find(
-
-        (serverItem) => serverItem.name.toLowerCase() === server.toLowerCase()
-
-      );
-
-      return {
-
-        server,
-
-        color: getServerColor(server),
-
-        assignedCount: assignedTables.length,
-
-        seatedCount: seatedTables.length,
-
-        covers,
-
-        estimatedSales: estimatedSalesFromCovers(covers, reservationSettings),
-
-        startTime: info?.startTime || "",
-
-        cut: info?.cut || false,
-
-        salesGoal: info?.salesGoal || 0,
-
-      };
-
-    });
-
-  }
-
-  function sectionBalanceSuggestion() {
-
-    const activeServers = serverWorkloads().filter((server) => !server.cut);
-
-    if (activeServers.length === 0) {
-
-      return "Add active servers to use section balancing.";
-
-    }
-
-    const sorted = [...activeServers].sort((a, b) => {
-
-      if (a.seatedCount !== b.seatedCount) return a.seatedCount - b.seatedCount;
-
-      return a.covers - b.covers;
-
-    });
-
-    const best = sorted[0];
-
-    const busiest = sorted[sorted.length - 1];
-
-    if (!best || !busiest) return "No balancing suggestion yet.";
-
-    if (busiest.seatedCount - best.seatedCount >= 2) {
-
-      return `Balance suggestion: seat ${best.server} next. ${busiest.server} is heavier.`;
-
-    }
-
-    return `Balanced: ${best.server} is still the best next option.`;
-
-  }
-
-  const selectedParty = activeWaitlist.find((p) => p.id === selectedPartyId);
-
-  const selectedSize = selectedParty ? parseInt(selectedParty.size, 10) : 0;
-
-  function availableSeats(table: TableItem, allTables: TableItem[]) {
-
-    if (!table.combinedId) return seatNumber(table.seats);
-
-    return allTables
-
-      .filter((t) => t.combinedId === table.combinedId)
-
-      .reduce((sum, t) => sum + seatNumber(t.seats), 0);
-
-  }
-
-  const bestTable =
-
-    selectedParty && !Number.isNaN(selectedSize)
-
-      ? activeTables
-
-          .filter(
-
-            (t) =>
-
-              t.status === "Open" &&
-
-              availableSeats(t, activeTables) >= selectedSize
-
-          )
-
-          .sort(
-
-            (a, b) =>
-
-              availableSeats(a, activeTables) -
-
-              selectedSize -
-
-              (availableSeats(b, activeTables) - selectedSize)
-
-          )[0]
-
-      : undefined;
-
-  function dynamicWaitQuote(size: string) {
-
-    const party = parseInt(size, 10);
-
-    if (Number.isNaN(party)) return "~?";
-
-    const fittingTables = activeTables
-
-      .filter((table) => availableSeats(table, activeTables) >= party)
-
-      .map((table) =>
-
-        estimateTableAvailableMinutes(table, reservationSettings)
-
-      );
-
-    if (fittingTables.length === 0) return "no fit";
-
-    const bestMinutes = Math.min(...fittingTables);
-
-    if (bestMinutes <= 0) return "now";
-
-    if (bestMinutes <= 10) return "0-10";
-
-    if (bestMinutes <= 15) return "10-15";
-
-    if (bestMinutes <= 20) return "15-20";
-
-    if (bestMinutes <= 30) return "20-30";
-
-    if (bestMinutes <= 45) return "30-45";
-
-    if (bestMinutes <= 60) return "45-60";
-
-    return "60+";
-
-  }
-
-  function estimatedWait(size: string) {
-
-    return dynamicWaitQuote(size);
+    addSyncLog("Waitlist party removed");
 
   }
 
@@ -2370,7 +2626,9 @@ export default function Home() {
 
       !reservationName.trim() ||
 
-      (!reservationAdults.trim() && !reservationKids.trim())
+      (!reservationAdults.trim() &&
+
+        !reservationKids.trim())
 
     ) {
 
@@ -2428,7 +2686,9 @@ export default function Home() {
 
     if (
 
-      totalGuests >= reservationSettings.largePartySize &&
+      totalGuests >=
+
+        reservationSettings.largePartySize &&
 
       !finalTags.includes("Large Party")
 
@@ -2456,6 +2716,8 @@ export default function Home() {
 
       notes: reservationNotes.trim(),
 
+      tableId: reservationTableId.trim(),
+
       createdAt: Date.now(),
 
       status: "Booked",
@@ -2468,7 +2730,13 @@ export default function Home() {
 
     };
 
-    setActiveReservations((prev) => [...prev, newReservation]);
+    setActiveReservations((prev) => [
+
+      ...prev,
+
+      newReservation,
+
+    ]);
 
     updateGuestHistory(
 
@@ -2494,11 +2762,15 @@ export default function Home() {
 
         newReservation.time
 
-      )}. Reservations are held for ${reservationSettings.holdMinutes} minutes and majority of the party must be present to be seated.`
+      )}. Reservations are held for ${
+
+        reservationSettings.holdMinutes
+
+      } minutes and majority of the party must be present to be seated.`
 
     );
 
-    addSyncLog("Reservation added locally");
+    addSyncLog("Reservation added");
 
     setReservationName("");
 
@@ -2510,31 +2782,77 @@ export default function Home() {
 
     setReservationNotes("");
 
+    setReservationTableId("");
+
     setReservationTags([]);
 
   }
 
   function deleteReservation(id: number) {
 
-    const okay = window.confirm("Delete this reservation completely?");
+    const okay = window.confirm(
+
+      "Delete this reservation completely?"
+
+    );
 
     if (!okay) return;
 
-    setActiveReservations((prev) => prev.filter((r) => r.id !== id));
+    setActiveReservations((prev) =>
 
-    addSyncLog("Reservation deleted locally");
+      prev.filter((r) => r.id !== id)
+
+    );
+
+    addSyncLog("Reservation deleted");
 
   }
 
-  function updateReservationStatus(id: number, status: ReservationStatus) {
+  function updateReservationStatus(
+
+    id: number,
+
+    status: ReservationStatus
+
+  ) {
 
     setActiveReservations((prev) =>
 
-      prev.map((r) => (r.id === id ? { ...r, status } : r))
+      prev.map((r) =>
+
+        r.id === id ? { ...r, status } : r
+
+      )
 
     );
 
     addSyncLog(`Reservation marked ${status}`);
+
+  }
+
+  function updateReservationTable(
+
+    id: number,
+
+    tableId: string
+
+  ) {
+
+    setActiveReservations((prev) =>
+
+      prev.map((reservation) =>
+
+        reservation.id === id
+
+          ? { ...reservation, tableId }
+
+          : reservation
+
+      )
+
+    );
+
+    addSyncLog("Reservation table updated");
 
   }
 
@@ -2552,7 +2870,13 @@ export default function Home() {
 
   }
 
-  function toggleSavedReservationTag(id: number, tag: GuestTag) {
+  function toggleSavedReservationTag(
+
+    id: number,
+
+    tag: GuestTag
+
+  ) {
 
     setActiveReservations((prev) =>
 
@@ -2568,7 +2892,13 @@ export default function Home() {
 
           : [...currentTags, tag];
 
-        return { ...reservation, tags: nextTags };
+        return {
+
+          ...reservation,
+
+          tags: nextTags,
+
+        };
 
       })
 
@@ -2580,7 +2910,11 @@ export default function Home() {
 
   function markReservationTextConfirmed(id: number) {
 
-    const reservation = activeReservations.find((r) => r.id === id);
+    const reservation = activeReservations.find(
+
+      (r) => r.id === id
+
+    );
 
     if (reservation) {
 
@@ -2608,7 +2942,15 @@ export default function Home() {
 
         reservation.id === id
 
-          ? { ...reservation, textConfirmed: true, status: "Confirmed" }
+          ? {
+
+              ...reservation,
+
+              textConfirmed: true,
+
+              status: "Confirmed",
+
+            }
 
           : reservation
 
@@ -2616,13 +2958,17 @@ export default function Home() {
 
     );
 
-    addSyncLog("Text confirmation placeholder marked");
+    addSyncLog("Text confirmation marked");
 
   }
 
   function markReservationReminderSent(id: number) {
 
-    const reservation = activeReservations.find((r) => r.id === id);
+    const reservation = activeReservations.find(
+
+      (r) => r.id === id
+
+    );
 
     if (reservation) {
 
@@ -2650,7 +2996,13 @@ export default function Home() {
 
         reservation.id === id
 
-          ? { ...reservation, reminderSent: true }
+          ? {
+
+              ...reservation,
+
+              reminderSent: true,
+
+            }
 
           : reservation
 
@@ -2658,11 +3010,15 @@ export default function Home() {
 
     );
 
-    addSyncLog("Reminder placeholder marked");
+    addSyncLog("Reservation reminder marked");
 
   }
 
-  function reservationMatchesSearch(reservation: Reservation) {
+  function reservationMatchesSearch(
+
+    reservation: Reservation
+
+  ) {
 
     if (!reservationSearch.trim()) return true;
 
@@ -2674,7 +3030,17 @@ export default function Home() {
 
       reservation.phone.toLowerCase().includes(search) ||
 
-      (reservation.notes || "").toLowerCase().includes(search) ||
+      (reservation.notes || "")
+
+        .toLowerCase()
+
+        .includes(search) ||
+
+      (reservation.tableId || "")
+
+        .toLowerCase()
+
+        .includes(search) ||
 
       (reservation.tags || []).some((tag) =>
 
@@ -2690,13 +3056,27 @@ export default function Home() {
 
     return activeReservations
 
-      .filter((r) => r.date === date && reservationMatchesSearch(r))
+      .filter(
+
+        (r) =>
+
+          r.date === date &&
+
+          reservationMatchesSearch(r)
+
+      )
 
       .sort((a, b) => a.time.localeCompare(b.time));
 
   }
 
-  function reservationsForSlot(date: string, time: string) {
+  function reservationsForSlot(
+
+    date: string,
+
+    time: string
+
+  ) {
 
     return activeReservations
 
@@ -2714,7 +3094,11 @@ export default function Home() {
 
       )
 
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) =>
+
+        a.name.localeCompare(b.name)
+
+      );
 
   }
 
@@ -2732,13 +3116,23 @@ export default function Home() {
 
     return activeReservations.filter((reservation) =>
 
-      isReservationWithinHoldWindow(reservation, reservationSettings)
+      isReservationWithinHoldWindow(
+
+        reservation,
+
+        reservationSettings
+
+      )
 
     );
 
   }
 
-  function addReservationAsWaitlist(reservation: Reservation) {
+  function addReservationAsWaitlist(
+
+    reservation: Reservation
+
+  ) {
 
     setActiveWaitlist((prev) => [
 
@@ -2750,19 +3144,31 @@ export default function Home() {
 
         name: reservation.name,
 
-        size: String(reservationTotalGuests(reservation)),
+        size: String(
+
+          reservationTotalGuests(reservation)
+
+        ),
 
         pager: reservation.phone || "",
 
         status: "Waiting",
 
-        quotedWait: dynamicWaitQuote(String(reservationTotalGuests(reservation))),
+        quotedWait: dynamicWaitQuote(
+
+          String(reservationTotalGuests(reservation))
+
+        ),
 
         pagedAt: undefined,
 
-        priority: reservation.tags?.includes("VIP") || false,
+        priority:
 
-        notes: reservation.notes || "Reservation overflow",
+          reservation.tags?.includes("VIP") || false,
+
+        notes:
+
+          reservation.notes || "Reservation overflow",
 
         partyType: "Reservation overflow",
 
@@ -2774,7 +3180,669 @@ export default function Home() {
 
     ]);
 
-    addSyncLog("Reservation moved to waitlist locally");
+    addSyncLog("Reservation added to waitlist");
+
+  }
+
+  function assignedServerForTable(tableId: string) {
+
+    const override = activeTables.find(
+
+      (table) => table.id === tableId
+
+    )?.server;
+
+    if (override) return override;
+
+    const lines = serverAssignments.split("\n");
+
+    for (const line of lines) {
+
+      const [serverName, tableList] = line.split(":");
+
+      if (!serverName || !tableList) continue;
+
+      const ids = tableList
+
+        .split(",")
+
+        .map((id) => id.trim());
+
+      if (ids.includes(tableId)) {
+
+        return serverName.trim();
+
+      }
+
+    }
+
+    return "";
+
+  }
+
+  function assignTableToServer(
+
+    tableId: string,
+
+    serverName: string
+
+  ) {
+
+    setActiveTables((prev) =>
+
+      prev.map((table) =>
+
+        table.id === tableId
+
+          ? {
+
+              ...table,
+
+              server: serverName,
+
+            }
+
+          : table
+
+      )
+
+    );
+
+    addSyncLog(
+
+      `Table ${tableId} assigned to ${serverName}`
+
+    );
+
+  }
+
+  function serverNamesFromAssignments() {
+
+    return serverInfo
+
+      .map((server) => server.name)
+
+      .filter(Boolean);
+
+  }
+
+  function getServerWorkload(server: string) {
+
+    const serverTables = activeTables.filter(
+
+      (table) =>
+
+        assignedServerForTable(table.id) === server
+
+    );
+
+    const seatedTables = serverTables.filter(
+
+      (table) => table.status === "Seated"
+
+    );
+
+    const covers = seatedTables.reduce(
+
+      (sum, table) => {
+
+        if (table.partySize) {
+
+          return (
+
+            sum +
+
+            (parseInt(table.partySize, 10) || 0)
+
+          );
+
+        }
+
+        return sum + seatNumber(table.seats);
+
+      },
+
+      0
+
+    );
+
+    return {
+
+      seatedTables: seatedTables.length,
+
+      covers,
+
+      estimatedSales: estimatedSalesFromCovers(
+
+        covers,
+
+        reservationSettings
+
+      ),
+
+    };
+
+  }
+
+  function nextServerName() {
+
+    const names = serverInfo
+
+      .filter((server) => !serverShouldBeCut(server))
+
+      .map((server) => server.name)
+
+      .filter(Boolean);
+
+    if (names.length === 0) return "";
+
+    return names[rotationIndex % names.length] || "";
+
+  }
+
+  function currentRotationList() {
+
+    const active = serverInfo.filter(
+
+      (server) => !serverShouldBeCut(server)
+
+    );
+
+    if (active.length === 0) return [];
+
+    const start = rotationIndex % active.length;
+
+    return [
+
+      ...active.slice(start),
+
+      ...active.slice(0, start),
+
+    ].map((server) => server.name);
+
+  }
+
+  function rotateServer() {
+
+    const names = serverInfo
+
+      .filter((server) => !serverShouldBeCut(server))
+
+      .map((server) => server.name);
+
+    if (names.length === 0) return;
+
+    setRotationIndex(
+
+      (prev) => (prev + 1) % names.length
+
+    );
+
+  }
+
+  function updateServerName(
+
+    oldName: string,
+
+    newName: string
+
+  ) {
+
+    setServerInfo((prev) =>
+
+      prev.map((server) =>
+
+        server.name === oldName
+
+          ? {
+
+              ...server,
+
+              name: newName,
+
+            }
+
+          : server
+
+      )
+
+    );
+
+    addSyncLog("Server name updated");
+
+  }
+
+  function updateServerStartTime(
+
+    serverName: string,
+
+    startTime: string
+
+  ) {
+
+    setServerInfo((prev) =>
+
+      prev.map((server) =>
+
+        server.name === serverName
+
+          ? {
+
+              ...server,
+
+              startTime,
+
+            }
+
+          : server
+
+      )
+
+    );
+
+  }
+
+  function updateServerCutTime(
+
+    serverName: string,
+
+    cutTime: string
+
+  ) {
+
+    setServerInfo((prev) =>
+
+      prev.map((server) =>
+
+        server.name === serverName
+
+          ? {
+
+              ...server,
+
+              cutTime,
+
+            }
+
+          : server
+
+      )
+
+    );
+
+  }
+
+  function updateServerSalesGoal(
+
+    serverName: string,
+
+    salesGoal: string
+
+  ) {
+
+    setServerInfo((prev) =>
+
+      prev.map((server) =>
+
+        server.name === serverName
+
+          ? {
+
+              ...server,
+
+              salesGoal: Number(salesGoal) || 0,
+
+            }
+
+          : server
+
+      )
+
+    );
+
+  }
+
+  function toggleServerCut(serverName: string) {
+
+    setServerInfo((prev) =>
+
+      prev.map((server) =>
+
+        server.name === serverName
+
+          ? {
+
+              ...server,
+
+              cut: !server.cut,
+
+            }
+
+          : server
+
+      )
+
+    );
+
+    addSyncLog(`${serverName} cut status changed`);
+
+  }
+
+  function syncServerInfoFromAssignments() {
+
+    const names = serverNamesFromAssignments();
+
+    setServerInfo((prev) =>
+
+      names.map((name) => {
+
+        const existing = prev.find(
+
+          (server) =>
+
+            server.name.toLowerCase() ===
+
+            name.toLowerCase()
+
+        );
+
+        return (
+
+          existing || {
+
+            name,
+
+            startTime: "",
+
+            cutTime: "",
+
+            cut: false,
+
+            salesGoal: 500,
+
+          }
+
+        );
+
+      })
+
+    );
+
+    addSyncLog("Server list synced");
+
+  }
+
+  function serverGroups() {
+
+    const groups: Record<string, TableItem[]> = {};
+
+    for (const table of activeTables) {
+
+      const server = assignedServerForTable(table.id);
+
+      if (!server) continue;
+
+      if (!groups[server]) {
+
+        groups[server] = [];
+
+      }
+
+      groups[server].push(table);
+
+    }
+
+    return groups;
+
+  }
+
+  function serverWorkloads() {
+
+    return serverInfo.map((serverItem) => {
+
+      const server = serverItem.name;
+
+      const assignedTables = activeTables.filter(
+
+        (table) =>
+
+          assignedServerForTable(table.id) === server
+
+      );
+
+      const seatedTables = assignedTables.filter(
+
+        (table) => table.status === "Seated"
+
+      );
+
+      const covers = seatedTables.reduce(
+
+        (sum, table) => {
+
+          if (table.partySize) {
+
+            return (
+
+              sum +
+
+              (parseInt(table.partySize, 10) || 0)
+
+            );
+
+          }
+
+          return sum + seatNumber(table.seats);
+
+        },
+
+        0
+
+      );
+
+      return {
+
+        server,
+
+        color: getServerColor(server),
+
+        assignedCount: assignedTables.length,
+
+        seatedCount: seatedTables.length,
+
+        covers,
+
+        estimatedSales: estimatedSalesFromCovers(
+
+          covers,
+
+          reservationSettings
+
+        ),
+
+        startTime: serverItem.startTime,
+
+        cutTime: serverItem.cutTime,
+
+        cut: serverShouldBeCut(serverItem),
+
+        salesGoal: serverItem.salesGoal,
+
+      };
+
+    });
+
+  }
+
+  function sectionBalanceSuggestion() {
+
+    const activeServers = serverWorkloads().filter(
+
+      (server) => !server.cut
+
+    );
+
+    if (activeServers.length === 0) {
+
+      return "Add active servers to use section balancing.";
+
+    }
+
+    const sorted = [...activeServers].sort((a, b) => {
+
+      if (a.seatedCount !== b.seatedCount) {
+
+        return a.seatedCount - b.seatedCount;
+
+      }
+
+      return a.covers - b.covers;
+
+    });
+
+    const best = sorted[0];
+
+    const busiest = sorted[sorted.length - 1];
+
+    if (!best || !busiest) {
+
+      return "No balancing suggestion yet.";
+
+    }
+
+    if (busiest.seatedCount - best.seatedCount >= 2) {
+
+      return `Balance suggestion: seat ${best.server} next. ${busiest.server} is heavier.`;
+
+    }
+
+    return `Balanced: ${best.server} is still the best next option.`;
+
+  }
+
+  const selectedParty = activeWaitlist.find(
+
+    (p) => p.id === selectedPartyId
+
+  );
+
+  const selectedSize = selectedParty
+
+    ? parseInt(selectedParty.size, 10)
+
+    : 0;
+
+  function availableSeats(
+
+    table: TableItem,
+
+    allTables: TableItem[]
+
+  ) {
+
+    if (!table.combinedId) {
+
+      return seatNumber(table.seats);
+
+    }
+
+    return allTables
+
+      .filter((t) => t.combinedId === table.combinedId)
+
+      .reduce(
+
+        (sum, t) => sum + seatNumber(t.seats),
+
+        0
+
+      );
+
+  }
+
+  const bestTable =
+
+    selectedParty && !Number.isNaN(selectedSize)
+
+      ? activeTables
+
+          .filter(
+
+            (t) =>
+
+              t.status === "Open" &&
+
+              !tableIsReserved(t.id) &&
+
+              availableSeats(t, activeTables) >= selectedSize
+
+          )
+
+          .sort(
+
+            (a, b) =>
+
+              availableSeats(a, activeTables) -
+
+              selectedSize -
+
+              (availableSeats(b, activeTables) -
+
+                selectedSize)
+
+          )[0]
+
+      : undefined;
+
+  function dynamicWaitQuote(size: string) {
+
+    const party = parseInt(size, 10);
+
+    if (Number.isNaN(party)) return "~?";
+
+    const fittingTables = activeTables
+
+      .filter((table) => !tableIsReserved(table.id))
+
+      .filter(
+
+        (table) =>
+
+          availableSeats(table, activeTables) >= party
+
+      )
+
+      .map((table) =>
+
+        estimateTableAvailableMinutes(
+
+          table,
+
+          reservationSettings
+
+        )
+
+      );
+
+    if (fittingTables.length === 0) return "no fit";
+
+    const bestMinutes = Math.min(...fittingTables);
+
+    if (bestMinutes <= 0) return "now";
+
+    if (bestMinutes <= 10) return "0-10";
+
+    if (bestMinutes <= 15) return "10-15";
+
+    if (bestMinutes <= 20) return "15-20";
+
+    if (bestMinutes <= 30) return "20-30";
+
+    if (bestMinutes <= 45) return "30-45";
+
+    if (bestMinutes <= 60) return "45-60";
+
+    return "60+";
 
   }
 
@@ -2784,7 +3852,15 @@ export default function Home() {
 
       .filter((table) => table.status === "Open")
 
-      .filter((table) => availableSeats(table, activeTables) >= party)
+      .filter((table) => !tableIsReserved(table.id))
+
+      .filter(
+
+        (table) =>
+
+          availableSeats(table, activeTables) >= party
+
+      )
 
       .sort((a, b) => {
 
@@ -2804,9 +3880,21 @@ export default function Home() {
 
           : { seatedTables: 0, covers: 0 };
 
-        if (workloadA.seatedTables !== workloadB.seatedTables) {
+        if (
 
-          return workloadA.seatedTables - workloadB.seatedTables;
+          workloadA.seatedTables !==
+
+          workloadB.seatedTables
+
+        ) {
+
+          return (
+
+            workloadA.seatedTables -
+
+            workloadB.seatedTables
+
+          );
 
         }
 
@@ -2816,7 +3904,13 @@ export default function Home() {
 
         }
 
-        return availableSeats(a, activeTables) - availableSeats(b, activeTables);
+        return (
+
+          availableSeats(a, activeTables) -
+
+          availableSeats(b, activeTables)
+
+        );
 
       });
 
@@ -2828,9 +3922,25 @@ export default function Home() {
 
     const party = reservationTotalGuests(reservation);
 
-    const best = chooseBestTableForParty(party);
+    let selectedTable: TableItem | undefined;
 
-    if (!best) {
+    if (reservation.tableId) {
+
+      selectedTable = activeTables.find(
+
+        (table) => table.id === reservation.tableId
+
+      );
+
+    }
+
+    if (!selectedTable) {
+
+      selectedTable = chooseBestTableForParty(party);
+
+    }
+
+    if (!selectedTable) {
 
       alert("No open table fits this reservation right now.");
 
@@ -2838,7 +3948,7 @@ export default function Home() {
 
     }
 
-    const assignedServer = assignedServerForTable(best.id);
+    const assignedServer = assignedServerForTable(selectedTable.id);
 
     const rotationServer = nextServerName();
 
@@ -2848,7 +3958,7 @@ export default function Home() {
 
       prev.map((table) =>
 
-        table.id === best.id
+        table.id === selectedTable?.id
 
           ? {
 
@@ -2888,13 +3998,23 @@ export default function Home() {
 
         r.id === reservation.id
 
-          ? { ...r, status: "Seated", tableId: best.id }
+          ? {
+
+              ...r,
+
+              status: "Seated",
+
+              tableId: selectedTable?.id || r.tableId,
+
+            }
 
           : r
 
       )
 
     );
+
+    clearReservedTable(selectedTable.id);
 
     updateGuestHistory(
 
@@ -2910,7 +4030,7 @@ export default function Home() {
 
     rotateServer();
 
-    addSyncLog("Reservation seated locally");
+    addSyncLog("Reservation seated");
 
   }
 
@@ -2922,7 +4042,9 @@ export default function Home() {
 
     const alreadyExists = activeTables.some(
 
-      (table) => table.id.toLowerCase() === newTableId.trim().toLowerCase()
+      (table) =>
+
+        table.id.toLowerCase() === newTableId.trim().toLowerCase()
 
     );
 
@@ -2964,7 +4086,7 @@ export default function Home() {
 
     setNewTableShape("rectangle");
 
-    addSyncLog("Table added locally");
+    addSyncLog("Table added");
 
   }
 
@@ -2976,33 +4098,71 @@ export default function Home() {
 
     if (!okay) return;
 
-    setActiveTables((prev) => prev.filter((table) => table.id !== tableId));
+    setActiveTables((prev) =>
 
-    addSyncLog("Table removed locally");
+      prev.filter((table) => table.id !== tableId)
+
+    );
+
+    addSyncLog("Table removed");
 
   }
 
   function shiftSummary() {
 
-    const seatedTables = activeTables.filter((table) => table.status === "Seated");
+    const seatedTables = activeTables.filter(
 
-    const dirtyTables = activeTables.filter((table) => table.status === "Dirty");
+      (table) => table.status === "Seated"
 
-    const boxedTables = activeTables.filter((table) => table.status === "Boxed");
+    );
 
-    const openTables = activeTables.filter((table) => table.status === "Open");
+    const dirtyTables = activeTables.filter(
 
-    const currentCovers = seatedTables.reduce((sum, table) => {
+      (table) => table.status === "Dirty"
 
-      if (table.partySize) return sum + (parseInt(table.partySize, 10) || 0);
+    );
 
-      return sum + seatNumber(table.seats);
+    const boxedTables = activeTables.filter(
 
-    }, 0);
+      (table) => table.status === "Boxed"
 
-    const noShows = activeReservations.filter((r) => r.status === "NoShow").length;
+    );
 
-    const cancelled = activeReservations.filter((r) => r.status === "Cancelled").length;
+    const openTables = activeTables.filter(
+
+      (table) => table.status === "Open"
+
+    );
+
+    const currentCovers = seatedTables.reduce(
+
+      (sum, table) => {
+
+        if (table.partySize) {
+
+          return sum + (parseInt(table.partySize, 10) || 0);
+
+        }
+
+        return sum + seatNumber(table.seats);
+
+      },
+
+      0
+
+    );
+
+    const noShows = activeReservations.filter(
+
+      (r) => r.status === "NoShow"
+
+    ).length;
+
+    const cancelled = activeReservations.filter(
+
+      (r) => r.status === "Cancelled"
+
+    ).length;
 
     return {
 
@@ -3020,7 +4180,7 @@ export default function Home() {
 
       reservationsToday: reservationsForDate(reservationDate).length,
 
-      serversCut: serverInfo.filter((server) => server.cut).length,
+      serversCut: serverInfo.filter((server) => serverShouldBeCut(server)).length,
 
       overWait: activeWaitlist.filter((party) => isOverQuotedWait(party)).length,
 
@@ -3030,7 +4190,13 @@ export default function Home() {
 
       cancelled,
 
-      estimatedSales: estimatedSalesFromCovers(currentCovers, reservationSettings),
+      estimatedSales: estimatedSalesFromCovers(
+
+        currentCovers,
+
+        reservationSettings
+
+      ),
 
     };
 
@@ -3092,199 +4258,217 @@ export default function Home() {
 
   }
 
-  function updateTable(index: number) {
+  function printServerSections() {
 
-    if (editMode && !floorCheckMode) return;
+    const rows = serverInfo.map((server) => {
 
-    if (combineMode && !floorCheckMode) {
+      const tableIds = activeTables
 
-      const id = activeTables[index].id;
+        .filter((table) => assignedServerForTable(table.id) === server.name)
 
-      setSelectedCombineIds((prev) =>
+        .map((table) => table.id)
 
-        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        .sort((a, b) =>
 
-      );
+          a.localeCompare(b, undefined, {
 
-      return;
+            numeric: true,
 
-    }
+          })
 
-    if (selectedParty && activeTables[index].status === "Open" && !floorCheckMode) {
+        );
 
-      const assignedServer = assignedServerForTable(activeTables[index].id);
+      return {
 
-      const rotationServer = nextServerName();
+        name: server.name,
 
-      const server = assignedServer || rotationServer;
+        tables: tableIds,
 
-      const combinedId = activeTables[index].combinedId;
+        cut: serverShouldBeCut(server),
 
-      setActiveTables((prev) =>
+      };
 
-        prev.map((table, i) => {
+    });
 
-          const sameCombo = combinedId && table.combinedId === combinedId;
+      const printWindow = window.open("", "_blank");
 
-          if (i === index || sameCombo) {
+    if (!printWindow) return;
 
-            return {
+    printWindow.document.write(`
 
-              ...table,
+      <html>
 
-              status: "Seated",
+        <head>
 
-              guest: selectedParty.name,
+          <title>Server Sections</title>
 
-              partySize: selectedParty.size,
+          <style>
 
-              seatedAt: Date.now(),
+            body {
 
-              server,
+              font-family: Arial, sans-serif;
 
-              readyFlash: false,
+              padding: 24px;
 
-              estimatedSales: estimatedSalesFromCovers(
+            }
 
-                parseInt(selectedParty.size, 10) || 0,
+            h1 {
 
-                reservationSettings
+              text-align: center;
 
-              ),
+              margin-bottom: 24px;
 
-            };
+            }
 
-          }
+            .server {
 
-          return table;
+              border: 2px solid #111827;
 
-        })
+              border-radius: 10px;
 
-      );
+              padding: 14px;
 
-      rotateServer();
+              margin-bottom: 14px;
 
-      setActiveWaitlist((prev) => prev.filter((p) => p.id !== selectedPartyId));
+            }
 
-      setSelectedPartyId(null);
+            .name {
 
-      addSyncLog("Waitlist party seated locally");
+              font-size: 22px;
 
-      return;
+              font-weight: bold;
 
-    }
+              margin-bottom: 8px;
+
+            }
+
+            .tables {
+
+              font-size: 18px;
+
+            }
+
+            .cut {
+
+              color: #64748b;
+
+              font-weight: bold;
+
+            }
+
+          </style>
+
+        </head>
+
+        <body>
+
+          <h1>ENRIQUE'S SERVER SECTIONS</h1>
+
+          <p>${new Date().toLocaleString()}</p>
+
+          ${rows
+
+            .map(
+
+              (row) => `
+
+                <div class="server">
+
+                  <div class="name">
+
+                    ${row.name} ${row.cut ? '<span class="cut">(CUT)</span>' : ""}
+
+                  </div>
+
+                  <div class="tables">
+
+                    Tables: ${
+
+                      row.tables.length
+
+                        ? row.tables.join(", ")
+
+                        : "None assigned"
+
+                    }
+
+                  </div>
+
+                </div>
+
+              `
+
+            )
+
+            .join("")}
+
+          <script>
+
+            window.print();
+
+          </script>
+
+        </body>
+
+      </html>
+
+    `);
+
+    printWindow.document.close();
+
+  }
+
+  function clearHostBoard() {
+
+    if (!requireManager()) return;
+
+    const okay = window.confirm(
+
+      "Clear the host board for tonight? This resets tables, waitlist, selected parties, combined tables, reserved holds, and bathroom timer. Reservations and settings will stay."
+
+    );
+
+    if (!okay) return;
 
     setActiveTables((prev) =>
 
-      prev.map((table, i) => {
+      prev.map((table) => ({
 
-        if (i !== index) return table;
+        ...table,
 
-        const nextStatus = cycle[(cycle.indexOf(table.status) + 1) % cycle.length];
+        status: "Open",
 
-        const assignedServer = assignedServerForTable(table.id);
+        guest: undefined,
 
-        const rotationServer = nextServerName();
+        partySize: undefined,
 
-        const server = assignedServer || rotationServer;
+        seatedAt: undefined,
 
-        if (nextStatus === "Seated" && !floorCheckMode) rotateServer();
+        server: undefined,
 
-        return {
+        combinedId: undefined,
 
-          ...table,
+        combinedLabel: undefined,
 
-          status: nextStatus,
+        readyFlash: false,
 
-          seatedAt: nextStatus === "Seated" ? Date.now() : undefined,
+        estimatedSales: undefined,
 
-          guest: nextStatus === "Open" ? undefined : table.guest,
-
-          partySize: nextStatus === "Open" ? undefined : table.partySize,
-
-          server: nextStatus === "Open" ? undefined : server || table.server,
-
-          readyFlash: nextStatus === "Open",
-
-          estimatedSales: nextStatus === "Open" ? undefined : table.estimatedSales,
-
-        };
-
-      })
+      }))
 
     );
 
-    addSyncLog(
+    setActiveWaitlist([]);
 
-      floorCheckMode ? "Floor check table status updated" : "Table status updated"
+    setSelectedPartyId(null);
 
-    );
+    setSelectedCombineIds([]);
 
-  }
+    setReservedTables([]);
 
-  function addToWaitlist() {
+    setBathroomLastChecked(Date.now());
 
-    if (!guestName.trim() || !partySize.trim()) return;
-
-    setActiveWaitlist((prev) => [
-
-      ...prev,
-
-      {
-
-        id: Date.now(),
-
-        name: guestName.trim(),
-
-        size: partySize.trim(),
-
-        pager: pager.trim(),
-
-        status: "Waiting",
-
-        quotedWait: quotedWait || dynamicWaitQuote(partySize),
-
-        pagedAt: undefined,
-
-        priority: waitPriority,
-
-        notes: waitNotes.trim(),
-
-        partyType,
-
-        textReadySent: false,
-
-        createdAt: Date.now(),
-
-      },
-
-    ]);
-
-    setGuestName("");
-
-    setPartySize("");
-
-    setPager("");
-
-    setQuotedWait("15-20");
-
-    setWaitNotes("");
-
-    setWaitPriority(false);
-
-    setPartyType("Walk-in");
-
-    addSyncLog("Waitlist party added locally");
-
-  }
-
-  function removeFromWaitlist(id: number) {
-
-    setActiveWaitlist((prev) => prev.filter((p) => p.id !== id));
-
-    if (selectedPartyId === id) setSelectedPartyId(null);
-
-    addSyncLog("Waitlist party removed locally");
+    addSyncLog("Host board cleared for nightly reset");
 
   }
 
@@ -3296,7 +4480,9 @@ export default function Home() {
 
       prev.map((table, i) => {
 
-        const sameCombo = combinedId && table.combinedId === combinedId;
+        const sameCombo =
+
+          combinedId && table.combinedId === combinedId;
 
         if (i === index || sameCombo) {
 
@@ -3328,7 +4514,7 @@ export default function Home() {
 
     );
 
-    addSyncLog("Table cleared locally");
+    addSyncLog("Table cleared");
 
   }
 
@@ -3338,15 +4524,15 @@ export default function Home() {
 
     const comboId = `combo-${Date.now()}`;
 
-    const selectedTables = activeTables.filter((t) =>
+    const selectedTables = activeTables.filter((table) =>
 
-      selectedCombineIds.includes(t.id)
+      selectedCombineIds.includes(table.id)
 
     );
 
     const totalSeats = selectedTables.reduce(
 
-      (sum, t) => sum + seatNumber(t.seats),
+      (sum, table) => sum + seatNumber(table.seats),
 
       0
 
@@ -3360,7 +4546,15 @@ export default function Home() {
 
         selectedCombineIds.includes(table.id)
 
-          ? { ...table, combinedId: comboId, combinedLabel: label }
+          ? {
+
+              ...table,
+
+              combinedId: comboId,
+
+              combinedLabel: label,
+
+            }
 
           : table
 
@@ -3370,7 +4564,39 @@ export default function Home() {
 
     setSelectedCombineIds([]);
 
-    addSyncLog("Tables combined locally");
+    addSyncLog("Tables combined");
+
+  }
+
+  function quickCombineBestTables() {
+
+    if (!selectedParty) return;
+
+    const partySizeNumber =
+
+      parseInt(selectedParty.size, 10) || 0;
+
+    const suggestion = suggestCombinedTablesForParty(
+
+      partySizeNumber,
+
+      activeTables
+
+    );
+
+    if (!suggestion.fits) {
+
+      alert("No open tables can combine for this party right now.");
+
+      return;
+
+    }
+
+    setSelectedCombineIds(
+
+      suggestion.tables.map((table) => table.id)
+
+    );
 
   }
 
@@ -3382,7 +4608,15 @@ export default function Home() {
 
         selectedCombineIds.includes(table.id)
 
-          ? { ...table, combinedId: undefined, combinedLabel: undefined }
+          ? {
+
+              ...table,
+
+              combinedId: undefined,
+
+              combinedLabel: undefined,
+
+            }
 
           : table
 
@@ -3392,7 +4626,7 @@ export default function Home() {
 
     setSelectedCombineIds([]);
 
-    addSyncLog("Tables uncombined locally");
+    addSyncLog("Tables uncombined");
 
   }
 
@@ -3432,21 +4666,63 @@ export default function Home() {
 
     );
 
-    setActiveTables((prev) =>
+       setActiveTables((prev) =>
 
-      prev.map((table, i) =>
+      prev.map((t, i) => {
 
-        i === draggingIndex ? { ...table, x, y } : table
+        if (i !== index) return t;
 
-      )
+        const nextStatus =
+
+          cycle[(cycle.indexOf(t.status) + 1) % cycle.length];
+
+        const assignedServer = assignedServerForTable(t.id);
+
+        const rotationServer = nextServerName();
+
+        const server = assignedServer || rotationServer;
+
+        if (nextStatus === "Seated" && !floorCheckMode) {
+
+          rotateServer();
+
+        }
+
+        return {
+
+          ...t,
+
+          status: nextStatus,
+
+          seatedAt: nextStatus === "Seated" ? Date.now() : undefined,
+
+          guest: nextStatus === "Open" ? undefined : t.guest,
+
+          partySize: nextStatus === "Open" ? undefined : t.partySize,
+
+          server: nextStatus === "Open" ? undefined : server || t.server,
+
+          readyFlash: nextStatus === "Open",
+
+          estimatedSales:
+
+            nextStatus === "Open" ? undefined : t.estimatedSales,
+
+        };
+
+      })
 
     );
 
-  }
+    addSyncLog(
 
-  function stopDrag() {
+      floorCheckMode
 
-    setDraggingIndex(null);
+        ? "Floor check table status updated"
+
+        : "Table status updated"
+
+    );
 
   }
 
@@ -3454,7 +4730,11 @@ export default function Home() {
 
     if (!selectedParty || !bestTable) return;
 
-    const index = activeTables.findIndex((table) => table.id === bestTable.id);
+    const index = activeTables.findIndex(
+
+      (table) => table.id === bestTable.id
+
+    );
 
     if (index >= 0) updateTable(index);
 
@@ -3472,49 +4752,7 @@ export default function Home() {
 
     if (!okay) return;
 
-    localStorage.removeItem(STORAGE_TABLES);
-
-    localStorage.removeItem(STORAGE_TRAINING_TABLES);
-
-    localStorage.removeItem(STORAGE_WAITLIST);
-
-    localStorage.removeItem(STORAGE_TRAINING_WAITLIST);
-
-    localStorage.removeItem(STORAGE_ASSIGNMENTS);
-
-    localStorage.removeItem(STORAGE_SERVER_INFO);
-
-    localStorage.removeItem(STORAGE_INFO);
-
-    localStorage.removeItem(STORAGE_ROTATION_INDEX);
-
-    localStorage.removeItem(STORAGE_RESERVATIONS);
-
-    localStorage.removeItem(STORAGE_TRAINING_RESERVATIONS);
-
-    localStorage.removeItem(STORAGE_RESERVATION_SETTINGS);
-
-    localStorage.removeItem(STORAGE_TRAINING_MODE);
-
-    localStorage.removeItem(STORAGE_FLOOR_LOCKED);
-
-    localStorage.removeItem(STORAGE_APP_MODE);
-
-    localStorage.removeItem(STORAGE_NIGHT_MAP);
-
-    localStorage.removeItem(STORAGE_SHIFT_REPORTS);
-
-    localStorage.removeItem(STORAGE_SYNC_LOGS);
-
-    localStorage.removeItem(STORAGE_TEXT_MESSAGES);
-
-    localStorage.removeItem(STORAGE_GUEST_HISTORY);
-
-    localStorage.removeItem(STORAGE_OFFLINE_QUEUE);
-
-    localStorage.removeItem(STORAGE_SYNC_STATUS);
-
-    localStorage.removeItem(STORAGE_SERVER_SECTION_BOXES);
+    localStorage.clear();
 
     setTables(defaultTables);
 
@@ -3542,6 +4780,12 @@ export default function Home() {
 
     setServerSectionBoxes([]);
 
+    setReservedTables([]);
+
+    setBathroomLastChecked(Date.now());
+
+    setBarInfo("BAR:\nBARTENDER:\nBARBACK:\nNOTES:");
+
     setReservationSettings(defaultReservationSettings);
 
     setTrainingMode(false);
@@ -3557,6 +4801,10 @@ export default function Home() {
     setSelectedPartyId(null);
 
     setSelectedCombineIds([]);
+
+    setSelectedServerForAssign("");
+
+    setSectionAssignMode(false);
 
     setGuestName("");
 
@@ -3576,9 +4824,33 @@ export default function Home() {
 
     setServerInfo([
 
-      { name: "Maria", startTime: "4:00 PM", cut: false, salesGoal: 500 },
+      {
 
-      { name: "Jose", startTime: "4:00 PM", cut: false, salesGoal: 500 },
+        name: "Maria",
+
+        startTime: "4:00 PM",
+
+        cutTime: "",
+
+        cut: false,
+
+        salesGoal: 500,
+
+      },
+
+      {
+
+        name: "Jose",
+
+        startTime: "4:00 PM",
+
+        cutTime: "",
+
+        cut: false,
+
+        salesGoal: 500,
+
+      },
 
     ]);
 
@@ -3622,23 +4894,59 @@ export default function Home() {
 
   );
 
-  const serverSectionHighlight = (server: string, assignedTables: TableItem[]) => {
+  const serverSectionHighlight = (
+
+    server: string,
+
+    assignedTables: TableItem[]
+
+  ) => {
 
     if (assignedTables.length === 0) return null;
 
-    const padding = 20;
+    const padding = 12;
 
-    const minX = Math.min(...assignedTables.map((t) => t.x)) - padding;
+    const minX =
 
-    const minY = Math.min(...assignedTables.map((t) => t.y)) - padding;
+      Math.min(...assignedTables.map((t) => t.x)) -
 
-    const maxX = Math.max(...assignedTables.map((t) => t.x + t.w)) + padding;
+      padding;
 
-    const maxY = Math.max(...assignedTables.map((t) => t.y + t.h)) + padding;
+    const minY =
+
+      Math.min(...assignedTables.map((t) => t.y)) -
+
+      padding;
+
+    const maxX =
+
+      Math.max(
+
+        ...assignedTables.map((t) => t.x + t.w)
+
+      ) + padding;
+
+    const maxY =
+
+      Math.max(
+
+        ...assignedTables.map((t) => t.y + t.h)
+
+      ) + padding;
 
     const color = getServerColor(server);
 
-    const isCut = serverIsCut(server, serverInfo);
+    const isCut = serverIsCut(
+
+      server,
+
+      serverInfo
+
+    );
+
+    const isNext =
+
+      nextServerName() === server;
 
     return (
 
@@ -3658,17 +4966,35 @@ export default function Home() {
 
           height: maxY - minY,
 
-          background: isCut ? "rgba(148,163,184,0.18)" : hexToRgba(color, 0.12),
+          background: isCut
+
+            ? "rgba(100,116,139,0.10)"
+
+            : isNext
+
+            ? hexToRgba(color, 0.18)
+
+            : "transparent",
 
           border: isCut
 
-            ? "3px dashed rgba(71,85,105,0.75)"
+            ? "3px dashed #64748b"
 
-            : `3px solid ${hexToRgba(color, 0.45)}`,
+            : isNext
 
-          borderRadius: 16,
+            ? `5px solid ${color}`
 
-          zIndex: 0,
+            : `2px solid ${hexToRgba(
+
+                color,
+
+                0.55
+
+              )}`,
+
+          borderRadius: 18,
+
+          zIndex: 1,
 
           pointerEvents: "none",
 
@@ -3682,11 +5008,15 @@ export default function Home() {
 
             position: "absolute",
 
-            top: -24,
+            top: -25,
 
             left: 8,
 
-            background: isCut ? "#64748b" : color,
+            background: isCut
+
+              ? "#64748b"
+
+              : color,
 
             color: "white",
 
@@ -3702,7 +5032,11 @@ export default function Home() {
 
         >
 
-          {server} {isCut ? "CUT" : ""}
+          {isNext ? "NEXT → " : ""}
+
+          {server}
+
+          {isCut ? " CUT" : ""}
 
         </div>
 
@@ -3716,45 +5050,47 @@ export default function Home() {
 
     try {
 
-    const loadCloudState = async () => {
+      const loadCloudState = async () => {
 
-    const { data } = await supabase
+        const { data } = await supabase
 
-    .from("host_app_state")
+          .from("host_app_state")
 
-    .select("*")
+          .select("*")
 
-    .eq("id", "main")
+          .eq("id", "main")
 
-    .single();
+          .single();
 
-  if (!data?.data) {
+        if (!data?.data) {
 
-    setCloudLoaded(true);
+          setCloudLoaded(true);
 
-    return;
+          return;
 
-  }
+        }
 
-  const cloud = data.data;
+        const cloud = data.data;
 
-  if (cloud.tables) setTables(cloud.tables);
+        if (cloud.tables) setTables(cloud.tables);
 
-  if (cloud.waitlist) setWaitlist(cloud.waitlist);
+        if (cloud.waitlist) setWaitlist(cloud.waitlist);
 
-  if (cloud.reservations) setReservations(cloud.reservations);
+        if (cloud.reservations) setReservations(cloud.reservations);
 
-  if (cloud.serverAssignments)
+        if (cloud.serverAssignments) setServerAssignments(cloud.serverAssignments);
 
-    setServerAssignments(cloud.serverAssignments);
+        if (cloud.serverInfo) setServerInfo(cloud.serverInfo);
 
-  if (cloud.serverInfo) setServerInfo(cloud.serverInfo);
+        if (cloud.reservedTables) setReservedTables(cloud.reservedTables);
 
-  setCloudLoaded(true);
+        if (cloud.barInfo) setBarInfo(cloud.barInfo);
 
-};
+        setCloudLoaded(true);
 
-loadCloudState();
+      };
+
+      loadCloudState();
 
       const savedTables = localStorage.getItem(STORAGE_TABLES);
 
@@ -3800,61 +5136,15 @@ loadCloudState();
 
       const savedServerSectionBoxes = localStorage.getItem(STORAGE_SERVER_SECTION_BOXES);
 
+      const savedReservedTables = localStorage.getItem(STORAGE_RESERVED_TABLES);
+
+      const savedBathroomCheck = localStorage.getItem(STORAGE_BATHROOM_CHECK);
+
+      const savedBarInfo = localStorage.getItem(STORAGE_BAR_INFO);
+
       if (savedTables) setTables(JSON.parse(savedTables));
 
       if (savedTrainingTables) setTrainingTables(JSON.parse(savedTrainingTables));
-
-      if (savedWaitlist) {
-
-        const parsedWaitlist = JSON.parse(savedWaitlist);
-
-        setWaitlist(
-
-          parsedWaitlist.map((p: WaitParty) => ({
-
-            ...p,
-
-            status: p.status || "Waiting",
-
-            quotedWait: p.quotedWait || "15-20",
-
-            priority: Boolean(p.priority),
-
-            partyType: p.partyType || "Walk-in",
-
-            textReadySent: Boolean(p.textReadySent),
-
-          }))
-
-        );
-
-      }
-
-      if (savedTrainingWaitlist) {
-
-        const parsedTrainingWaitlist = JSON.parse(savedTrainingWaitlist);
-
-        setTrainingWaitlist(
-
-          parsedTrainingWaitlist.map((p: WaitParty) => ({
-
-            ...p,
-
-            status: p.status || "Waiting",
-
-            quotedWait: p.quotedWait || "15-20",
-
-            priority: Boolean(p.priority),
-
-            partyType: p.partyType || "Walk-in",
-
-            textReadySent: Boolean(p.textReadySent),
-
-          }))
-
-        );
-
-      }
 
       if (savedAssignments) setServerAssignments(savedAssignments);
 
@@ -3878,19 +5168,41 @@ loadCloudState();
 
       }
 
-      if (savedTrainingMode) setTrainingMode(savedTrainingMode === "true");
+      if (savedTrainingMode) {
 
-      if (savedFloorLocked) setFloorLocked(savedFloorLocked === "true");
+        setTrainingMode(savedTrainingMode === "true");
+
+      }
+
+      if (savedFloorLocked) {
+
+        setFloorLocked(savedFloorLocked === "true");
+
+      }
 
       if (savedAppMode === "reservationsOnly" || savedAppMode === "full") {
 
         setAppMode(savedAppMode);
 
-        if (savedAppMode === "reservationsOnly") setActiveTab("reservations");
+        if (savedAppMode === "reservationsOnly") {
+
+          setActiveTab("reservations");
+
+        }
 
       }
 
-      if (savedNightMap) setNightMap({ ...defaultNightMap, ...JSON.parse(savedNightMap) });
+      if (savedNightMap) {
+
+        setNightMap({
+
+          ...defaultNightMap,
+
+          ...JSON.parse(savedNightMap),
+
+        });
+
+      }
 
       if (savedShiftReports) setShiftReports(JSON.parse(savedShiftReports));
 
@@ -3901,6 +5213,16 @@ loadCloudState();
       if (savedGuestHistory) setGuestHistory(JSON.parse(savedGuestHistory));
 
       if (savedOfflineQueue) setOfflineQueue(JSON.parse(savedOfflineQueue));
+
+      if (savedReservedTables) setReservedTables(JSON.parse(savedReservedTables));
+
+      if (savedBathroomCheck) {
+
+        setBathroomLastChecked(Number(savedBathroomCheck) || Date.now());
+
+      }
+
+      if (savedBarInfo) setBarInfo(savedBarInfo);
 
       if (
 
@@ -3932,7 +5254,11 @@ loadCloudState();
 
         if (info.casaInfo !== undefined) setCasaInfo(info.casaInfo);
 
-        if (info.sanMiguelInfo !== undefined) setSanMiguelInfo(info.sanMiguelInfo);
+        if (info.sanMiguelInfo !== undefined) {
+
+          setSanMiguelInfo(info.sanMiguelInfo);
+
+        }
 
       }
 
@@ -3952,89 +5278,85 @@ loadCloudState();
 
   useEffect(() => {
 
-  if (!cloudLoaded) return;
+    localStorage.setItem(
 
-  async function syncCloud() {
+      STORAGE_TRAINING_TABLES,
 
-    await supabase.from("host_app_state").upsert({
+      JSON.stringify(trainingTables)
 
-      id: "main",
-
-      data: {
-
-        tables,
-
-        waitlist,
-
-        reservations,
-
-        serverAssignments,
-
-        serverInfo,
-
-      },
-
-    });
-
-  }
-
-  syncCloud();
-
-}, [
-
-  tables,
-
-  waitlist,
-
-  reservations,
-
-  serverAssignments,
-
-  serverInfo,
-
-  cloudLoaded,
-
-]);
-  
-  useEffect(() => {
-
-    localStorage.setItem(STORAGE_TRAINING_TABLES, JSON.stringify(trainingTables));
+    );
 
   }, [trainingTables]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_WAITLIST, JSON.stringify(waitlist));
+    localStorage.setItem(
+
+      STORAGE_WAITLIST,
+
+      JSON.stringify(waitlist)
+
+    );
 
   }, [waitlist]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_TRAINING_WAITLIST, JSON.stringify(trainingWaitlist));
+    localStorage.setItem(
+
+      STORAGE_TRAINING_WAITLIST,
+
+      JSON.stringify(trainingWaitlist)
+
+    );
 
   }, [trainingWaitlist]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_ASSIGNMENTS, serverAssignments);
+    localStorage.setItem(
+
+      STORAGE_ASSIGNMENTS,
+
+      serverAssignments
+
+    );
 
   }, [serverAssignments]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_SERVER_INFO, JSON.stringify(serverInfo));
+    localStorage.setItem(
+
+      STORAGE_SERVER_INFO,
+
+      JSON.stringify(serverInfo)
+
+    );
 
   }, [serverInfo]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_ROTATION_INDEX, String(rotationIndex));
+    localStorage.setItem(
+
+      STORAGE_ROTATION_INDEX,
+
+      String(rotationIndex)
+
+    );
 
   }, [rotationIndex]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_RESERVATIONS, JSON.stringify(reservations));
+    localStorage.setItem(
+
+      STORAGE_RESERVATIONS,
+
+      JSON.stringify(reservations)
+
+    );
 
   }, [reservations]);
 
@@ -4064,61 +5386,121 @@ loadCloudState();
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_TRAINING_MODE, String(trainingMode));
+    localStorage.setItem(
+
+      STORAGE_TRAINING_MODE,
+
+      String(trainingMode)
+
+    );
 
   }, [trainingMode]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_FLOOR_LOCKED, String(floorLocked));
+    localStorage.setItem(
+
+      STORAGE_FLOOR_LOCKED,
+
+      String(floorLocked)
+
+    );
 
   }, [floorLocked]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_APP_MODE, appMode);
+    localStorage.setItem(
+
+      STORAGE_APP_MODE,
+
+      appMode
+
+    );
 
   }, [appMode]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_NIGHT_MAP, JSON.stringify(nightMap));
+    localStorage.setItem(
+
+      STORAGE_NIGHT_MAP,
+
+      JSON.stringify(nightMap)
+
+    );
 
   }, [nightMap]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_SHIFT_REPORTS, JSON.stringify(shiftReports));
+    localStorage.setItem(
+
+      STORAGE_SHIFT_REPORTS,
+
+      JSON.stringify(shiftReports)
+
+    );
 
   }, [shiftReports]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_SYNC_LOGS, JSON.stringify(syncLogs));
+    localStorage.setItem(
+
+      STORAGE_SYNC_LOGS,
+
+      JSON.stringify(syncLogs)
+
+    );
 
   }, [syncLogs]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_TEXT_MESSAGES, JSON.stringify(textMessages));
+    localStorage.setItem(
+
+      STORAGE_TEXT_MESSAGES,
+
+      JSON.stringify(textMessages)
+
+    );
 
   }, [textMessages]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_GUEST_HISTORY, JSON.stringify(guestHistory));
+    localStorage.setItem(
+
+      STORAGE_GUEST_HISTORY,
+
+      JSON.stringify(guestHistory)
+
+    );
 
   }, [guestHistory]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_OFFLINE_QUEUE, JSON.stringify(offlineQueue));
+    localStorage.setItem(
+
+      STORAGE_OFFLINE_QUEUE,
+
+      JSON.stringify(offlineQueue)
+
+    );
 
   }, [offlineQueue]);
 
   useEffect(() => {
 
-    localStorage.setItem(STORAGE_SYNC_STATUS, syncStatus);
+    localStorage.setItem(
+
+      STORAGE_SYNC_STATUS,
+
+      syncStatus
+
+    );
 
   }, [syncStatus]);
 
@@ -4138,17 +5520,137 @@ loadCloudState();
 
     localStorage.setItem(
 
-      STORAGE_INFO,
+      STORAGE_RESERVED_TABLES,
 
-      JSON.stringify({ hostInfo, takeoutInfo, casaInfo, sanMiguelInfo })
+      JSON.stringify(reservedTables)
 
     );
 
-  }, [hostInfo, takeoutInfo, casaInfo, sanMiguelInfo]);
+  }, [reservedTables]);
 
   useEffect(() => {
 
-    const timer = setInterval(() => setTick((n) => n + 1), 60000);
+    localStorage.setItem(
+
+      STORAGE_BATHROOM_CHECK,
+
+      String(bathroomLastChecked)
+
+    );
+
+  }, [bathroomLastChecked]);
+
+  useEffect(() => {
+
+    localStorage.setItem(
+
+      STORAGE_BAR_INFO,
+
+      barInfo
+
+    );
+
+  }, [barInfo]);
+
+  useEffect(() => {
+
+    localStorage.setItem(
+
+      STORAGE_INFO,
+
+      JSON.stringify({
+
+        hostInfo,
+
+        takeoutInfo,
+
+        casaInfo,
+
+        sanMiguelInfo,
+
+      })
+
+    );
+
+  }, [
+
+    hostInfo,
+
+    takeoutInfo,
+
+    casaInfo,
+
+    sanMiguelInfo,
+
+  ]);
+
+  useEffect(() => {
+
+    if (!cloudLoaded) return;
+
+    async function syncCloud() {
+
+      await supabase
+
+        .from("host_app_state")
+
+        .upsert({
+
+          id: "main",
+
+          data: {
+
+            tables,
+
+            waitlist,
+
+            reservations,
+
+            serverAssignments,
+
+            serverInfo,
+
+            reservedTables,
+
+            barInfo,
+
+          },
+
+        });
+
+    }
+
+    syncCloud();
+
+  }, [
+
+    tables,
+
+    waitlist,
+
+    reservations,
+
+    serverAssignments,
+
+    serverInfo,
+
+    reservedTables,
+
+    barInfo,
+
+    cloudLoaded,
+
+  ]);
+
+  useEffect(() => {
+
+    const timer = setInterval(
+
+      () => setTick((n) => n + 1),
+
+      60000
+
+    );
 
     return () => clearInterval(timer);
 
@@ -4156,69 +5658,103 @@ loadCloudState();
 
   useEffect(() => {
 
-  const channel = supabase
+    const channel = supabase
 
-    .channel("host-live-sync")
+      .channel("host-live-sync")
 
-    .on(
+      .on(
 
-      "postgres_changes",
+        "postgres_changes",
 
-      {
+        {
 
-        event: "*",
+          event: "*",
 
-        schema: "public",
+          schema: "public",
 
-        table: "host_app_state",
+          table: "host_app_state",
 
-      },
+        },
 
-      async () => {
+        async () => {
 
-        const { data } = await supabase
+          const { data } = await supabase
 
-          .from("host_app_state")
+            .from("host_app_state")
 
-          .select("*")
+            .select("*")
 
-          .eq("id", "main")
+            .eq("id", "main")
 
-          .single();
+            .single();
 
-        if (!data?.data) return;
+          if (!data?.data) return;
 
-        const cloud = data.data;
+          const cloud = data.data;
 
-        if (cloud.tables) setTables(cloud.tables);
+          if (cloud.tables) {
 
-        if (cloud.waitlist) setWaitlist(cloud.waitlist);
+            setTables(cloud.tables);
 
-        if (cloud.reservations)
+          }
 
-          setReservations(cloud.reservations);
+          if (cloud.waitlist) {
 
-        if (cloud.serverAssignments)
+            setWaitlist(cloud.waitlist);
 
-          setServerAssignments(cloud.serverAssignments);
+          }
 
-        if (cloud.serverInfo)
+          if (cloud.reservations) {
 
-          setServerInfo(cloud.serverInfo);
+            setReservations(cloud.reservations);
 
-      }
+          }
 
-    )
+          if (cloud.serverAssignments) {
 
-    .subscribe();
+            setServerAssignments(
 
-  return () => {
+              cloud.serverAssignments
 
-    supabase.removeChannel(channel);
+            );
 
-  };
+          }
 
-}, []);
+          if (cloud.serverInfo) {
+
+            setServerInfo(cloud.serverInfo);
+
+          }
+
+          if (cloud.reservedTables) {
+
+            setReservedTables(
+
+              cloud.reservedTables
+
+            );
+
+          }
+
+          if (cloud.barInfo) {
+
+            setBarInfo(cloud.barInfo);
+
+          }
+
+        }
+
+      )
+
+      .subscribe();
+
+    return () => {
+
+      supabase.removeChannel(channel);
+
+    };
+
+  }, []);
 
   const slots = generateReservationSlots(
 
@@ -4228,33 +5764,85 @@ loadCloudState();
 
   );
 
-  const upcomingReservations = todaysUpcomingReservations();
+  const upcomingReservations =
 
-  const holdingReservations = reservedTablesNow();
+    todaysUpcomingReservations();
+
+  const holdingReservations =
+
+    reservedTablesNow();
 
   const nextUp = nextServerName();
 
   const summary = shiftSummary();
 
-  const activeReservationWarnings = reservationConflictWarnings(
+  const rotationList =
+
+    currentRotationList();
+
+  const activeReservationWarnings =
+
+    reservationConflictWarnings(
+
+      {
+
+        date: reservationDate,
+
+        time: reservationTime,
+
+        adults: reservationAdults || "0",
+
+        kids: reservationKids || "0",
+
+      },
+
+      activeReservations,
+
+      reservationSettings
+
+    );
+
+  const bathroomMinutesAgo = Math.floor(
+
+    (Date.now() - bathroomLastChecked) /
+
+      60000
+
+  );
+
+  const bathroomDue =
+
+    bathroomCheckDue(
+
+      bathroomLastChecked
+
+    );
+
+  const timelineHeaderStyle: React.CSSProperties =
 
     {
 
-      date: reservationDate,
+      border: "1px solid #111827",
 
-      time: reservationTime,
+      padding: 6,
 
-      adults: reservationAdults || "0",
+      background: "#e5e7eb",
 
-      kids: reservationKids || "0",
+      fontWeight: "bold",
 
-    },
+    };
 
-    activeReservations,
+  const timelineCellStyle: React.CSSProperties =
 
-    reservationSettings
+    {
 
-  );
+      border: "1px solid #111827",
+
+      padding: 6,
+
+      fontSize: 13,
+
+    };
 
   return (
 
@@ -4294,50 +5882,6 @@ loadCloudState();
 
         <button
 
-  onClick={async () => {
-
-    const { error } = await supabase.from("host_app_state").upsert({
-
-      id: "main",
-
-      data: {
-
-        test: "connected",
-
-        tables,
-
-        waitlist,
-
-        reservations,
-
-        serverAssignments,
-
-        serverInfo,
-
-      },
-
-    });
-
-    if (error) {
-
-      alert(error.message);
-
-    } else {
-
-      alert("Supabase saved successfully");
-
-    }
-
-  }}
-
->
-
-  Test Supabase Save
-
-</button>
-        
-        <button
-
           onClick={() => setActiveTab("host")}
 
           style={{
@@ -4372,9 +5916,7 @@ loadCloudState();
 
             border: "2px solid #111827",
 
-            background:
-
-              activeTab === "reservations" ? "#dbeafe" : "white",
+            background: activeTab === "reservations" ? "#dbeafe" : "white",
 
             fontWeight: "bold",
 
@@ -4434,13 +5976,9 @@ loadCloudState();
 
         </button>
 
-        <button
+                <button
 
-          onClick={() =>
-
-            setTrainingMode((prev) => !prev)
-
-          }
+          onClick={() => setTrainingMode((prev) => !prev)}
 
           style={{
 
@@ -4464,11 +6002,7 @@ loadCloudState();
 
         <button
 
-          onClick={() =>
-
-            setFloorCheckMode((prev) => !prev)
-
-          }
+          onClick={() => setFloorCheckMode((prev) => !prev)}
 
           style={{
 
@@ -4490,53 +6024,7 @@ loadCloudState();
 
         </button>
 
-        <button
-
-          onClick={() =>
-
-            setAppMode((prev) =>
-
-              prev === "full"
-
-                ? "reservationsOnly"
-
-                : "full"
-
-            )
-
-          }
-
-          style={{
-
-            padding: "8px 12px",
-
-            borderRadius: 8,
-
-            border: "2px solid #111827",
-
-            background:
-
-              appMode === "reservationsOnly"
-
-                ? "#e9d5ff"
-
-                : "white",
-
-            fontWeight: "bold",
-
-          }}
-
-        >
-
-          {appMode === "reservationsOnly"
-
-            ? "Reservations iPad"
-
-            : "Full App"}
-
-        </button>
-
-                {!managerUnlocked ? (
+        {!managerUnlocked ? (
 
           <>
 
@@ -4618,19 +6106,37 @@ loadCloudState();
 
         )}
 
-        <select
+                <button
 
-          value={syncStatus}
+          onClick={() => {
 
-          onChange={(e) => setSyncStatus(e.target.value as SyncStatus)}
+            if (floorLocked) {
+
+              if (!requireManager()) return;
+
+              setFloorLocked(false);
+
+            } else {
+
+              setFloorLocked(true);
+
+            }
+
+          }}
 
           style={{
 
-            padding: 8,
+            padding: "8px 12px",
 
             borderRadius: 8,
 
             border: "2px solid #111827",
+
+            background: floorLocked
+
+              ? "#fecaca"
+
+              : "#bbf7d0",
 
             fontWeight: "bold",
 
@@ -4638,17 +6144,235 @@ loadCloudState();
 
         >
 
-          <option>Online</option>
+          {floorLocked
 
-          <option>Offline</option>
+            ? "Floor Locked"
 
-          <option>Pending Sync</option>
+            : "Floor Unlocked"}
 
-        </select>
+        </button>
+
+        <button
+
+          onClick={() => setEditMode((prev) => !prev)}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: editMode
+
+              ? "#fde68a"
+
+              : "white",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          {editMode ? "Edit ON" : "Edit OFF"}
+
+        </button>
+
+        <button
+
+          onClick={() => setCombineMode((prev) => !prev)}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: combineMode
+
+              ? "#ddd6fe"
+
+              : "white",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          {combineMode
+
+            ? "Combine ON"
+
+            : "Combine OFF"}
+
+        </button>
+
+        <button
+
+          onClick={clearHostBoard}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: "#fef3c7",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          Clear Host Board
+
+        </button>
+
+        <button
+
+          onClick={generateShiftReport}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: "#e0e7ff",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          Generate Report
+
+        </button>
+
+        <button
+
+          onClick={printServerSections}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #111827",
+
+            background: "#bfdbfe",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          Print Server Sections
+
+        </button>
+
+        <button
+
+          onClick={resetAll}
+
+          style={{
+
+            padding: "8px 12px",
+
+            borderRadius: 8,
+
+            border: "2px solid #991b1b",
+
+            background: "#fecaca",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          Full Reset
+
+        </button>
+
+        <div
+
+          style={{
+
+            marginLeft: "auto",
+
+            display: "flex",
+
+            gap: 12,
+
+            alignItems: "center",
+
+            fontWeight: "bold",
+
+          }}
+
+        >
+
+          <span>Covers: {summary.covers}</span>
+
+          <span>Wait: {summary.wait}</span>
+
+          <span>
+
+            Reservations: {summary.reservationsToday}
+
+          </span>
+
+          <span>
+
+            Sales: $
+
+            {summary.estimatedSales.toLocaleString()}
+
+          </span>
+
+          <span
+
+            style={{
+
+              color:
+
+                syncStatus === "Online"
+
+                  ? "green"
+
+                  : syncStatus === "Pending Sync"
+
+                  ? "#d97706"
+
+                  : "red",
+
+            }}
+
+          >
+
+            {syncStatus}
+
+          </span>
+
+        </div>
 
       </div>
 
-      {trainingMode && (
+            {trainingMode && (
 
         <div
 
@@ -4672,7 +6396,57 @@ loadCloudState();
 
         >
 
-          TRAINING MODE ON — practice data is separate from live data.
+          TRAINING MODE ON — practice data is separate
+
+          from live data.
+
+        </div>
+
+      )}
+
+      {bathroomDue && (
+
+        <div
+
+          style={{
+
+            padding: 10,
+
+            marginBottom: 8,
+
+            background: "#fecaca",
+
+            border: "3px solid #991b1b",
+
+            borderRadius: 8,
+
+            fontWeight: "bold",
+
+            textAlign: "center",
+
+          }}
+
+        >
+
+          🚻 Bathroom check due — last checked{" "}
+
+          {bathroomMinutesAgo} minutes ago.
+
+          <button
+
+            onClick={markBathroomChecked}
+
+            style={{
+
+              marginLeft: 10,
+
+            }}
+
+          >
+
+            Mark Checked
+
+          </button>
 
         </div>
 
@@ -4704,7 +6478,9 @@ loadCloudState();
 
         >
 
-          FLOOR CHECK MODE — tap tables to update status only.
+          FLOOR CHECK MODE — tap tables to update
+
+          status only.
 
         </div>
 
@@ -4734,7 +6510,9 @@ loadCloudState();
 
         >
 
-          {syncStatus} — changes are saved locally and added to offline recovery.
+          {syncStatus} — changes are saved locally
+
+          and added to offline recovery.
 
         </div>
 
@@ -4744,7 +6522,11 @@ loadCloudState();
 
         <div>
 
-          <h1 style={{ marginTop: 0 }}>Reservations</h1>
+          <h1 style={{ marginTop: 0 }}>
+
+            Reservations
+
+          </h1>
 
           <div
 
@@ -4800,7 +6582,11 @@ loadCloudState();
 
                       ...p,
 
-                      year: Number(e.target.value) || 2026,
+                      year:
+
+                        Number(e.target.value) ||
+
+                        2026,
 
                     }))
 
@@ -4822,7 +6608,11 @@ loadCloudState();
 
                   disabled={!managerUnlocked}
 
-                  value={reservationSettings.maxReservationsPerSlot}
+                  value={
+
+                    reservationSettings.maxReservationsPerSlot
+
+                  }
 
                   onChange={(e) =>
 
@@ -4830,7 +6620,9 @@ loadCloudState();
 
                       ...p,
 
-                      maxReservationsPerSlot: Number(e.target.value) || 5,
+                      maxReservationsPerSlot:
+
+                        Number(e.target.value) || 5,
 
                     }))
 
@@ -4852,75 +6644,21 @@ loadCloudState();
 
                   disabled={!managerUnlocked}
 
-                  value={reservationSettings.maxCoversPerSlot}
+                  value={
 
-                  onChange={(e) =>
-
-                    setReservationSettings((p) => ({
-
-                      ...p,
-
-                      maxCoversPerSlot: Number(e.target.value) || 30,
-
-                    }))
+                    reservationSettings.maxCoversPerSlot
 
                   }
 
-                  style={{ width: 70 }}
-
-                />
-
-              </div>
-
-              <div style={{ marginTop: 6 }}>
-
-                Kitchen Pacing Limit{" "}
-
-                <input
-
-                  type="number"
-
-                  disabled={!managerUnlocked}
-
-                  value={reservationSettings.kitchenPacingLimit}
-
                   onChange={(e) =>
 
                     setReservationSettings((p) => ({
 
                       ...p,
 
-                      kitchenPacingLimit: Number(e.target.value) || 40,
+                      maxCoversPerSlot:
 
-                    }))
-
-                  }
-
-                  style={{ width: 70 }}
-
-                />
-
-              </div>
-
-              <div style={{ marginTop: 6 }}>
-
-                Average Turn Minutes{" "}
-
-                <input
-
-                  type="number"
-
-                  disabled={!managerUnlocked}
-
-                  value={reservationSettings.averageTurnMinutes}
-
-                  onChange={(e) =>
-
-                    setReservationSettings((p) => ({
-
-                      ...p,
-
-                      averageTurnMinutes: Number(e.target.value) || 80,
+                        Number(e.target.value) || 30,
 
                     }))
 
@@ -4942,75 +6680,21 @@ loadCloudState();
 
                   disabled={!managerUnlocked}
 
-                  value={reservationSettings.holdMinutes}
+                  value={
 
-                  onChange={(e) =>
-
-                    setReservationSettings((p) => ({
-
-                      ...p,
-
-                      holdMinutes: Number(e.target.value) || 15,
-
-                    }))
+                    reservationSettings.holdMinutes
 
                   }
 
-                  style={{ width: 70 }}
-
-                />
-
-              </div>
-
-              <div style={{ marginTop: 6 }}>
-
-                Large Party Size{" "}
-
-                <input
-
-                  type="number"
-
-                  disabled={!managerUnlocked}
-
-                  value={reservationSettings.largePartySize}
-
                   onChange={(e) =>
 
                     setReservationSettings((p) => ({
 
                       ...p,
 
-                      largePartySize: Number(e.target.value) || 10,
+                      holdMinutes:
 
-                    }))
-
-                  }
-
-                  style={{ width: 70 }}
-
-                />
-
-              </div>
-
-              <div style={{ marginTop: 6 }}>
-
-                Average Spend / Guest{" "}
-
-                <input
-
-                  type="number"
-
-                  disabled={!managerUnlocked}
-
-                  value={reservationSettings.avgSpendPerGuest}
-
-                  onChange={(e) =>
-
-                    setReservationSettings((p) => ({
-
-                      ...p,
-
-                      avgSpendPerGuest: Number(e.target.value) || 25,
+                        Number(e.target.value) || 15,
 
                     }))
 
@@ -5024,7 +6708,7 @@ loadCloudState();
 
             </div>
 
-                        <div
+            <div
 
               style={{
 
@@ -5064,19 +6748,17 @@ loadCloudState();
 
                   type="date"
 
-                  min={`${reservationSettings.year}-01-01`}
-
-                  max={`${reservationSettings.year}-12-31`}
-
                   value={reservationDate}
 
-                  onChange={(e) => {
+                  onChange={(e) =>
 
-                    setReservationDate(e.target.value);
+                    setReservationDate(
 
-                    setReservationTime("");
+                      e.target.value
 
-                  }}
+                    )
+
+                  }
 
                   style={{ padding: 6 }}
 
@@ -5084,11 +6766,45 @@ loadCloudState();
 
                 <input
 
+                  value={reservationTime}
+
+                  onChange={(e) =>
+
+                    setReservationTime(
+
+                      e.target.value
+
+                    )
+
+                  }
+
+                  placeholder="Time"
+
+                  style={{
+
+                    padding: 6,
+
+                    width: 90,
+
+                  }}
+
+                />
+
+                <input
+
                   value={reservationName}
 
-                  onChange={(e) => setReservationName(e.target.value)}
+                  onChange={(e) =>
 
-                  placeholder="Guest name"
+                    setReservationName(
+
+                      e.target.value
+
+                    )
+
+                  }
+
+                  placeholder="Guest Name"
 
                   style={{ padding: 6 }}
 
@@ -5098,7 +6814,15 @@ loadCloudState();
 
                   value={reservationPhone}
 
-                  onChange={(e) => setReservationPhone(e.target.value)}
+                  onChange={(e) =>
+
+                    setReservationPhone(
+
+                      e.target.value
+
+                    )
+
+                  }
 
                   placeholder="Phone"
 
@@ -5106,15 +6830,29 @@ loadCloudState();
 
                 />
 
-                <input
+                                <input
 
                   value={reservationAdults}
 
-                  onChange={(e) => setReservationAdults(e.target.value)}
+                  onChange={(e) =>
+
+                    setReservationAdults(
+
+                      e.target.value
+
+                    )
+
+                  }
 
                   placeholder="Adults"
 
-                  style={{ padding: 6, width: 70 }}
+                  style={{
+
+                    padding: 6,
+
+                    width: 70,
+
+                  }}
 
                 />
 
@@ -5122,11 +6860,51 @@ loadCloudState();
 
                   value={reservationKids}
 
-                  onChange={(e) => setReservationKids(e.target.value)}
+                  onChange={(e) =>
+
+                    setReservationKids(
+
+                      e.target.value
+
+                    )
+
+                  }
 
                   placeholder="Kids"
 
-                  style={{ padding: 6, width: 60 }}
+                  style={{
+
+                    padding: 6,
+
+                    width: 70,
+
+                  }}
+
+                />
+
+                <input
+
+                  value={reservationTableId}
+
+                  onChange={(e) =>
+
+                    setReservationTableId(
+
+                      e.target.value
+
+                    )
+
+                  }
+
+                  placeholder="Table #"
+
+                  style={{
+
+                    padding: 6,
+
+                    width: 90,
+
+                  }}
 
                 />
 
@@ -5134,11 +6912,25 @@ loadCloudState();
 
                   value={reservationNotes}
 
-                  onChange={(e) => setReservationNotes(e.target.value)}
+                  onChange={(e) =>
+
+                    setReservationNotes(
+
+                      e.target.value
+
+                    )
+
+                  }
 
                   placeholder="Notes"
 
-                  style={{ padding: 6, width: 180 }}
+                  style={{
+
+                    padding: 6,
+
+                    width: 180,
+
+                  }}
 
                 />
 
@@ -5150,7 +6942,9 @@ loadCloudState();
 
                     padding: "7px 10px",
 
-                    border: "2px solid #111827",
+                    border:
+
+                      "2px solid #111827",
 
                     borderRadius: 6,
 
@@ -5166,91 +6960,43 @@ loadCloudState();
 
               </div>
 
-              <div style={{ marginTop: 8 }}>
+              {activeReservationWarnings
 
-                {guestTagOptions.map((tag) => (
-
-                  <button
-
-                    key={tag}
-
-                    onClick={() => toggleReservationTag(tag)}
-
-                    style={{
-
-                      marginRight: 5,
-
-                      marginBottom: 5,
-
-                      padding: "4px 8px",
-
-                      borderRadius: 12,
-
-                      border: reservationTags.includes(tag)
-
-                        ? "3px solid #111827"
-
-                        : "1px solid #94a3b8",
-
-                      background: reservationTagColor(tag),
-
-                      fontWeight: reservationTags.includes(tag)
-
-                        ? "bold"
-
-                        : "normal",
-
-                    }}
-
-                  >
-
-                    {tag}
-
-                  </button>
-
-                ))}
-
-              </div>
-
-              <div style={{ marginTop: 10, fontWeight: "bold" }}>
-
-                Selected Time:{" "}
-
-                {reservationTime
-
-                  ? displayStandardTime(reservationTime)
-
-                  : "Tap slot"}
-
-              </div>
-
-              {activeReservationWarnings.length > 0 && (
+                .length > 0 && (
 
                 <div
 
                   style={{
 
-                    marginTop: 8,
-
-                    background: "#fff7ed",
-
-                    border: "2px solid #f97316",
-
-                    borderRadius: 8,
+                    marginTop: 10,
 
                     padding: 8,
 
-                    fontSize: 13,
+                    background: "#fef3c7",
+
+                    border:
+
+                      "1px solid #d97706",
+
+                    borderRadius: 6,
 
                   }}
 
                 >
 
-                  {activeReservationWarnings.map((warning) => (
+                  {activeReservationWarnings.map(
 
-                    <div key={warning}>⚠️ {warning}</div>
+                    (warning, index) => (
 
-                  ))}
+                      <div key={index}>
+
+                        • {warning}
+
+                      </div>
+
+                    )
+
+                  )}
 
                 </div>
 
@@ -5260,207 +7006,571 @@ loadCloudState();
 
           </div>
 
-                    <input
-
-            value={reservationSearch}
-
-            onChange={(e) => setReservationSearch(e.target.value)}
-
-            placeholder="Search name, phone, notes, or tag"
-
-            style={{ padding: 8, width: 330, marginBottom: 8 }}
-
-          />
-
           <div
 
             style={{
 
               display: "grid",
 
-              gridTemplateColumns: "repeat(auto-fill, minmax(270px, 1fr))",
+              gridTemplateColumns:
 
-              gap: 8,
+                "2fr 1fr",
+
+              gap: 12,
+
+              marginTop: 12,
 
             }}
 
           >
 
-            {slots.map((slot) => {
+            <div
 
-              const stats = slotStats(
+              style={{
 
-                reservationDate,
+                background: "white",
 
-                slot,
+                border:
 
-                activeReservations,
+                  "2px solid #111827",
 
-                reservationSettings
+                borderRadius: 8,
 
-              );
+                padding: 10,
 
-              const slotReservations = reservationsForSlot(reservationDate, slot);
+                overflowX: "auto",
 
-              const selected = reservationTime === slot;
+              }}
 
-              return (
+            >
 
-                <div
+              <h3 style={{ marginTop: 0 }}>
 
-                  key={slot}
+                Reservation Timeline
 
-                  onClick={() => setReservationTime(slot)}
+              </h3>
 
-                  style={{
+              <table
 
-                    border: selected ? "4px solid #2563eb" : "2px solid #111827",
+                style={{
 
-                    borderRadius: 8,
+                  width: "100%",
 
-                    background: stats.full ? "#fecaca" : "white",
+                  borderCollapse:
 
-                    padding: 8,
+                    "collapse",
 
-                    cursor: "pointer",
+                }}
 
-                  }}
+              >
 
-                >
+                <thead>
 
-                  <div style={{ fontWeight: "bold", fontSize: 16 }}>
+                  <tr>
 
-                    {displayStandardTime(slot)}
+                    <th style={timelineHeaderStyle}>
 
-                  </div>
+                      Time
 
-                  <div style={{ fontSize: 13, fontWeight: "bold" }}>
+                    </th>
 
-                    {stats.reservations}/{reservationSettings.maxReservationsPerSlot}
+                    <th style={timelineHeaderStyle}>
 
-                    {" reservations | "}
+                      Guest
 
-                    {stats.covers}/{reservationSettings.maxCoversPerSlot}
+                    </th>
 
-                    {" covers"}
+                    <th style={timelineHeaderStyle}>
 
-                  </div>
+                      Party
 
-                  {stats.full && (
+                    </th>
 
-                    <div style={{ color: "#991b1b", fontWeight: "bold" }}>
+                    <th style={timelineHeaderStyle}>
 
-                      FULL
+                      Table
 
-                    </div>
+                    </th>
 
-                  )}
+                    <th style={timelineHeaderStyle}>
 
-                  {slotReservations.length === 0 && (
+                      Phone
 
-                    <div style={{ fontSize: 12, color: "#475569" }}>
+                    </th>
 
-                      Open slot
+                    <th style={timelineHeaderStyle}>
 
-                    </div>
+                      Notes
 
-                  )}
+                    </th>
 
-                                    {slotReservations.map((r) => (
+                    <th style={timelineHeaderStyle}>
 
-                    <div
+                      Actions
 
-                      key={r.id}
+                    </th>
 
-                      style={{
+                  </tr>
 
-                        marginTop: 6,
+                </thead>
 
-                        padding: 6,
+                <tbody>
 
-                        borderRadius: 6,
+                                    {reservations
 
-                        border: "1px solid #111827",
+                    .filter(
 
-                        background: reservationStatusColor(r.status),
+                      (reservation) =>
 
-                        fontSize: 12,
+                        reservation.date ===
 
-                      }}
+                        reservationDate
 
-                    >
+                    )
 
-                      <b>{r.name}</b>
+                    .sort((a, b) =>
 
-                      <br />
+                      a.time.localeCompare(
 
-                      {reservationGuestLabel(r)}
+                        b.time
 
-                      <br />
+                      )
 
-                      {r.phone && (
+                    )
 
-                        <>
+                    .map((reservation) => (
 
-                          Phone: {r.phone}
+                      <tr
 
-                          <br />
+                        key={reservation.id}
 
-                        </>
+                      >
 
-                      )}
+                        <td
 
-                      Status: {r.status}
+                          style={
 
-                      <br />
+                            timelineCellStyle
 
-                      Suggestion: {reservationTableSuggestionText(r, activeTables)}
+                          }
 
-                      <br />
+                        >
 
-                      {(r.tags || []).map((tag) => (
+                          {displayStandardTime(
 
-                        <span
+                            reservation.time
 
-                          key={tag}
+                          )}
+
+                        </td>
+
+                        <td
+
+                          style={
+
+                            timelineCellStyle
+
+                          }
+
+                        >
+
+                          {reservation.name}
+
+                        </td>
+
+                        <td
+
+                          style={
+
+                            timelineCellStyle
+
+                          }
+
+                        >
+
+                          {reservationGuestLabel(
+
+                            reservation
+
+                          )}
+
+                        </td>
+
+                        <td
 
                           style={{
 
-                            display: "inline-block",
+                            ...timelineCellStyle,
 
-                            marginRight: 4,
+                            fontWeight:
 
-                            marginTop: 4,
+                              "bold",
 
-                            padding: "2px 6px",
+                            background:
 
-                            borderRadius: 10,
+                              reservation.tableId
 
-                            background: reservationTagColor(tag),
+                                ? "#dbeafe"
 
-                            border: "1px solid #94a3b8",
+                                : "transparent",
 
                           }}
 
                         >
 
-                          {tag}
+                          {reservation.tableId ||
 
-                        </span>
+                            "-"}
 
-                      ))}
+                        </td>
 
-                      {r.notes && (
+                        <td
 
-                        <>
+                          style={
 
-                          <br />
+                            timelineCellStyle
 
-                          Notes: {r.notes}
+                          }
 
-                        </>
+                        >
+
+                          {
+
+                            reservation.phone
+
+                          }
+
+                        </td>
+
+                        <td
+
+                          style={
+
+                            timelineCellStyle
+
+                          }
+
+                        >
+
+                          {
+
+                            reservation.notes
+
+                          }
+
+                        </td>
+
+                        <td
+
+                          style={
+
+                            timelineCellStyle
+
+                          }
+
+                        >
+
+                          <button
+
+                            onClick={() =>
+
+                              seatReservation(
+
+                                reservation
+
+                              )
+
+                            }
+
+                          >
+
+                            Seat
+
+                          </button>
+
+                          <button
+
+                            style={{
+
+                              marginLeft: 4,
+
+                            }}
+
+                            onClick={() =>
+
+                              deleteReservation(
+
+                                reservation.id
+
+                              )
+
+                            }
+
+                          >
+
+                            Delete
+
+                          </button>
+
+                        </td>
+
+                      </tr>
+
+                    ))}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+            <div
+
+              style={{
+
+                background: "white",
+
+                border:
+
+                  "2px solid #111827",
+
+                borderRadius: 8,
+
+                padding: 10,
+
+              }}
+
+            >
+
+              <h3
+
+                style={{
+
+                  marginTop: 0,
+
+                }}
+
+              >
+
+                Waitlist
+
+              </h3>
+
+              <div
+
+                style={{
+
+                  display: "flex",
+
+                  gap: 6,
+
+                  flexWrap: "wrap",
+
+                  marginBottom: 10,
+
+                }}
+
+              >
+
+                <input
+
+                  value={guestName}
+
+                  onChange={(e) =>
+
+                    setGuestName(
+
+                      e.target.value
+
+                    )
+
+                  }
+
+                  placeholder="Guest Name"
+
+                  style={{
+
+                    padding: 6,
+
+                  }}
+
+                />
+
+                <input
+
+                  value={partySize}
+
+                  onChange={(e) =>
+
+                    setPartySize(
+
+                      e.target.value
+
+                    )
+
+                  }
+
+                  placeholder="Party #"
+
+                  style={{
+
+                    padding: 6,
+
+                    width: 70,
+
+                  }}
+
+                />
+
+                <input
+
+                  value={pager}
+
+                  onChange={(e) =>
+
+                    setPager(
+
+                      e.target.value.replace(
+
+                        /^P/i,
+
+                        ""
+
+                      )
+
+                    )
+
+                  }
+
+                  placeholder="Pager #"
+
+                  style={{
+
+                    padding: 6,
+
+                    width: 90,
+
+                  }}
+
+                />
+
+                <input
+
+                  value={quotedWait}
+
+                  onChange={(e) =>
+
+                    setQuotedWait(
+
+                      e.target.value
+
+                    )
+
+                  }
+
+                  placeholder="Quoted Wait"
+
+                  style={{
+
+                    padding: 6,
+
+                    width: 100,
+
+                  }}
+
+                />
+
+                <button
+
+                  onClick={addToWaitlist}
+
+                  style={{
+
+                    padding: 7,
+
+                    fontWeight: "bold",
+
+                  }}
+
+                >
+
+                  Add Wait
+
+                </button>
+
+              </div>
+
+              {activeWaitlist
+
+                .sort(
+
+                  (a, b) =>
+
+                    a.createdAt -
+
+                    b.createdAt
+
+                )
+
+                .map(
+
+                  (party, index) => (
+
+                    <div
+
+                      key={party.id}
+
+                      style={{
+
+                        border:
+
+                          "1px solid #111827",
+
+                        borderRadius: 8,
+
+                        padding: 8,
+
+                        marginBottom: 8,
+
+                        background:
+
+                          waitlistColor(
+
+                            party
+
+                          ),
+
+                      }}
+
+                    >
+
+                      <b>
+
+                        #{index + 1}{" "}
+
+                        {party.name}
+
+                      </b>
+
+                      <br />
+
+                      Party: {party.size}
+
+                      <br />
+
+                      Pager:{" "}
+
+                      {pagerDisplay(
+
+                        party.pager
 
                       )}
+
+                      <br />
+
+                      Wait:{" "}
+
+                      {party.quotedWait}
 
                       <div
 
@@ -5470,7 +7580,7 @@ loadCloudState();
 
                           display: "flex",
 
-                          gap: 4,
+                          gap: 5,
 
                           flexWrap: "wrap",
 
@@ -5480,93 +7590,69 @@ loadCloudState();
 
                         <button
 
-                          onClick={(e) => {
+                          onClick={() =>
 
-                            e.stopPropagation();
+                            setSelectedPartyId(
 
-                            markReservationTextConfirmed(r.id);
+                              party.id
 
-                          }}
+                            )
+
+                          }
 
                         >
 
-                          Text Confirm
+                          Select
 
                         </button>
 
                         <button
 
-                          onClick={(e) => {
+                          onClick={() =>
 
-                            e.stopPropagation();
+                            pageWaitlistParty(
 
-                            markReservationReminderSent(r.id);
+                              party.id
 
-                          }}
+                            )
+
+                          }
 
                         >
 
-                          Reminder
+                          Page
 
                         </button>
 
                         <button
 
-                          onClick={(e) => {
+                          onClick={() =>
 
-                            e.stopPropagation();
+                            returnWaitlistParty(
 
-                            updateReservationStatus(r.id, "Arrived");
+                              party.id
 
-                          }}
+                            )
+
+                          }
 
                         >
 
-                          Arrived
+                          Return
 
                         </button>
 
                         <button
 
-                          onClick={(e) => {
+                          onClick={() =>
 
-                            e.stopPropagation();
+                            markWaitlistNoShow(
 
-                            seatReservation(r);
+                              party.id
 
-                          }}
+                            )
 
-                        >
-
-                          Seat
-
-                        </button>
-
-                        <button
-
-                          onClick={(e) => {
-
-                            e.stopPropagation();
-
-                            addReservationAsWaitlist(r);
-
-                          }}
-
-                        >
-
-                          Waitlist
-
-                        </button>
-
-                        <button
-
-                          onClick={(e) => {
-
-                            e.stopPropagation();
-
-                            updateReservationStatus(r.id, "NoShow");
-
-                          }}
+                          }
 
                         >
 
@@ -5576,29 +7662,579 @@ loadCloudState();
 
                         <button
 
-                          onClick={(e) => {
+                          onClick={() =>
 
-                            e.stopPropagation();
+                            removeFromWaitlist(
 
-                            updateReservationStatus(r.id, "Cancelled");
+                              party.id
 
-                          }}
+                            )
+
+                          }
 
                         >
 
-                          Cancel
+                          Delete
+
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  )
+
+                )}
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+            {activeTab === "timeline" &&
+
+        appMode === "full" && (
+
+          <div>
+
+            <h1 style={{ marginTop: 0 }}>
+
+              Timeline
+
+            </h1>
+
+            <input
+
+              type="date"
+
+              value={reservationDate}
+
+              onChange={(e) =>
+
+                setReservationDate(
+
+                  e.target.value
+
+                )
+
+              }
+
+              style={{
+
+                padding: 8,
+
+                border:
+
+                  "2px solid #111827",
+
+                borderRadius: 8,
+
+                marginBottom: 10,
+
+              }}
+
+            />
+
+            <div
+
+              style={{
+
+                display: "grid",
+
+                gridTemplateColumns:
+
+                  "2fr 1fr",
+
+                gap: 12,
+
+              }}
+
+            >
+
+              <div
+
+                style={{
+
+                  background: "white",
+
+                  border:
+
+                    "2px solid #111827",
+
+                  borderRadius: 8,
+
+                  padding: 10,
+
+                }}
+
+              >
+
+                <h2
+
+                  style={{
+
+                    marginTop: 0,
+
+                  }}
+
+                >
+
+                  Reservation Timeline
+
+                </h2>
+
+                {slots.map((slot) => {
+
+                  const slotReservations =
+
+                    reservationsForSlot(
+
+                      reservationDate,
+
+                      slot
+
+                    );
+
+                  return (
+
+                    <div
+
+                      key={slot}
+
+                      style={{
+
+                        display: "grid",
+
+                        gridTemplateColumns:
+
+                          "110px 1fr",
+
+                        gap: 8,
+
+                        borderBottom:
+
+                          "1px solid #e5e7eb",
+
+                        padding: 8,
+
+                      }}
+
+                    >
+
+                      <b>
+
+                        {displayStandardTime(
+
+                          slot
+
+                        )}
+
+                      </b>
+
+                      <div>
+
+                        {slotReservations.length ===
+
+                          0 && (
+
+                          <span
+
+                            style={{
+
+                              color:
+
+                                "#64748b",
+
+                            }}
+
+                          >
+
+                            Open
+
+                          </span>
+
+                        )}
+
+                        {slotReservations.map(
+
+                          (
+
+                            reservation
+
+                          ) => (
+
+                            <div
+
+                              key={
+
+                                reservation.id
+
+                              }
+
+                              style={{
+
+                                border:
+
+                                  "2px solid #111827",
+
+                                borderRadius: 8,
+
+                                padding: 8,
+
+                                marginBottom: 6,
+
+                                background:
+
+                                  reservationStatusColor(
+
+                                    reservation.status
+
+                                  ),
+
+                              }}
+
+                            >
+
+                              <b>
+
+                                {
+
+                                  reservation.name
+
+                                }
+
+                              </b>{" "}
+
+                              —{" "}
+
+                              {reservationGuestLabel(
+
+                                reservation
+
+                              )}
+
+                              <br />
+
+                              Table:{" "}
+
+                              <b>
+
+                                {reservation.tableId ||
+
+                                  "Not assigned"}
+
+                              </b>
+
+                              <br />
+
+                              {reservationArrivalCountdown(
+
+                                reservation.date,
+
+                                reservation.time
+
+                              )}
+
+                              <br />
+
+                              Status:{" "}
+
+                              {
+
+                                reservation.status
+                                
+                              }
+
+                                                            <div
+
+                                style={{
+
+                                  marginTop: 6,
+
+                                }}
+
+                              >
+
+                                <button
+
+                                  onClick={() =>
+
+                                    seatReservation(
+
+                                      reservation
+
+                                    )
+
+                                  }
+
+                                >
+
+                                  Seat
+
+                                </button>{" "}
+
+                                <button
+
+                                  onClick={() =>
+
+                                    updateReservationStatus(
+
+                                      reservation.id,
+
+                                      "Arrived"
+
+                                    )
+
+                                  }
+
+                                >
+
+                                  Arrived
+
+                                </button>{" "}
+
+                                <button
+
+                                  onClick={() =>
+
+                                    updateReservationStatus(
+
+                                      reservation.id,
+
+                                      "NoShow"
+
+                                    )
+
+                                  }
+
+                                >
+
+                                  No-show
+
+                                </button>
+
+                              </div>
+
+                            </div>
+
+                          )
+
+                        )}
+
+                      </div>
+
+                    </div>
+
+                  );
+
+                })}
+
+              </div>
+
+              <div
+
+                style={{
+
+                  background: "white",
+
+                  border:
+
+                    "2px solid #111827",
+
+                  borderRadius: 8,
+
+                  padding: 10,
+
+                }}
+
+              >
+
+                <h2
+
+                  style={{
+
+                    marginTop: 0,
+
+                  }}
+
+                >
+
+                  Waitlist
+
+                </h2>
+
+                {activeWaitlist
+
+                  .sort(
+
+                    (a, b) =>
+
+                      a.createdAt -
+
+                      b.createdAt
+
+                  )
+
+                  .map((party, index) => (
+
+                    <div
+
+                      key={party.id}
+
+                      style={{
+
+                        border:
+
+                          "1px solid #111827",
+
+                        borderRadius: 8,
+
+                        padding: 8,
+
+                        marginBottom: 8,
+
+                        background:
+
+                          waitlistColor(
+
+                            party
+
+                          ),
+
+                      }}
+
+                    >
+
+                      <b>
+
+                        #{index + 1}{" "}
+
+                        {party.name}
+
+                      </b>
+
+                      <br />
+
+                      Party: {party.size}
+
+                      <br />
+
+                      Pager:{" "}
+
+                      {pagerDisplay(
+
+                        party.pager
+
+                      )}
+
+                      <br />
+
+                      Wait:{" "}
+
+                      {party.quotedWait}
+
+                                            <div
+
+                        style={{
+
+                          marginTop: 6,
+
+                          display: "flex",
+
+                          gap: 5,
+
+                          flexWrap: "wrap",
+
+                        }}
+
+                      >
+
+                        <button
+
+                          onClick={() =>
+
+                            setSelectedPartyId(
+
+                              party.id
+
+                            )
+
+                          }
+
+                        >
+
+                          Select
 
                         </button>
 
                         <button
 
-                          onClick={(e) => {
+                          onClick={() =>
 
-                            e.stopPropagation();
+                            pageWaitlistParty(
 
-                            deleteReservation(r.id);
+                              party.id
 
-                          }}
+                            )
+
+                          }
+
+                        >
+
+                          Page
+
+                        </button>
+
+                        <button
+
+                          onClick={() =>
+
+                            returnWaitlistParty(
+
+                              party.id
+
+                            )
+
+                          }
+
+                        >
+
+                          Return
+
+                        </button>
+
+                        <button
+
+                          onClick={() =>
+
+                            markWaitlistNoShow(
+
+                              party.id
+
+                            )
+
+                          }
+
+                        >
+
+                          No-show
+
+                        </button>
+
+                        <button
+
+                          onClick={() =>
+
+                            removeFromWaitlist(
+
+                              party.id
+
+                            )
+
+                          }
 
                         >
 
@@ -5612,11 +8248,9 @@ loadCloudState();
 
                   ))}
 
-                </div>
+              </div>
 
-              );
-
-            })}
+            </div>
 
           </div>
 
@@ -5624,923 +8258,91 @@ loadCloudState();
 
       )}
 
-            {activeTab === "timeline" && appMode === "full" && (
+      {activeTab === "reports" &&
 
-        <div>
+        appMode === "full" && (
 
-          <h1 style={{ marginTop: 0 }}>Reservation Timeline</h1>
+          <div>
 
-          <input
+            <h1 style={{ marginTop: 0 }}>
 
-            type="date"
+              Reports, Texts & Sync
 
-            min={`${reservationSettings.year}-01-01`}
-
-            max={`${reservationSettings.year}-12-31`}
-
-            value={reservationDate}
-
-            onChange={(e) => setReservationDate(e.target.value)}
-
-            style={{
-
-              padding: 8,
-
-              border: "2px solid #111827",
-
-              borderRadius: 8,
-
-              marginBottom: 10,
-
-            }}
-
-          />
-
-          <div
-
-            style={{
-
-              display: "grid",
-
-              gridTemplateColumns: "120px 1fr",
-
-              gap: 6,
-
-              background: "white",
-
-              border: "2px solid #111827",
-
-              borderRadius: 8,
-
-              padding: 8,
-
-            }}
-
-          >
-
-            {slots.map((slot) => {
-
-              const slotReservations = reservationsForSlot(reservationDate, slot);
-
-              const stats = slotStats(
-
-                reservationDate,
-
-                slot,
-
-                activeReservations,
-
-                reservationSettings
-
-              );
-
-              return (
-
-                <div key={slot} style={{ display: "contents" }}>
-
-                  <div
-
-                    style={{
-
-                      fontWeight: "bold",
-
-                      padding: 8,
-
-                      borderRight: "2px solid #111827",
-
-                    }}
-
-                  >
-
-                    {displayStandardTime(slot)}
-
-                    <br />
-
-                    <span style={{ fontSize: 11 }}>
-
-                      {stats.covers}/{reservationSettings.maxCoversPerSlot} covers
-
-                    </span>
-
-                  </div>
-
-                  <div
-
-                    style={{
-
-                      display: "flex",
-
-                      gap: 6,
-
-                      flexWrap: "wrap",
-
-                      padding: 6,
-
-                      minHeight: 48,
-
-                      background: stats.full ? "#fecaca" : "#f8fafc",
-
-                      borderRadius: 6,
-
-                    }}
-
-                  >
-
-                    {slotReservations.length === 0 && (
-
-                      <span style={{ color: "#64748b", fontSize: 12 }}>
-
-                        Open
-
-                      </span>
-
-                    )}
-
-                    {slotReservations.map((reservation) => (
-
-                      <div
-
-                        key={reservation.id}
-
-                        style={{
-
-                          minWidth: 190,
-
-                          padding: 8,
-
-                          border: "2px solid #111827",
-
-                          borderRadius: 8,
-
-                          background: reservationStatusColor(reservation.status),
-
-                          fontSize: 12,
-
-                        }}
-
-                      >
-
-                        <b>{reservation.name}</b> —{" "}
-
-                        {reservationGuestLabel(reservation)}
-
-                        <br />
-
-                        Status: {reservation.status}
-
-                        <br />
-
-                        {reservationTableSuggestionText(reservation, activeTables)}
-
-                        <div style={{ marginTop: 6 }}>
-
-                          <button
-
-                            onClick={() =>
-
-                              updateReservationStatus(reservation.id, "Arrived")
-
-                            }
-
-                          >
-
-                            Arrived
-
-                          </button>{" "}
-
-                          <button onClick={() => seatReservation(reservation)}>
-
-                            Seat
-
-                          </button>{" "}
-
-                          <button
-
-                            onClick={() => addReservationAsWaitlist(reservation)}
-
-                          >
-
-                            Waitlist
-
-                          </button>{" "}
-
-                          <button
-
-                            onClick={() =>
-
-                              updateReservationStatus(reservation.id, "NoShow")
-
-                            }
-
-                          >
-
-                            No-show
-
-                          </button>
-
-                        </div>
-
-                      </div>
-
-                    ))}
-
-                  </div>
-
-                </div>
-
-              );
-
-            })}
-
-          </div>
-
-        </div>
-
-      )}
-
-            {activeTab === "reports" && appMode === "full" && (
-
-        <div>
-
-          <h1 style={{ marginTop: 0 }}>Reports, Texts & Sync</h1>
-
-          <button onClick={generateShiftReport} style={{ padding: "9px 14px", fontWeight: "bold" }}>
-
-            Generate Shift Report
-
-          </button>{" "}
-
-          <button onClick={printShiftReport} style={{ padding: "9px 14px", fontWeight: "bold" }}>
-
-            Print Report
-
-          </button>
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-
-            <div style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10 }}>
-
-              Covers: <b>{summary.covers}</b>
-
-            </div>
-
-            <div style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10 }}>
-
-              Waitlist: <b>{summary.wait}</b>
-
-            </div>
-
-            <div style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10 }}>
-
-              No-shows: <b>{summary.noShows}</b>
-
-            </div>
-
-            <div style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10 }}>
-
-              Estimated Sales: <b>${summary.estimatedSales}</b>
-
-            </div>
-
-          </div>
-
-          <h2>Text Message Queue</h2>
-
-          {textMessages.map((message) => (
-
-            <div key={message.id} style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10, marginBottom: 8 }}>
-
-              <b>{message.type}</b> — {message.guestName}
-
-              <br />
-
-              Phone: {message.phone}
-
-              <br />
-
-              Status: {message.status}
-
-              <br />
-
-              {message.message}
-
-              <br />
-
-              <button onClick={() => markTextMessageReady(message.id)}>Ready</button>{" "}
-
-              <button onClick={() => markTextMessageSentPlaceholder(message.id)}>Sent Placeholder</button>
-
-            </div>
-
-          ))}
-
-          <h2>Guest History</h2>
-
-          {guestHistory.map((guest) => (
-
-            <div key={guest.id} style={{ background: "white", border: "2px solid #111827", borderRadius: 8, padding: 10, marginBottom: 8 }}>
-
-              <b>{guest.name}</b> — Visits: {guest.visits}
-
-              <br />
-
-              Phone: {guest.phone}
-
-              <br />
-
-              Last Visit: {formatPrintDate(guest.lastVisit)}
-
-              <br />
-
-              Notes: {guest.notes}
-
-            </div>
-
-          ))}
-
-          <h2>Offline Recovery Queue</h2>
-
-          {offlineQueue.map((item) => (
-
-            <div key={item.id} style={{ background: item.resolved ? "#dcfce7" : "#fee2e2", border: "2px solid #111827", borderRadius: 8, padding: 10, marginBottom: 8 }}>
-
-              {item.action} — {formatPrintDate(item.createdAt)}
-
-              <br />
-
-              Status: {item.resolved ? "Resolved" : "Needs Sync"}
-
-              <br />
-
-              {!item.resolved && (
-
-                <button onClick={() => markOfflineQueueResolved(item.id)}>Mark Resolved</button>
-
-              )}
-
-            </div>
-
-          ))}
-
-                    <h2>Sync Logs</h2>
-
-          {syncLogs.map((log) => (
-
-            <div
-
-              key={log.id}
-
-              style={{
-
-                background: "white",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-                padding: 10,
-
-                marginBottom: 8,
-
-                fontSize: 13,
-
-              }}
-
-            >
-
-              {formatPrintDate(log.createdAt)} — {log.message}
-
-            </div>
-
-          ))}
-
-          {shiftReports.map((report) => (
-
-            <div
-
-              key={report.createdAt}
-
-              style={{
-
-                background: "white",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-                padding: 10,
-
-                marginTop: 8,
-
-              }}
-
-            >
-
-              <b>{formatPrintDate(report.createdAt)}</b>
-
-              <br />
-
-              Covers: {report.covers} | Reservations: {report.reservations} | Waitlist:{" "}
-
-              {report.waitlist}
-
-              <br />
-
-              No-shows: {report.noShows} | Cancelled: {report.cancelled}
-
-              <br />
-
-              Estimated Sales: ${report.estimatedSales}
-
-              <br />
-
-              Busiest Time:{" "}
-
-              {report.busiestTime === "N/A"
-
-                ? "N/A"
-
-                : displayStandardTime(report.busiestTime)}
-
-            </div>
-
-          ))}
-
-        </div>
-
-      )}
-
-            {activeTab === "host" && appMode === "full" && (
-
-        <>
-
-          <div
-
-            style={{
-
-              display: "flex",
-
-              alignItems: "center",
-
-              gap: 8,
-
-              marginBottom: 8,
-
-              flexWrap: "wrap",
-
-            }}
-
-          >
-
-            <h1 style={{ margin: 0, fontSize: 34 }}>Host Map</h1>
+            </h1>
 
             <button
 
-              onClick={() => setEditMode(!editMode)}
+              onClick={
 
-              disabled={floorCheckMode}
+                generateShiftReport
+
+              }
 
               style={{
 
-                padding: "8px 12px",
+                padding:
 
-                borderRadius: 8,
+                  "9px 14px",
 
-                border: "2px solid #111827",
+                fontWeight:
 
-                background: editMode ? "#fde68a" : "white",
-
-                fontWeight: "bold",
+                  "bold",
 
               }}
 
             >
 
-              {editMode ? "Editing ON" : "Service Mode"}
+              Generate Shift Report
 
-            </button>
+            </button>{" "}
 
             <button
 
-              onClick={() => {
-
-                if (!requireManager()) return;
-
-                setFloorLocked((prev) => !prev);
-
-              }}
+              onClick={printShiftReport}
 
               style={{
 
-                padding: "8px 12px",
+                padding:
 
-                borderRadius: 8,
+                  "9px 14px",
 
-                border: "2px solid #111827",
+                fontWeight:
 
-                background: floorLocked ? "#dcfce7" : "#fecaca",
-
-                fontWeight: "bold",
+                  "bold",
 
               }}
 
             >
 
-              {floorLocked ? "Floor Locked" : "Floor Unlocked"}
+              Print Report
 
-            </button>
+            </button>{" "}
 
             <button
 
-              onClick={() => setCombineMode(!combineMode)}
+              onClick={
 
-              disabled={floorCheckMode}
+                printServerSections
+
+              }
 
               style={{
 
-                padding: "8px 12px",
+                padding:
 
-                borderRadius: 8,
+                  "9px 14px",
 
-                border: "2px solid #111827",
+                fontWeight:
 
-                background: combineMode ? "#c4b5fd" : "white",
-
-                fontWeight: "bold",
+                  "bold",
 
               }}
 
             >
 
-              {combineMode ? "Combining ON" : "Combine Tables"}
+              Print Server Sections
 
             </button>
-
-            {combineMode && !floorCheckMode && (
-
-              <>
-
-                <button onClick={combineSelectedTables}>
-
-                  Combine Selected
-
-                </button>
-
-                <button onClick={uncombineSelectedTables}>
-
-                  Uncombine Selected
-
-                </button>
-
-                <button onClick={() => setSelectedCombineIds([])}>
-
-                  Clear Selection
-
-                </button>
-
-              </>
-
-            )}
-
-            <button
-
-              onClick={resetAll}
-
-              style={{
-
-                padding: "8px 12px",
-
-                borderRadius: 8,
-
-                border: "2px solid #111827",
-
-                background: "#fee2e2",
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Reset All
-
-            </button>
-
-          </div>
-
-                    <div
-
-            style={{
-
-              display: "flex",
-
-              gap: 8,
-
-              flexWrap: "wrap",
-
-              marginBottom: 8,
-
-            }}
-
-          >
-
-            <div
-
-              style={{
-
-                border: "3px solid #111827",
-
-                borderRadius: 10,
-
-                background: "white",
-
-                padding: 10,
-
-                minWidth: 260,
-
-                fontSize: 13,
-
-              }}
-
-            >
-
-              <div style={{ fontWeight: "bold", fontSize: 15 }}>
-
-                Shift Dashboard
-
-              </div>
-
-              <div>
-
-                Seated: {summary.seated} | Covers: {summary.covers}
-
-              </div>
-
-              <div>
-
-                Wait: {summary.wait} | Over Wait: {summary.overWait}
-
-              </div>
-
-              <div>
-
-                Priority/VIP: {summary.priority}
-
-              </div>
-
-              <div>
-
-                Open: {summary.open} | Boxed: {summary.boxed} | Dirty:{" "}
-
-                {summary.dirty}
-
-              </div>
-
-              <div>
-
-                Reservations: {summary.reservationsToday}
-
-              </div>
-
-              <div>
-
-                Servers Cut: {summary.serversCut}
-
-              </div>
-
-              <div>
-
-                Est. Sales: ${summary.estimatedSales}
-
-              </div>
-
-              <div style={{ marginTop: 6, fontWeight: "bold" }}>
-
-                {sectionBalanceSuggestion()}
-
-              </div>
-
-            </div>
-
-            <div
-
-              style={{
-
-                border: "3px solid #111827",
-
-                borderRadius: 10,
-
-                background: "white",
-
-                padding: 10,
-
-                minWidth: 320,
-
-                fontSize: 13,
-
-              }}
-
-            >
-
-              <div style={{ fontWeight: "bold", fontSize: 15 }}>
-
-                Night Map
-
-              </div>
-
-              <input
-
-                value={nightMap.date}
-
-                onChange={(e) => {
-
-                  if (!managerUnlocked) return;
-
-                  setNightMap((prev) => ({
-
-                    ...prev,
-
-                    date: e.target.value,
-
-                  }));
-
-                }}
-
-                placeholder="Date"
-
-                style={{ padding: 5, width: 90 }}
-
-              />
-
-              <input
-
-                value={nightMap.manager}
-
-                onChange={(e) => {
-
-                  if (!managerUnlocked) return;
-
-                  setNightMap((prev) => ({
-
-                    ...prev,
-
-                    manager: e.target.value,
-
-                  }));
-
-                }}
-
-                placeholder="Manager"
-
-                style={{ padding: 5, width: 110 }}
-
-              />
-
-              <br />
-
-              <textarea
-
-                value={nightMap.notes}
-
-                onChange={(e) => {
-
-                  if (!managerUnlocked) return;
-
-                  setNightMap((prev) => ({
-
-                    ...prev,
-
-                    notes: e.target.value,
-
-                  }));
-
-                }}
-
-                placeholder="Night notes, sections, cuts, specials..."
-
-                style={{
-
-                  marginTop: 5,
-
-                  width: 295,
-
-                  height: 55,
-
-                  padding: 6,
-
-                  fontFamily: "Arial",
-
-                }}
-
-              />
-
-            </div>
-
-            <label style={{ fontSize: 12 }}>
-
-              Host / Podium:
-
-              <br />
-
-              <textarea
-
-                value={hostInfo}
-
-                onChange={(e) => setHostInfo(e.target.value)}
-
-                style={{
-
-                  width: 210,
-
-                  height: 85,
-
-                  padding: 8,
-
-                }}
-
-              />
-
-            </label>
-
-            <label style={{ fontSize: 12 }}>
-
-              Takeout:
-
-              <br />
-
-              <input
-
-                value={takeoutInfo}
-
-                onChange={(e) => setTakeoutInfo(e.target.value)}
-
-                style={{
-
-                  width: 160,
-
-                  padding: 8,
-
-                }}
-
-              />
-
-            </label>
-
-            <label style={{ fontSize: 12 }}>
-
-              Casa Box:
-
-              <br />
-
-              <textarea
-
-                value={casaInfo}
-
-                onChange={(e) => setCasaInfo(e.target.value)}
-
-                style={{
-
-                  width: 210,
-
-                  height: 85,
-
-                  padding: 8,
-
-                }}
-
-              />
-
-            </label>
-
-            <label style={{ fontSize: 12 }}>
-
-              San Miguel Box:
-
-              <br />
-
-              <textarea
-
-                value={sanMiguelInfo}
-
-                onChange={(e) => setSanMiguelInfo(e.target.value)}
-
-                style={{
-
-                  width: 210,
-
-                  height: 85,
-
-                  padding: 8,
-
-                }}
-
-              />
-
-            </label>
-
-          </div>
-
-                    {!floorCheckMode && (
 
             <div
 
@@ -6552,617 +8354,453 @@ loadCloudState();
 
                 flexWrap: "wrap",
 
-                marginBottom: 8,
+                marginTop: 12,
 
               }}
 
             >
 
-              <label style={{ fontSize: 12 }}>
+                            <div
 
-                Server table assignments:
+                style={{
 
-                <br />
+                  background: "white",
 
-                <textarea
+                  border:
 
-                  value={serverAssignments}
+                    "2px solid #111827",
 
-                  onChange={(e) => setServerAssignments(e.target.value)}
+                  borderRadius: 8,
 
-                  onBlur={syncServerInfoFromAssignments}
+                  padding: 10,
 
-                  placeholder={`Maria: 1,2,3\nJose: 20,21,22\nAna: Casa 1,Casa 2`}
+                }}
 
-                  style={{
+              >
 
-                    width: 330,
+                Covers:{" "}
 
-                    height: 85,
+                <b>
 
-                    padding: 8,
+                  {summary.covers}
 
-                    border: "2px solid #111827",
+                </b>
 
-                    borderRadius: 8,
-
-                    fontFamily: "Arial",
-
-                  }}
-
-                />
-
-              </label>
+              </div>
 
               <div
 
                 style={{
 
-                  border: "2px solid #111827",
+                  background: "white",
+
+                  border:
+
+                    "2px solid #111827",
 
                   borderRadius: 8,
 
-                  background: "white",
-
                   padding: 10,
-
-                  minWidth: 180,
-
-                  height: 85,
-
-                  fontSize: 14,
 
                 }}
 
               >
 
-                <div style={{ fontWeight: "bold" }}>Smart Rotation</div>
+                Waitlist:{" "}
 
-                <div>
+                <b>
 
-                  Next Up: <b>{nextUp || "Add active servers"}</b>
+                  {summary.wait}
 
-                </div>
-
-                <button
-
-                  onClick={rotateServer}
-
-                  disabled={serverNamesFromAssignments().length === 0}
-
-                  style={{
-
-                    marginTop: 8,
-
-                    padding: "6px 10px",
-
-                    borderRadius: 6,
-
-                    border: "2px solid #111827",
-
-                    background: "#f8fafc",
-
-                    fontWeight: "bold",
-
-                  }}
-
-                >
-
-                  Next →
-
-                </button>
+                </b>
 
               </div>
 
-              {serverWorkloads().map((workload) => (
+              <div
+
+                style={{
+
+                  background: "white",
+
+                  border:
+
+                    "2px solid #111827",
+
+                  borderRadius: 8,
+
+                  padding: 10,
+
+                }}
+
+              >
+
+                No-shows:{" "}
+
+                <b>
+
+                  {summary.noShows}
+
+                </b>
+
+              </div>
+
+              <div
+
+                style={{
+
+                  background: "white",
+
+                  border:
+
+                    "2px solid #111827",
+
+                  borderRadius: 8,
+
+                  padding: 10,
+
+                }}
+
+              >
+
+                Estimated Sales:{" "}
+
+                <b>
+
+                  $
+
+                  {
+
+                    summary.estimatedSales
+
+                  }
+
+                </b>
+
+              </div>
+
+            </div>
+
+            <h2>
+
+              Text Message Queue
+
+            </h2>
+
+            {textMessages.map(
+
+              (message) => (
 
                 <div
 
-                  key={workload.server}
+                  key={message.id}
 
                   style={{
 
-                    border: `3px solid ${
+                    background:
 
-                      workload.cut ? "#64748b" : workload.color
+                      "white",
 
-                    }`,
+                    border:
+
+                      "2px solid #111827",
 
                     borderRadius: 8,
 
-                    background: workload.cut ? "#e5e7eb" : "white",
-
                     padding: 10,
 
-                    minWidth: 170,
-
-                    minHeight: 135,
-
-                    fontSize: 13,
+                    marginBottom: 8,
 
                   }}
 
                 >
 
-                  <div
+                  <b>
 
-                    style={{
+                    {message.type}
 
-                      fontWeight: "bold",
+                  </b>{" "}
 
-                      color: workload.cut
+                  —{" "}
 
-                        ? "#475569"
+                  {
 
-                        : workload.color,
+                    message.guestName
 
-                    }}
+                  }
 
-                  >
+                  <br />
 
-                    {workload.server}{" "}
+                  Phone:{" "}
 
-                    {workload.cut ? "(CUT)" : ""}
+                  {message.phone}
 
-                  </div>
+                  <br />
 
-                  <div>
+                  Status:{" "}
 
-                    Start:
+                  {message.status}
 
-                    <input
+                  <br />
 
-                      value={workload.startTime}
+                  {message.message}
 
-                      onChange={(e) =>
-
-                        updateServerStartTime(
-
-                          workload.server,
-
-                          e.target.value
-
-                        )
-
-                      }
-
-                      placeholder="4:00 PM"
-
-                      style={{
-
-                        width: 78,
-
-                        marginLeft: 5,
-
-                      }}
-
-                    />
-
-                  </div>
-
-                  <div>
-
-                    Goal:
-
-                    <input
-
-                      value={workload.salesGoal}
-
-                      onChange={(e) =>
-
-                        updateServerSalesGoal(
-
-                          workload.server,
-
-                          e.target.value
-
-                        )
-
-                      }
-
-                      style={{
-
-                        width: 70,
-
-                        marginLeft: 5,
-
-                      }}
-
-                    />
-
-                  </div>
-
-                  <div>
-
-                    Assigned: {workload.assignedCount}
-
-                  </div>
-
-                  <div>
-
-                    Seated: {workload.seatedCount}
-
-                  </div>
-
-                  <div>
-
-                    Covers: {workload.covers}
-
-                  </div>
-
-                  <div>
-
-                    Est: ${workload.estimatedSales}
-
-                  </div>
+                  <br />
 
                   <button
 
                     onClick={() =>
 
-                      toggleServerCut(workload.server)
+                      markTextMessageReady(
+
+                        message.id
+
+                      )
 
                     }
 
-                    style={{
+                  >
 
-                      marginTop: 4,
+                    Ready
 
-                      padding: "4px 8px",
+                  </button>{" "}
 
-                      borderRadius: 6,
+                  <button
 
-                      border: "2px solid #111827",
+                    onClick={() =>
 
-                      background: workload.cut
+                      markTextMessageSentPlaceholder(
 
-                        ? "#dcfce7"
+                        message.id
 
-                        : "#fee2e2",
+                      )
 
-                      fontWeight: "bold",
-
-                    }}
+                    }
 
                   >
 
-                    {workload.cut ? "Uncut" : "Cut"}
+                    Sent Placeholder
 
                   </button>
 
                 </div>
 
-              ))}
+              )
 
-            </div>
+            )}
 
-          )}
+                        <h2>
 
-                    {managerUnlocked && !floorCheckMode && (
+              Guest History
 
-            <div
+            </h2>
 
-              style={{
+            {guestHistory.map(
 
-                display: "flex",
+              (guest) => (
 
-                gap: 8,
+                <div
 
-                flexWrap: "wrap",
+                  key={guest.id}
 
-                marginBottom: 8,
+                  style={{
 
-                padding: 8,
+                    background:
 
-                background: "#f8fafc",
+                      "white",
 
-                border: "2px solid #111827",
+                    border:
 
-                borderRadius: 8,
+                      "2px solid #111827",
 
-              }}
+                    borderRadius: 8,
 
-            >
+                    padding: 10,
 
-              <b>Manager Table Tools:</b>
+                    marginBottom: 8,
 
-              <input
+                  }}
 
-                value={newTableId}
+                >
 
-                onChange={(e) => setNewTableId(e.target.value)}
+                  <b>
 
-                placeholder="Table ID"
+                    {guest.name}
 
-                style={{ padding: 6, width: 90 }}
+                  </b>{" "}
 
-              />
+                  — Visits:{" "}
 
-              <input
+                  {guest.visits}
 
-                value={newTableSeats}
+                  <br />
 
-                onChange={(e) => setNewTableSeats(e.target.value)}
+                  Phone:{" "}
 
-                placeholder="Seats"
+                  {guest.phone}
 
-                style={{ padding: 6, width: 70 }}
+                  <br />
 
-              />
+                  Last Visit:{" "}
 
-              <select
+                  {formatPrintDate(
 
-                value={newTableSection}
+                    guest.lastVisit
 
-                onChange={(e) => setNewTableSection(e.target.value as Section)}
+                  )}
 
-                style={{ padding: 6 }}
+                  <br />
 
-              >
+                  Notes:{" "}
 
-                <option>Main</option>
+                  {guest.notes}
 
-                <option>Patio</option>
+                  {guest.tags &&
 
-                <option>Lounge</option>
+                    guest.tags.length >
 
-                <option>Casa</option>
+                      0 && (
 
-                <option>San Miguel</option>
+                      <>
 
-              </select>
+                        <br />
 
-              <select
+                        Tags:{" "}
 
-                value={newTableShape}
+                        {guest.tags.join(
 
-                onChange={(e) => setNewTableShape(e.target.value as TableShape)}
+                          ", "
 
-                style={{ padding: 6 }}
+                        )}
 
-              >
+                      </>
 
-                {tableShapeOptions.map((shape) => (
+                    )}
 
-                  <option key={shape}>{shape}</option>
+                </div>
 
-                ))}
+              )
 
-              </select>
+            )}
 
-              <button
+            <h2>
 
-                onClick={addNewTable}
+              Sync Activity
+
+            </h2>
+
+            {syncLogs.map(
+
+              (log) => (
+
+                <div
+
+                  key={log.id}
+
+                  style={{
+
+                    background:
+
+                      "white",
+
+                    border:
+
+                      "1px solid #d1d5db",
+
+                    borderRadius: 8,
+
+                    padding: 8,
+
+                    marginBottom: 6,
+
+                  }}
+
+                >
+
+                  <b>
+
+                    {formatPrintDate(
+
+                      log.createdAt
+
+                    )}
+
+                  </b>
+
+                  <br />
+
+                  {log.message}
+
+                </div>
+
+              )
+
+            )}
+
+                        <h2>
+
+              Offline Queue
+
+            </h2>
+
+            {offlineQueue.length ===
+
+            0 ? (
+
+              <div
 
                 style={{
 
-                  padding: "6px 10px",
+                  background:
 
-                  borderRadius: 6,
+                    "#dcfce7",
 
-                  border: "2px solid #111827",
+                  border:
 
-                  fontWeight: "bold",
+                    "1px solid #16a34a",
 
-                }}
+                  borderRadius: 8,
 
-              >
-
-                Add Table
-
-              </button>
-
-            </div>
-
-          )}
-
-          {!floorCheckMode && (
-
-            <div
-
-              style={{
-
-                display: "flex",
-
-                gap: 6,
-
-                flexWrap: "wrap",
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "white",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-              }}
-
-            >
-
-              <b>Add Wait:</b>
-
-              <input
-
-                value={guestName}
-
-                onChange={(e) => setGuestName(e.target.value)}
-
-                placeholder="Guest name"
-
-                style={{ padding: 7 }}
-
-              />
-
-              <input
-
-                value={partySize}
-
-                onChange={(e) => {
-
-                  setPartySize(e.target.value);
-
-                  setQuotedWait(dynamicWaitQuote(e.target.value));
+                  padding: 10,
 
                 }}
 
-                placeholder="#"
-
-                style={{ padding: 7, width: 50 }}
-
-              />
-
-              <input
-
-                value={pager}
-
-                onChange={(e) => setPager(e.target.value)}
-
-                placeholder="Phone/Pager"
-
-                style={{ padding: 7, width: 105 }}
-
-              />
-
-              <select
-
-                value={quotedWait}
-
-                onChange={(e) => setQuotedWait(e.target.value)}
-
-                style={{ padding: 7 }}
-
               >
 
-                {waitTimeOptions.map((option) => (
+                No pending offline
 
-                  <option key={option}>{option}</option>
-
-                ))}
-
-              </select>
-
-              <select
-
-                value={partyType}
-
-                onChange={(e) => setPartyType(e.target.value as PartyType)}
-
-                style={{ padding: 7 }}
-
-              >
-
-                {partyTypeOptions.map((option) => (
-
-                  <option key={option}>{option}</option>
-
-                ))}
-
-              </select>
-
-              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-
-                <input
-
-                  type="checkbox"
-
-                  checked={waitPriority}
-
-                  onChange={(e) => setWaitPriority(e.target.checked)}
-
-                />
-
-                VIP
-
-              </label>
-
-              <input
-
-                value={waitNotes}
-
-                onChange={(e) => setWaitNotes(e.target.value)}
-
-                placeholder="Notes: allergy, stroller, high chair, patio..."
-
-                style={{ padding: 7, width: 260 }}
-
-              />
-
-              <button
-
-                onClick={addToWaitlist}
-
-                style={{
-
-                  padding: "7px 10px",
-
-                  borderRadius: 6,
-
-                  border: "2px solid #111827",
-
-                  fontWeight: "bold",
-
-                }}
-
-              >
-
-                Add Wait
-
-              </button>
-
-            </div>
-
-          )}
-
-                    {!floorCheckMode && upcomingReservations.length > 0 && (
-
-            <div
-
-              style={{
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "white",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-              }}
-
-            >
-
-              <div style={{ fontWeight: "bold", marginBottom: 6 }}>
-
-                Today’s Reservations on Host Page
+                items.
 
               </div>
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            ) : (
 
-                {upcomingReservations.map((reservation) => (
+              offlineQueue.map(
+
+                (item) => (
 
                   <div
 
-                    key={reservation.id}
+                    key={item.id}
 
                     style={{
 
-                      padding: 8,
+                      background:
+
+                        item.resolved
+
+                          ? "#dcfce7"
+
+                          : "#fef3c7",
+
+                      border:
+
+                        "1px solid #111827",
 
                       borderRadius: 8,
 
-                      border: "2px solid #111827",
+                      padding: 8,
 
-                      background: reservationStatusColor(reservation.status),
-
-                      minWidth: 220,
-
-                      fontSize: 12,
+                      marginBottom: 6,
 
                     }}
 
@@ -7170,1066 +8808,74 @@ loadCloudState();
 
                     <b>
 
-                      {displayStandardTime(reservation.time)} — {reservation.name}
+                      {item.action}
 
                     </b>
 
                     <br />
 
-                    {reservationGuestLabel(reservation)}
+                    Created:{" "}
+
+                    {formatPrintDate(
+
+                      item.createdAt
+
+                    )}
 
                     <br />
 
-                    Status: {reservation.status}
+                    Status:{" "}
 
-                    <br />
+                    {item.resolved
 
-                    Suggestion: {reservationTableSuggestionText(
+                      ? "Resolved"
 
-                      reservation,
+                      : "Pending"}
 
-                      activeTables
-
-                    )}
-
-                    {(reservation.tags || []).length > 0 && (
-
-                      <div style={{ marginTop: 4 }}>
-
-                        {(reservation.tags || []).map((tag) => (
-
-                          <span
-
-                            key={tag}
-
-                            style={{
-
-                              display: "inline-block",
-
-                              marginRight: 4,
-
-                              marginBottom: 3,
-
-                              padding: "2px 6px",
-
-                              borderRadius: 10,
-
-                              background: reservationTagColor(tag),
-
-                              border: "1px solid #94a3b8",
-
-                            }}
-
-                          >
-
-                            {tag}
-
-                          </span>
-
-                        ))}
-
-                      </div>
-
-                    )}
-
-                    {reservation.notes && (
+                    {!item.resolved && (
 
                       <>
 
                         <br />
 
-                        Notes: {reservation.notes}
+                        <button
 
-                      </>
+                          onClick={() =>
 
-                    )}
+                            markOfflineQueueResolved(
 
-                    {reservationTotalGuests(reservation) >=
+                              item.id
 
-                      reservationSettings.largePartySize && (
+                            )
 
-                      <div>⚠️ 20% auto gratuity</div>
-
-                    )}
-
-                    {isReservationWithinHoldWindow(
-
-                      reservation,
-
-                      reservationSettings
-
-                    ) && (
-
-                      <div style={{ color: "#dc2626", fontWeight: "bold" }}>
-
-                        🚨 Hold window active
-
-                      </div>
-
-                    )}
-
-                    <div style={{ marginTop: 5 }}>
-
-                      <button
-
-                        onClick={() =>
-
-                          updateReservationStatus(reservation.id, "Arrived")
-
-                        }
-
-                      >
-
-                        Arrived
-
-                      </button>{" "}
-
-                      <button onClick={() => seatReservation(reservation)}>
-
-                        Seat
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={() => addReservationAsWaitlist(reservation)}
-
-                      >
-
-                        Waitlist
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={() =>
-
-                          updateReservationStatus(reservation.id, "NoShow")
-
-                        }
-
-                      >
-
-                        No-show
-
-                      </button>{" "}
-
-                      <button
-
-                        onClick={() =>
-
-                          updateReservationStatus(reservation.id, "Cancelled")
-
-                        }
-
-                      >
-
-                        Cancel
-
-                      </button>
-
-                    </div>
-
-                  </div>
-
-                ))}
-
-              </div>
-
-            </div>
-
-          )}
-
-                    {holdingReservations.length > 0 && (
-
-            <div
-
-              style={{
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "#fecaca",
-
-                border: "2px solid #991b1b",
-
-                borderRadius: 8,
-
-                fontWeight: "bold",
-
-              }}
-
-            >
-
-              Reservation hold active:{" "}
-
-              {holdingReservations
-
-                .map(
-
-                  (r) =>
-
-                    `${r.name} ${displayStandardTime(r.time)} (${reservationGuestLabel(r)})`
-
-                )
-
-                .join(", ")}
-
-            </div>
-
-          )}
-
-          {!floorCheckMode && selectedParty && (
-
-            <div
-
-              style={{
-
-                marginBottom: 8,
-
-                padding: 8,
-
-                background: "#fde68a",
-
-                border: "2px solid #111827",
-
-                borderRadius: 8,
-
-                fontWeight: "bold",
-
-                display: "inline-flex",
-
-                gap: 10,
-
-                alignItems: "center",
-
-              }}
-
-            >
-
-              <span>
-
-                Selected: {selectedParty.name} - {selectedParty.size}
-
-                {bestTable ? ` | Best table: ${bestTable.id}` : " | No open table fits"}
-
-              </span>
-
-              {bestTable && (
-
-                <button
-
-                  onClick={seatSelectedPartyAtBestTable}
-
-                  style={{
-
-                    padding: "5px 9px",
-
-                    borderRadius: 6,
-
-                    border: "2px solid #111827",
-
-                    fontWeight: "bold",
-
-                  }}
-
-                >
-
-                  Seat Best
-
-                </button>
-
-              )}
-
-            </div>
-
-          )}
-
-          {!floorCheckMode && (
-
-            <div
-
-              style={{
-
-                display: "flex",
-
-                gap: 8,
-
-                marginBottom: 8,
-
-                flexWrap: "wrap",
-
-              }}
-
-            >
-
-              {activeWaitlist.map((party) => (
-
-                <div
-
-                  key={party.id}
-
-                  style={{
-
-                    display: "flex",
-
-                    gap: 5,
-
-                    alignItems: "center",
-
-                    padding: 7,
-
-                    borderRadius: 8,
-
-                    border:
-
-                      selectedPartyId === party.id
-
-                        ? "3px solid #f59e0b"
-
-                        : "2px solid #111827",
-
-                    background: waitlistColor(party),
-
-                    fontWeight: "bold",
-
-                    flexWrap: "wrap",
-
-                  }}
-
-                >
-
-                  <button
-
-                    onClick={() => setSelectedPartyId(party.id)}
-
-                    style={{
-
-                      border: "none",
-
-                      background: "transparent",
-
-                      fontWeight: "bold",
-
-                      textAlign: "left",
-
-                    }}
-
-                  >
-
-                    {party.priority ? "⭐ " : ""}
-
-                    {party.name} - {party.size}
-
-                    {party.pager ? ` | ${party.pager}` : ""}
-
-                    <br />
-
-                    Actual: {minutesSince(party.createdAt)} | Quote:{" "}
-
-                    {party.quotedWait || "N/A"} | {party.partyType || "Walk-in"}
-
-                    {party.pagedAt && (
-
-                      <>
-
-                        <br />
-
-                        Paged: {minutesSince(party.pagedAt)} ago
-
-                      </>
-
-                    )}
-
-                    {party.notes && (
-
-                      <>
-
-                        <br />
-
-                        Notes: {party.notes}
-
-                      </>
-
-                    )}
-
-                    {isOverQuotedWait(party) && (
-
-                      <>
-
-                        <br />
-
-                        ⚠️ Over quoted wait
-
-                      </>
-
-                    )}
-
-                    {party.textReadySent && (
-
-                      <>
-
-                        <br />
-
-                        ✅ Text ready marked
-
-                      </>
-
-                    )}
-
-                  </button>
-
-                  <button onClick={() => cycleWaitStatus(party.id)}>
-
-                    {party.status || "Waiting"}
-
-                  </button>
-
-                  <button onClick={() => markTextReadySent(party.id)}>
-
-                    Text Ready
-
-                  </button>
-
-                  <button onClick={() => removeFromWaitlist(party.id)}>X</button>
-
-                </div>
-
-              ))}
-
-            </div>
-
-          )}
-
-                    {combineMode && !floorCheckMode && (
-
-            <div style={{ marginBottom: 8, fontWeight: "bold" }}>
-
-              Selected to combine:{" "}
-
-              {selectedCombineIds.length > 0
-
-                ? selectedCombineIds.join(", ")
-
-                : "none"}
-
-            </div>
-
-          )}
-
-          <div style={{ width: "100%", overflowX: "auto" }}>
-
-            <div
-
-              onPointerMove={dragTable}
-
-              onPointerUp={stopDrag}
-
-              onPointerCancel={stopDrag}
-
-              style={{
-
-                position: "relative",
-
-                width: 1500,
-
-                height: 1040,
-
-                background: "#fbfaf5",
-
-                border: "4px solid #111827",
-
-                overflow: "hidden",
-
-                transform: floorCheckMode ? "scale(0.82)" : "scale(0.74)",
-
-                transformOrigin: "top left",
-
-                marginBottom: floorCheckMode ? -190 : -270,
-
-                touchAction: editMode && !floorLocked ? "none" : "auto",
-
-              }}
-
-            >
-
-              {Object.entries(serverGroups()).map(([server, assignedTables]) =>
-
-                serverSectionHighlight(server, assignedTables)
-
-              )}
-
-              {wall(0, 105, 1240, 6)}
-
-              {wall(0, 360, 270, 7)}
-
-              {wall(380, 325, 320, 7)}
-
-              {wall(380, 540, 290, 7)}
-
-              {wall(0, 560, 250, 8)}
-
-              {wall(300, 755, 460, 8)}
-
-              {wall(780, 755, 430, 8)}
-
-              {wall(220, 815, 8, 225)}
-
-              {wall(760, 755, 8, 285)}
-
-              {wall(1210, 755, 8, 285)}
-
-              {wall(800, 575, 360, 8)}
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 1240,
-
-                  top: 0,
-
-                  width: 260,
-
-                  height: 650,
-
-                  borderLeft: "5px solid #111827",
-
-                  borderBottom: "5px solid #111827",
-
-                  background: "#fffdf7",
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                <div
-
-                  style={{
-
-                    height: 110,
-
-                    padding: 14,
-
-                    fontWeight: "bold",
-
-                    fontSize: 18,
-
-                    whiteSpace: "pre-line",
-
-                  }}
-
-                >
-
-                  {hostInfo}
-
-                </div>
-
-                <div
-
-                  style={{
-
-                    background: "#111827",
-
-                    color: "white",
-
-                    textAlign: "center",
-
-                    padding: 8,
-
-                    fontSize: 22,
-
-                    fontWeight: "bold",
-
-                    margin: "0 20px",
-
-                  }}
-
-                >
-
-                  San Miguel
-
-                </div>
-
-                <div
-
-                  style={{
-
-                    margin: "14px 22px",
-
-                    padding: 12,
-
-                    height: 165,
-
-                    border: "3px solid #111827",
-
-                    fontSize: 15,
-
-                    whiteSpace: "pre-line",
-
-                  }}
-
-                >
-
-                  {sanMiguelInfo}
-
-                </div>
-
-              </div>
-
-                            <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 1225,
-
-                  top: 735,
-
-                  width: 255,
-
-                  height: 290,
-
-                  border: "4px solid #111827",
-
-                  background: "#fffdf7",
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                <div
-
-                  style={{
-
-                    background: "#111827",
-
-                    color: "white",
-
-                    textAlign: "center",
-
-                    padding: 8,
-
-                    fontSize: 20,
-
-                    fontWeight: "bold",
-
-                  }}
-
-                >
-
-                  Casa 1884
-
-                </div>
-
-                <div
-
-                  style={{
-
-                    padding: 16,
-
-                    fontSize: 16,
-
-                    whiteSpace: "pre-line",
-
-                  }}
-
-                >
-
-                  {casaInfo}
-
-                </div>
-
-              </div>
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 120,
-
-                  top: 405,
-
-                  fontSize: 25,
-
-                  fontStyle: "italic",
-
-                  fontWeight: "bold",
-
-                  zIndex: 3,
-
-                  whiteSpace: "pre-line",
-
-                }}
-
-              >
-
-                {takeoutInfo}
-
-              </div>
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 310,
-
-                  top: 625,
-
-                  width: 335,
-
-                  height: 85,
-
-                  borderRadius: 20,
-
-                  border: "5px solid #64748b",
-
-                  background: "#dbeafe",
-
-                  display: "flex",
-
-                  alignItems: "center",
-
-                  justifyContent: "center",
-
-                  fontSize: 36,
-
-                  fontWeight: "bold",
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                BAR
-
-              </div>
-
-              <div
-
-                style={{
-
-                  position: "absolute",
-
-                  left: 810,
-
-                  top: 600,
-
-                  width: 275,
-
-                  height: 48,
-
-                  background: "white",
-
-                  border: "3px solid #111827",
-
-                  textAlign: "center",
-
-                  paddingTop: 10,
-
-                  fontWeight: "bold",
-
-                  fontSize: 18,
-
-                  zIndex: 3,
-
-                }}
-
-              >
-
-                Buffet
-
-              </div>
-
-                            {activeTables.map((table, index) => {
-
-                const selected = selectedCombineIds.includes(table.id);
-
-                const assignedServer =
-
-                  assignedServerForTable(table.id) || table.server;
-
-                const overdue =
-
-                  table.status === "Seated" &&
-
-                  isOverdueTurn(table, reservationSettings);
-
-                return (
-
-                  <div
-
-                    key={table.id}
-
-                    onPointerDown={() => startDrag(index)}
-
-                    onClick={() => updateTable(index)}
-
-                    style={{
-
-                      position: "absolute",
-
-                      left: table.x,
-
-                      top: table.y,
-
-                      width: table.w,
-
-                      height: table.h,
-
-                      borderRadius:
-
-                        table.shape === "round"
-
-                          ? "999px"
-
-                          : table.shape === "booth"
-
-                          ? "16px"
-
-                          : "8px",
-
-                      border: selected
-
-                        ? "5px solid #7c3aed"
-
-                        : overdue
-
-                        ? "5px solid #dc2626"
-
-                        : "3px solid #111827",
-
-                      background: turnBackground(table),
-
-                      display: "flex",
-
-                      flexDirection: "column",
-
-                      alignItems: "center",
-
-                      justifyContent: "center",
-
-                      fontWeight: "bold",
-
-                      cursor:
-
-                        editMode && !floorLocked
-
-                          ? "grab"
-
-                          : "pointer",
-
-                      userSelect: "none",
-
-                      zIndex: selected ? 6 : 4,
-
-                      boxShadow: table.readyFlash
-
-                        ? "0 0 0 5px rgba(34,197,94,.4)"
-
-                        : undefined,
-
-                      transition: "all .15s ease",
-
-                    }}
-
-                  >
-
-                    <div style={{ fontSize: 14 }}>
-
-                      {table.id}
-
-                    </div>
-
-                    <div style={{ fontSize: 12 }}>
-
-                      {table.seats}
-
-                    </div>
-
-                    {table.guest && (
-
-                      <div
-
-                        style={{
-
-                          fontSize: 10,
-
-                          textAlign: "center",
-
-                          padding: "0 2px",
-
-                        }}
-
-                      >
-
-                        {table.guest}
-
-                      </div>
-
-                    )}
-
-                    {table.partySize && (
-
-                      <div style={{ fontSize: 10 }}>
-
-                        {table.partySize} guests
-
-                      </div>
-
-                    )}
-
-                    {assignedServer && (
-
-                      <div
-
-                        style={{
-
-                          fontSize: 10,
-
-                          background: getServerColor(assignedServer),
-
-                          color: "white",
-
-                          padding: "1px 5px",
-
-                          borderRadius: 10,
-
-                          marginTop: 2,
-
-                        }}
-
-                      >
-
-                        {assignedServer}
-
-                      </div>
-
-                    )}
-
-                    {table.status === "Seated" &&
-
-                      table.seatedAt && (
-
-                        <div
-
-                          style={{
-
-                            fontSize: 9,
-
-                            marginTop: 2,
-
-                            textAlign: "center",
-
-                          }}
+                          }
 
                         >
 
-                          {minutesSince(table.seatedAt)}
+                          Mark
 
-                        </div>
+                          Resolved
 
-                      )}
+                        </button>
 
-                    {table.combinedLabel && (
-
-                      <div
-
-                        style={{
-
-                          position: "absolute",
-
-                          bottom: -18,
-
-                          background: "#ede9fe",
-
-                          border: "1px solid #7c3aed",
-
-                          borderRadius: 10,
-
-                          padding: "1px 5px",
-
-                          fontSize: 9,
-
-                          whiteSpace: "nowrap",
-
-                        }}
-
-                      >
-
-                        {table.combinedLabel}
-
-                      </div>
-
-                    )}
-
-                    {overdue && (
-
-                      <div
-
-                        style={{
-
-                          position: "absolute",
-
-                          top: -16,
-
-                          background: "#dc2626",
-
-                          color: "white",
-
-                          borderRadius: 8,
-
-                          padding: "1px 6px",
-
-                          fontSize: 9,
-
-                        }}
-
-                      >
-
-                        OVERDUE
-
-                      </div>
+                      </>
 
                     )}
 
                   </div>
 
-                );
+                )
 
-              })}
+              )
 
-                          </div>
+            )}
 
           </div>
 
-          <p style={{ marginTop: 8, fontSize: 14 }}>
-
-            Floor Check Mode is for quick table updates only. Texting, live sync, and
-
-            offline recovery are structured as placeholders until connected to a backend.
-
-          </p>
-
-        </>
-
-      )}
+        )}
 
     </main>
 
   );
-  
+
 }
