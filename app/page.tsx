@@ -5711,6 +5711,8 @@ const timelineCellStyle: React.CSSProperties = {
   fontSize: 13,
 
 };
+
+}
   
   return (
 
