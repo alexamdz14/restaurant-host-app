@@ -5832,9 +5832,7 @@ export default function Home() {
 
     };
 
-  const timelineCellStyle: React.CSSProperties =
-
-    {
+  const timelineCellStyle: React.CSSProperties = {
 
       border: "1px solid #111827",
 
