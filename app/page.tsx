@@ -4258,165 +4258,109 @@ export default function Home() {
 
   }
 
-  function printServerSections() {
+function printServerSections() {
 
-    const rows = serverInfo.map((server) => {
+  const rows = serverInfo.map((server) => {
 
-      const tableIds = activeTables
+    const tableIds = activeTables
 
-        .filter((table) => assignedServerForTable(table.id) === server.name)
+      .filter((table) => assignedServerForTable(table.id) === server.name)
 
-        .map((table) => table.id)
+      .map((table) => table.id)
 
-        .sort((a, b) =>
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-          a.localeCompare(b, undefined, {
+    return {
 
-            numeric: true,
+      name: server.name,
 
-          })
+      tables: tableIds,
 
-        );
+      cut: serverShouldBeCut(server),
 
-      return {
+    };
 
-        name: server.name,
+  });
 
-        tables: tableIds,
+  const printWindow = window.open("", "_blank");
 
-        cut: serverShouldBeCut(server),
+  if (!printWindow) return;
 
-      };
+  printWindow.document.write(`
 
-    });
+    <html>
 
-      const printWindow = window.open("", "_blank");
+      <head>
 
-    if (!printWindow) return;
+        <title>Server Sections</title>
 
-    printWindow.document.write(`
+        <style>
 
-      <html>
+          body { font-family: Arial, sans-serif; padding: 24px; }
 
-        <head>
+          h1 { text-align: center; margin-bottom: 24px; }
 
-          <title>Server Sections</title>
+          .server { border: 2px solid #111827; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
 
-          <style>
+          .name { font-size: 22px; font-weight: bold; margin-bottom: 8px; }
 
-            body {
+          .tables { font-size: 18px; }
 
-              font-family: Arial, sans-serif;
+          .cut { color: #64748b; font-weight: bold; }
 
-              padding: 24px;
+        </style>
 
-            }
+      </head>
 
-            h1 {
+      <body>
 
-              text-align: center;
+        <h1>ENRIQUE'S SERVER SECTIONS</h1>
 
-              margin-bottom: 24px;
+        <p>${new Date().toLocaleString()}</p>
 
-            }
+        ${rows
 
-            .server {
+          .map(
 
-              border: 2px solid #111827;
+            (row) => `
 
-              border-radius: 10px;
+              <div class="server">
 
-              padding: 14px;
+                <div class="name">
 
-              margin-bottom: 14px;
-
-            }
-
-            .name {
-
-              font-size: 22px;
-
-              font-weight: bold;
-
-              margin-bottom: 8px;
-
-            }
-
-            .tables {
-
-              font-size: 18px;
-
-            }
-
-            .cut {
-
-              color: #64748b;
-
-              font-weight: bold;
-
-            }
-
-          </style>
-
-        </head>
-
-        <body>
-
-          <h1>ENRIQUE'S SERVER SECTIONS</h1>
-
-          <p>${new Date().toLocaleString()}</p>
-
-          ${rows
-
-            .map(
-
-              (row) => `
-
-                <div class="server">
-
-                  <div class="name">
-
-                    ${row.name} ${row.cut ? '<span class="cut">(CUT)</span>' : ""}
-
-                  </div>
-
-                  <div class="tables">
-
-                    Tables: ${
-
-                      row.tables.length
-
-                        ? row.tables.join(", ")
-
-                        : "None assigned"
-
-                    }
-
-                  </div>
+                  ${row.name} ${row.cut ? '<span class="cut">(CUT)</span>' : ""}
 
                 </div>
 
-              `
+                <div class="tables">
 
-            )
+                  Tables: ${row.tables.length ? row.tables.join(", ") : "None assigned"}
 
-            .join("")}
+                </div>
 
-          <script>
+              </div>
 
-            window.print();
+            `
 
-          </script>
+          )
 
-        </body>
+          .join("")}
 
-      </html>
+        <script>
 
-    `);
+          window.print();
 
-    printWindow.document.close();
+        </script>
 
-  }
+      </body>
+
+    </html>
+
+  `);
+
+  printWindow.document.close();
+
+}
 
   function clearHostBoard() {
 
@@ -5764,25 +5708,17 @@ export default function Home() {
 
   );
 
-  const upcomingReservations =
+  const upcomingReservations = todaysUpcomingReservations();
 
-    todaysUpcomingReservations();
-
-  const holdingReservations =
-
-    reservedTablesNow();
+  const holdingReservations = reservedTablesNow();
 
   const nextUp = nextServerName();
 
   const summary = shiftSummary();
 
-  const rotationList =
+  const rotationList = currentRotationList();
 
-    currentRotationList();
-
-  const activeReservationWarnings =
-
-    reservationConflictWarnings(
+  const activeReservationWarnings = reservationConflictWarnings(
 
       {
 
@@ -5804,23 +5740,39 @@ export default function Home() {
 
   const bathroomMinutesAgo = Math.floor(
 
-    (Date.now() - bathroomLastChecked) /
-
-      60000
+    (Date.now() - bathroomLastChecked) / 60000
 
   );
 
-  const bathroomDue =
-
-    bathroomCheckDue(
+  const bathroomDue = bathroomCheckDue(
 
       bathroomLastChecked
 
     );
 
-  const timelineHeaderStyle: React.CSSProperties =
+  const timelineHeaderStyle: React.CSSProperties = {
 
-    {
+  border: "1px solid #111827",
+
+  padding: 6,
+
+  background: "#e5e7eb",
+
+  fontWeight: "bold",
+
+};
+
+const timelineCellStyle: React.CSSProperties = {
+
+  border: "1px solid #111827",
+
+  padding: 6,
+
+  fontSize: 13,
+
+};
+
+  const timelineHeaderStyle: React.CSSProperties = {
 
       border: "1px solid #111827",
 
