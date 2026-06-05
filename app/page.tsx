@@ -5478,11 +5478,7 @@ function printServerSections() {
 
     async function syncCloud() {
 
-      await supabase
-
-        .from("host_app_state")
-
-        .upsert({
+      await supabase.from("host_app_state").upsert({
 
           id: "main",
 
