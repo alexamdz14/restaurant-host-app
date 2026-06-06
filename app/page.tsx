@@ -5576,57 +5576,21 @@ function printServerSections() {
 
           const cloud = data.data;
 
-          if (cloud.tables) {
+          if (cloud.tables) setTables(cloud.tables);
 
-            setTables(cloud.tables);
+          if (cloud.waitlist) setWaitlist(cloud.waitlist);
 
-          }
+          if (cloud.reservations) setReservations(cloud.reservations);
 
-          if (cloud.waitlist) {
+          if (cloud.serverAssignments) setServerAssignments(cloud.serverAssignments);
 
-            setWaitlist(cloud.waitlist);
+          if (cloud.serverInfo) setServerInfo(cloud.serverInfo);
 
-          }
+          if (cloud.reservedTables) setReservedTables(cloud.reservedTables);
 
-          if (cloud.reservations) {
-
-            setReservations(cloud.reservations);
+          if (cloud.barInfo) setBarInfo(cloud.barInfo);
 
           }
-
-          if (cloud.serverAssignments) {
-
-            setServerAssignments(
-
-              cloud.serverAssignments
-
-            );
-
-          }
-
-          if (cloud.serverInfo) {
-
-            setServerInfo(cloud.serverInfo);
-
-          }
-
-          if (cloud.reservedTables) {
-
-            setReservedTables(
-
-              cloud.reservedTables
-
-            );
-
-          }
-
-          if (cloud.barInfo) {
-
-            setBarInfo(cloud.barInfo);
-
-          }
-
-        }
 
       )
 
@@ -5640,13 +5604,7 @@ function printServerSections() {
 
   }, []);
 
-  const slots = generateReservationSlots(
-
-    reservationDate,
-
-    reservationSettings
-
-  );
+  const slots = generateReservationSlots(reservationDate,reservationSettings);
 
   const upcomingReservations = todaysUpcomingReservations();
 
@@ -5684,11 +5642,7 @@ function printServerSections() {
 
   );
 
-  const bathroomDue = bathroomCheckDue(
-
-      bathroomLastChecked
-
-    );
+  const bathroomDue = bathroomCheckDue(bathroomLastChecked);
 
   const timelineHeaderStyle: React.CSSProperties = {
 
@@ -5712,8 +5666,6 @@ const timelineCellStyle: React.CSSProperties = {
 
 };
 
-}
-  
   return (
 
     <main
