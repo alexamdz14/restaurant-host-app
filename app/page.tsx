@@ -4930,7 +4930,7 @@ export default function Home() {
 
   return (
 
-    <main
+    <div
 
       style={{
 
@@ -7408,7 +7408,7 @@ export default function Home() {
 
       </div>
 
-    </main>
+    </div>
 
   );
 
