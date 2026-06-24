@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 
 import { supabase } from "./supabaseClient";
 
-import { ENRIQUES_TABLES } from "../data/enriquesLayout";
+import { ENRIQUES_TABLES } from "./data/enriquesLayout";
 
-import { STATUS_COLORS, TableItem, TableStatus } from "../types/host";
+import { STATUS_COLORS, TableItem, TableStatus } from "./types/host";
 
 const STATUS_ORDER: TableStatus[] = ["Open", "Seated", "Boxed", "Dirty"];
 
