@@ -30,6 +30,18 @@ export default function Home() {
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
+  const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
+
+  const [guestName, setGuestName] = useState("");
+
+  const [guestSize, setGuestSize] = useState("");
+
+  const [guestPhone, setGuestPhone] = useState("");
+
+  const [guestNotes, setGuestNotes] = useState("");
+
+  const [quotedWait, setQuotedWait] = useState("");
+
   const openCount = tables.filter((t) => t.status === "Open").length;
 
   const seatedCount = tables.filter((t) => t.status === "Seated").length;
