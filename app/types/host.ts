@@ -59,3 +59,25 @@ export const STATUS_COLORS = {
   Dirty: "#f87171",
 
 };
+
+export type WaitStatus = "Waiting" | "Paged" | "Seated" | "NoShow";
+
+export interface WaitParty {
+
+  id: number;
+
+  name: string;
+
+  size: string;
+
+  phone: string;
+
+  notes: string;
+
+  status: WaitStatus;
+
+  quotedWait: string;
+
+  createdAt: number;
+
+}
