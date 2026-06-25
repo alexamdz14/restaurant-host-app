@@ -52,109 +52,121 @@ export default function Home() {
 
   useEffect(() => {
 
-    async function loadTables() {
+  async function loadData() {
 
-      const { data, error } = await supabase
+    const { data: tableData } = await supabase
 
-        .from("host_tables")
+      .from("host_tables")
 
-        .select("data")
+      .select("data")
 
-        .eq("id", "main")
+      .eq("id", "main")
 
-        .maybeSingle();
+      .maybeSingle();
 
-      if (error) {
+    if (tableData?.data?.tables) {
 
-        console.error(error);
+      setTables(tableData.data.tables);
 
-      }
+    } else {
 
-      if (data?.data?.tables) {
+      await supabase.from("host_tables").upsert({
 
-        setTables(data.data.tables);
+        id: "main",
 
-      } else {
+        data: { tables: ENRIQUES_TABLES },
 
-        await supabase.from("host_tables").upsert({
-
-          id: "main",
-
-          data: { tables: ENRIQUES_TABLES },
-
-        });
-
-      }
-
-      setLoaded(true);
+      });
 
     }
 
-    loadTables();
-
     const { data: waitData } = await supabase
 
-  .from("host_waitlist")
+      .from("host_waitlist")
 
-  .select("data")
+      .select("data")
 
-  .order("id", { ascending: true });
+      .order("id", { ascending: true });
 
-if (waitData) {
+    if (waitData) {
 
-  setWaitlist(waitData.map((row) => row.data as WaitParty));
+      setWaitlist(waitData.map((row) => row.data as WaitParty));
 
-}
+    }
 
-    const channel = supabase
+    setLoaded(true);
 
-      .channel("host-tables-sync")
+  }
 
-      .on(
+  loadData();
 
-        "postgres_changes",
+  const channel = supabase
 
-        {
+    .channel("host-v2-sync")
 
-          event: "*",
+    .on(
 
-          schema: "public",
+      "postgres_changes",
 
-          table: "host_tables",
+      { event: "*", schema: "public", table: "host_tables" },
 
-        },
+      async () => {
 
-        async () => {
+        const { data } = await supabase
 
-          const { data } = await supabase
+          .from("host_tables")
 
-            .from("host_tables")
+          .select("data")
 
-            .select("data")
+          .eq("id", "main")
 
-            .eq("id", "main")
+          .maybeSingle();
 
-            .maybeSingle();
+        if (data?.data?.tables) {
 
-          if (data?.data?.tables) {
-
-            setTables(data.data.tables);
-
-          }
+          setTables(data.data.tables);
 
         }
 
-      )
+      }
 
-      .subscribe();
+    )
 
-    return () => {
+    .on(
 
-      supabase.removeChannel(channel);
+      "postgres_changes",
 
-    };
+      { event: "*", schema: "public", table: "host_waitlist" },
 
-  }, []);
+      async () => {
+
+        const { data } = await supabase
+
+          .from("host_waitlist")
+
+          .select("data")
+
+          .order("id", { ascending: true });
+
+        if (data) {
+
+          setWaitlist(data.map((row) => row.data as WaitParty));
+
+        }
+
+      }
+
+    )
+
+    .subscribe();
+
+  return () => {
+
+    supabase.removeChannel(channel);
+
+  };
+
+}, []);
 
   useEffect(() => {
 
