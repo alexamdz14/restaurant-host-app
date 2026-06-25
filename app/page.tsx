@@ -92,6 +92,20 @@ export default function Home() {
 
     loadTables();
 
+    const { data: waitData } = await supabase
+
+  .from("host_waitlist")
+
+  .select("data")
+
+  .order("id", { ascending: true });
+
+if (waitData) {
+
+  setWaitlist(waitData.map((row) => row.data as WaitParty));
+
+}
+
     const channel = supabase
 
       .channel("host-tables-sync")
