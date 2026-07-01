@@ -622,6 +622,174 @@ export default function Home() {
 
       </p>
 
+<section
+
+  style={{
+
+    marginTop: 16,
+
+    background: "white",
+
+    border: "3px solid #111827",
+
+    borderRadius: 10,
+
+    padding: 12,
+
+  }}
+
+>
+
+  <h2 style={{ marginTop: 0 }}>Waitlist</h2>
+
+  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+
+    <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Guest name" />
+
+    <input value={guestSize} onChange={(e) => setGuestSize(e.target.value)} placeholder="Party size" />
+
+    <input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="Phone" />
+
+    <input value={quotedWait} onChange={(e) => setQuotedWait(e.target.value)} placeholder="Quoted wait" />
+
+    <input value={guestNotes} onChange={(e) => setGuestNotes(e.target.value)} placeholder="Notes" />
+
+    <button
+
+      onClick={async () => {
+
+        if (!guestName.trim() || !guestSize.trim()) return;
+
+        const party: WaitParty = {
+
+          id: Date.now(),
+
+          name: guestName.trim(),
+
+          size: guestSize.trim(),
+
+          phone: guestPhone.trim(),
+
+          notes: guestNotes.trim(),
+
+          quotedWait: quotedWait.trim() || "15-20",
+
+          status: "Waiting",
+
+          createdAt: Date.now(),
+
+        };
+
+        await supabase.from("host_waitlist").insert({
+
+          id: party.id,
+
+          data: party,
+
+        });
+
+        setGuestName("");
+
+        setGuestSize("");
+
+        setGuestPhone("");
+
+        setGuestNotes("");
+
+        setQuotedWait("");
+
+      }}
+
+    >
+
+      Add Wait
+
+    </button>
+
+  </div>
+
+  <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+
+    {waitlist.map((party) => (
+
+      <div
+
+        key={party.id}
+
+        style={{
+
+          border: "2px solid #111827",
+
+          borderRadius: 8,
+
+          padding: 10,
+
+          background: party.status === "Paged" ? "#fde68a" : "#f8fafc",
+
+          minWidth: 220,
+
+        }}
+
+      >
+
+        <b>{party.name}</b> — {party.size}
+
+        <br />
+
+        Phone: {party.phone || "N/A"}
+
+        <br />
+
+        Wait: {party.quotedWait}
+
+        <br />
+
+        Status: {party.status}
+
+        <br />
+
+        {party.notes && <>Notes: {party.notes}<br /></>}
+
+        <button
+
+          onClick={async () => {
+
+            await supabase.from("host_waitlist").update({
+
+              data: { ...party, status: "Paged" },
+
+            }).eq("id", party.id);
+
+          }}
+
+        >
+
+          Page
+
+        </button>{" "}
+
+        <button
+
+          onClick={async () => {
+
+            await supabase.from("host_waitlist").delete().eq("id", party.id);
+
+          }}
+
+        >
+
+          Remove
+
+        </button>
+
+      </div>
+
+    ))}
+
+  </div>
+
+</section>
+      
     </main>
 
   );
