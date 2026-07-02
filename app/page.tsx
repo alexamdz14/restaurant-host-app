@@ -392,7 +392,17 @@ export default function Home() {
 
       >
 
-        <h1 style={{ margin: 0 }}>Enrique’s Host Board V2</h1>
+        <h1 style={{ margin: 0 }}>
+
+  Enrique’s OS
+
+  <div style={{ fontSize: 13, color: "#475569", fontWeight: "normal" }}>
+
+    Host • Reservations • Waitlist • Manager
+
+  </div>
+
+</h1>
 
         {!managerUnlocked ? (
 
