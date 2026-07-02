@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { supabase } from "./supabaseClient";
 
@@ -29,6 +29,30 @@ export default function Home() {
   const [editMode, setEditMode] = useState(false);
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  const lastLocalSaveRef = useRef(0);
+
+  async function saveTablesNow(nextTables: TableItem[]) {
+
+    const updatedAt = Date.now();
+
+    lastLocalSaveRef.current = updatedAt;
+
+    await supabase.from("host_tables").upsert({
+
+    id: "main",
+
+    data: {
+
+      tables: nextTables,
+
+      updatedAt,
+
+    },
+
+  });
+
+}
 
   const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
 
@@ -204,43 +228,43 @@ export default function Home() {
 
   }
 
-  function cycleTable(id: string) {
+  async function cycleTable(id: string) {
 
-    if (editMode) return;
+  if (editMode) return;
 
-    setTables((prev) =>
+  const nextTables = tables.map((table) => {
 
-      prev.map((table) => {
+    if (table.id !== id) return table;
 
-        if (table.id !== id) return table;
+    const currentIndex = STATUS_ORDER.indexOf(table.status);
 
-        const currentIndex = STATUS_ORDER.indexOf(table.status);
+    const nextStatus =
 
-        const nextStatus =
+      STATUS_ORDER[(currentIndex + 1) % STATUS_ORDER.length];
 
-          STATUS_ORDER[(currentIndex + 1) % STATUS_ORDER.length];
+    return {
 
-        return {
+      ...table,
 
-          ...table,
+      status: nextStatus,
 
-          status: nextStatus,
+      seatedAt: nextStatus === "Seated" ? Date.now() : table.seatedAt,
 
-          seatedAt: nextStatus === "Seated" ? Date.now() : table.seatedAt,
+      guest: nextStatus === "Open" ? undefined : table.guest,
 
-          guest: nextStatus === "Open" ? undefined : table.guest,
+      partySize: nextStatus === "Open" ? undefined : table.partySize,
 
-          partySize: nextStatus === "Open" ? undefined : table.partySize,
+      server: nextStatus === "Open" ? undefined : table.server,
 
-          server: nextStatus === "Open" ? undefined : table.server,
+    };
 
-        };
+  });
 
-      })
+  setTables(nextTables);
 
-    );
+  await saveTablesNow(nextTables);
 
-  }
+}
 
   function clearBoard() {
 
