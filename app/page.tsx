@@ -554,6 +554,8 @@ export default function Home() {
 
           <Label x={310} y={625} w={335} h={85} text="BAR" blue />
 
+          <Label x={95} y={520} w={150} h={38} text="Take-Out" />
+
           <Label x={1225} y={735} w={255} h={290} text="Casa 1884" />
 
           <Label x={1240} y={120} w={245} h={300} text="San Miguel" />
