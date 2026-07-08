@@ -148,6 +148,10 @@ export default function Home() {
 
         if (data?.data?.tables) {
 
+          const cloudUpdatedAt = data.data.updatedAt || 0;
+
+          if (cloudUpdatedAt >= lastLocalSaveRef.current) {
+
           setTables(data.data.tables);
 
         }
@@ -196,17 +200,11 @@ export default function Home() {
 
     if (!loaded) return;
 
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => {
 
-      await supabase.from("host_tables").upsert({
+      saveTablesNow(tables);
 
-        id: "main",
-
-        data: { tables },
-
-      });
-
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(timer);
 
