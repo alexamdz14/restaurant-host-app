@@ -81,3 +81,25 @@ export interface WaitParty {
   createdAt: number;
 
 }
+
+export type ServerStatus = "Off" | "Checked In" | "Break" | "Cut";
+
+export interface ServerInfo {
+
+  id: string;
+
+  name: string;
+
+  startTime: string;
+
+  cutTime?: string;
+
+  status: ServerStatus;
+
+  color: string;
+
+  tables: string[];
+
+  checkedInAt?: number;
+
+}
