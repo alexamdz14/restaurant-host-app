@@ -154,6 +154,8 @@ export default function Home() {
 
           setTables(data.data.tables);
 
+          }
+
         }
 
       }
