@@ -6,7 +6,7 @@ import { supabase } from "./supabaseClient";
 
 import { ENRIQUES_TABLES } from "./data/enriquesLayout";
 
-import { STATUS_COLORS, TableItem, TableStatus,WaitParty } from "./types/host";
+import { STATUS_COLORS, TableItem, TableStatus,WaitParty,ServerInfo,} from "./types/host";
 
 const STATUS_ORDER: TableStatus[] = ["Open", "Seated", "Boxed", "Dirty"];
 
