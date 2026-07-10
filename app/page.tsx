@@ -30,6 +30,10 @@ export default function Home() {
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
+  const [servers, setServers] = useState<ServerInfo[]>([]);
+
+  const [selectedServer, setSelectedServer] = useState<string | null>(null);
+
   const lastLocalSaveRef = useRef(0);
 
   async function saveTablesNow(nextTables: TableItem[]) {
