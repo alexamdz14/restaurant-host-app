@@ -261,6 +261,64 @@ export default function Home() {
   return true;
 
 }
+
+  async function deleteServer(serverId: string) {
+
+  const server = servers.find((item) => item.id === serverId);
+
+  if (!server) return;
+
+  const confirmed = confirm(
+
+    `Delete ${server.name}? This will also remove their name from assigned tables.`
+
+  );
+
+  if (!confirmed) return;
+
+  const nextTables = tables.map((table) =>
+
+    table.server === server.name
+
+      ? { ...table, server: undefined }
+
+      : table
+
+  );
+
+  const { error } = await supabase
+
+    .from("host_servers")
+
+    .delete()
+
+    .eq("id", serverId);
+
+  if (error) {
+
+    alert(`Could not delete server: ${error.message}`);
+
+    return;
+
+  }
+
+  setServers((current) =>
+
+    current.filter((item) => item.id !== serverId)
+
+  );
+
+  if (selectedServer === serverId) {
+
+    setSelectedServer(null);
+
+  }
+
+  setTables(nextTables);
+
+  await saveTablesNow(nextTables);
+
+}
   
   const lastLocalSaveRef = useRef(0);
 
@@ -960,6 +1018,44 @@ export default function Home() {
 
         </div>
 
+        <button
+
+  onClick={(e) => {
+
+    e.stopPropagation();
+
+    if (confirm(`Delete ${server.name}?`)) {
+
+      deleteServer(server.id);
+
+    }
+
+  }}
+
+  style={{
+
+    background: "#dc2626",
+
+    color: "white",
+
+    border: "none",
+
+    borderRadius: 6,
+
+    padding: "6px 10px",
+
+    marginTop: 8,
+
+    cursor: "pointer",
+
+  }}
+
+>
+
+  Delete Server
+
+</button>
+        
         <div
 
   style={{
