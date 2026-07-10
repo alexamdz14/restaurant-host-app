@@ -81,6 +81,70 @@ export default function Home() {
   );
 
 }
+
+  async function updateServerStatus(
+
+  serverId: string,
+
+  status: "Off" | "Break" | "Cut"
+
+) {
+
+  const server = servers.find((item) => item.id === serverId);
+
+  if (!server) return;
+
+  const updatedServer: ServerInfo = {
+
+    ...server,
+
+    status,
+
+    cutTime:
+
+      status === "Cut"
+
+        ? new Date().toLocaleTimeString([], {
+
+            hour: "numeric",
+
+            minute: "2-digit",
+
+          })
+
+        : server.cutTime,
+
+    checkedInAt: status === "Off" ? undefined : server.checkedInAt,
+
+  };
+
+  const { error } = await supabase.from("host_servers").upsert({
+
+    id: updatedServer.id,
+
+    data: updatedServer,
+
+  });
+
+  if (error) {
+
+    alert(`Could not update server: ${error.message}`);
+
+    return;
+
+  }
+
+  setServers((current) =>
+
+    current.map((item) =>
+
+      item.id === serverId ? updatedServer : item
+
+    )
+
+  );
+
+}
   
   const lastLocalSaveRef = useRef(0);
 
@@ -788,7 +852,11 @@ export default function Home() {
 
     alignItems: "center",
 
-    gap: 8,
+    gap: 6,
+
+    flexWrap: "wrap",
+
+    justifyContent: "flex-end",
 
   }}
 
@@ -815,6 +883,66 @@ export default function Home() {
     >
 
       Check In
+
+    </button>
+
+  )}
+
+  {server.status === "Checked In" && (
+
+    <>
+
+      <button
+
+        onClick={(e) => {
+
+          e.stopPropagation();
+
+          updateServerStatus(server.id, "Cut");
+
+        }}
+
+      >
+
+        Cut
+
+      </button>
+
+      <button
+
+        onClick={(e) => {
+
+          e.stopPropagation();
+
+          updateServerStatus(server.id, "Off");
+
+        }}
+
+      >
+
+        Check Out
+
+      </button>
+
+    </>
+
+  )}
+
+  {server.status === "Cut" && (
+
+    <button
+
+      onClick={(e) => {
+
+        e.stopPropagation();
+
+        updateServerStatus(server.id, "Off");
+
+      }}
+
+    >
+
+      Check Out
 
     </button>
 
