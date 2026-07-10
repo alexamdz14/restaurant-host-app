@@ -264,50 +264,6 @@ export default function Home() {
 
   }
 
-  async function checkInServer(serverId: string) {
-
-    const server = servers.find((item) => item.id === serverId);
-
-    if (!server) return;
-
-  const updatedServer: ServerInfo = {
-
-    ...server,
-
-    status: "Checked In",
-
-    checkedInAt: Date.now(),
-
-  };
-
-  const { error } = await supabase.from("host_servers").upsert({
-
-    id: updatedServer.id,
-
-    data: updatedServer,
-
-  });
-
-  if (error) {
-
-    alert(`Could not check in server: ${error.message}`);
-
-    return;
-
-  }
-
-  setServers((current) =>
-
-    current.map((item) =>
-
-      item.id === serverId ? updatedServer : item
-
-    )
-
-  );
-
-}
-
   const server: ServerInfo = {
 
     id: `server-${Date.now()}`,
@@ -395,6 +351,50 @@ export default function Home() {
     };
 
   });
+
+    async function checkInServer(serverId: string) {
+
+  const server = servers.find((item) => item.id === serverId);
+
+  if (!server) return;
+
+  const updatedServer: ServerInfo = {
+
+    ...server,
+
+    status: "Checked In",
+
+    checkedInAt: Date.now(),
+
+  };
+
+  const { error } = await supabase.from("host_servers").upsert({
+
+    id: updatedServer.id,
+
+    data: updatedServer,
+
+  });
+
+  if (error) {
+
+    alert(`Could not check in server: ${error.message}`);
+
+    return;
+
+  }
+
+  setServers((current) =>
+
+    current.map((item) =>
+
+      item.id === serverId ? updatedServer : item
+
+    )
+
+  );
+
+}
 
   setTables(nextTables);
 
