@@ -10,6 +10,40 @@ import { STATUS_COLORS, TableItem, TableStatus,WaitParty,ServerInfo,} from "./ty
 
 const STATUS_ORDER: TableStatus[] = ["Open", "Seated", "Boxed", "Dirty"];
 
+const SERVER_COLORS = [
+
+  "#2563eb", // blue
+
+  "#16a34a", // green
+
+  "#9333ea", // purple
+
+  "#ea580c", // orange
+
+  "#dc2626", // red
+
+  "#0891b2", // teal
+
+  "#db2777", // pink
+
+  "#ca8a04", // gold
+
+];
+
+function pickServerColor(servers: ServerInfo[]) {
+
+  const usedColors = new Set(servers.map((server) => server.color));
+
+  return (
+
+    SERVER_COLORS.find((color) => !usedColors.has(color)) ||
+
+    SERVER_COLORS[servers.length % SERVER_COLORS.length]
+
+  );
+
+}
+
 const GRID = 5;
 
 const snap = (n: number) => Math.round(n / GRID) * GRID;
@@ -556,7 +590,7 @@ export default function Home() {
 
     status: "Off",
 
-    color: "#2563eb",
+    color: pickServerColor(servers),
 
     tables: [],
 
@@ -1294,7 +1328,43 @@ export default function Home() {
 
                 background: STATUS_COLORS[table.status],
 
-                border: "3px solid #111827",
+                border: table.server
+                  
+                  ? `5px solid ${
+                    
+                    servers.find((server) => server.name === table.server)?.color ||
+                    
+                    "#111827"
+                  
+                  }`
+                
+                : "3px solid #111827",
+
+                boxShadow:
+                  
+                  selectedServer &&
+                  
+                  servers.find((server) => server.id === selectedServer)?.name === table.server
+                  
+                  ? `0 0 0 6px ${
+                    
+                    servers.find((server) => server.id === selectedServer)?.color ||
+                    
+                    "#2563eb"
+                  
+                  }55`
+                  
+                  : "none",
+
+opacity:
+
+  selectedServer &&
+
+  servers.find((server) => server.id === selectedServer)?.name !== table.server
+
+    ? 0.38
+
+    : 1,
 
                 borderRadius: table.seats === "Couch" ? 16 : 8,
 
