@@ -34,6 +34,10 @@ export default function Home() {
 
   const [selectedServer, setSelectedServer] = useState<string | null>(null);
 
+  const [newServerName, setNewServerName] = useState("");
+
+  const [newServerStartTime, setNewServerStartTime] = useState("");
+
   const lastLocalSaveRef = useRef(0);
 
   async function saveTablesNow(nextTables: TableItem[]) {
@@ -248,6 +252,58 @@ export default function Home() {
 
   }, [tables, loaded]);
 
+  async function addServer() {
+
+  const name = newServerName.trim();
+
+  if (!name) {
+
+    alert("Enter the server's name.");
+
+    return;
+
+  }
+
+  const server: ServerInfo = {
+
+    id: `server-${Date.now()}`,
+
+    name,
+
+    startTime: newServerStartTime,
+
+    status: "Off",
+
+    color: "#2563eb",
+
+    tables: [],
+
+  };
+
+  const { error } = await supabase.from("host_servers").upsert({
+
+    id: server.id,
+
+    data: server,
+
+  });
+
+  if (error) {
+
+    alert(`Could not add server: ${error.message}`);
+
+    return;
+
+  }
+
+  setServers((current) => [...current, server]);
+
+  setNewServerName("");
+
+  setNewServerStartTime("");
+
+}
+  
   function unlockManager() {
 
     if (pin.trim() === "1884") {
