@@ -254,6 +254,54 @@ export default function Home() {
 
   async function addServer() {
 
+    async function checkInServer(serverId: string) {
+
+  const server = servers.find((item) => item.id === serverId);
+
+  if (!server) return;
+
+  const updatedServer: ServerInfo = {
+
+    ...server,
+
+    status: "Checked In",
+
+    checkedInAt: Date.now(),
+
+  };
+
+  const { error } = await supabase
+
+    .from("host_servers")
+
+    .upsert({
+
+      id: updatedServer.id,
+
+      data: updatedServer,
+
+    });
+
+  if (error) {
+
+    alert(`Could not check in server: ${error.message}`);
+
+    return;
+
+  }
+
+  setServers((current) =>
+
+    current.map((item) =>
+
+      item.id === serverId ? updatedServer : item
+
+    )
+
+  );
+
+}
+
   const name = newServerName.trim();
 
   if (!name) {
@@ -736,11 +784,47 @@ export default function Home() {
 
         </div>
 
-        <div style={{ fontWeight: "bold" }}>
+        <div
 
-          {server.status}
+  style={{
 
-        </div>
+    display: "flex",
+
+    alignItems: "center",
+
+    gap: 8,
+
+  }}
+
+>
+
+  <span style={{ fontWeight: "bold" }}>
+
+    {server.status}
+
+  </span>
+
+  {server.status !== "Checked In" && (
+
+    <button
+
+      onClick={(e) => {
+
+        e.stopPropagation();
+
+        checkInServer(server.id);
+
+      }}
+
+    >
+
+      Check In
+
+    </button>
+
+  )}
+
+</div>
 
       </div>
 
