@@ -254,11 +254,21 @@ export default function Home() {
 
   async function addServer() {
 
-    async function checkInServer(serverId: string) {
+    const name = newServerName.trim();
 
-  const server = servers.find((item) => item.id === serverId);
+  if (!name) {
 
-  if (!server) return;
+    alert("Enter the server's name.");
+
+    return;
+
+  }
+
+  async function checkInServer(serverId: string) {
+
+    const server = servers.find((item) => item.id === serverId);
+
+    if (!server) return;
 
   const updatedServer: ServerInfo = {
 
@@ -270,17 +280,13 @@ export default function Home() {
 
   };
 
-  const { error } = await supabase
+  const { error } = await supabase.from("host_servers").upsert({
 
-    .from("host_servers")
+    id: updatedServer.id,
 
-    .upsert({
+    data: updatedServer,
 
-      id: updatedServer.id,
-
-      data: updatedServer,
-
-    });
+  });
 
   if (error) {
 
@@ -301,16 +307,6 @@ export default function Home() {
   );
 
 }
-
-  const name = newServerName.trim();
-
-  if (!name) {
-
-    alert("Enter the server's name.");
-
-    return;
-
-  }
 
   const server: ServerInfo = {
 
