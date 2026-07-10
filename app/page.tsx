@@ -727,13 +727,50 @@ export default function Home() {
               }}
 
             >
+              
+<div>{table.id}</div>
 
-              <div>{table.id}</div>
+{table.server && (
 
-              <div style={{ fontSize: 11 }}>{table.seats}</div>
+  <div
 
-              <div style={{ fontSize: 10 }}>{table.status}</div>
+    style={{
 
+      fontSize: 11,
+
+      color: "#0f172a",
+
+      fontWeight: "bold",
+
+      background: "white",
+
+      padding: "1px 6px",
+
+      borderRadius: 20,
+
+      marginTop: 2
+
+    }}
+
+  >
+
+    {table.server}
+
+  </div>
+
+)}
+
+<div style={{ fontSize: 11 }}>
+
+  {table.seats}
+
+</div>
+
+<div style={{ fontSize: 10 }}>
+
+  {table.status}
+
+</div>
             </div>
 
           ))}
