@@ -264,6 +264,8 @@ export default function Home() {
 
   setServers(nextServers);
 
+  setSelectedServer(null);
+
   await saveTablesNow(nextTables);
 
   const { error } = await supabase
