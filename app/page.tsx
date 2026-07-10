@@ -628,7 +628,7 @@ export default function Home() {
 
       partySize: nextStatus === "Open" ? undefined : table.partySize,
 
-      server: nextStatus === "Open" ? undefined : table.server,
+      server: table.server,
 
     };
 
