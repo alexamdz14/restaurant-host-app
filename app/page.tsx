@@ -145,6 +145,122 @@ export default function Home() {
   );
 
 }
+
+  async function assignSelectedServerToTable(tableId: string) {
+
+  if (!selectedServer) return false;
+
+  const selected = servers.find(
+
+    (server) => server.id === selectedServer
+
+  );
+
+  if (!selected) return false;
+
+  const currentTable = tables.find(
+
+    (table) => table.id === tableId
+
+  );
+
+  if (!currentTable) return false;
+
+  const removingAssignment =
+
+    currentTable.server === selected.name;
+
+  const nextTables = tables.map((table) =>
+
+    table.id === tableId
+
+      ? {
+
+          ...table,
+
+          server: removingAssignment
+
+            ? undefined
+
+            : selected.name,
+
+        }
+
+      : table
+
+  );
+
+  const nextServers = servers.map((server) => {
+
+    const withoutTable = server.tables.filter(
+
+      (id) => id !== tableId
+
+    );
+
+    if (
+
+      server.id === selected.id &&
+
+      !removingAssignment
+
+    ) {
+
+      return {
+
+        ...server,
+
+        tables: [...withoutTable, tableId],
+
+      };
+
+    }
+
+    return {
+
+      ...server,
+
+      tables: withoutTable,
+
+    };
+
+  });
+
+  setTables(nextTables);
+
+  setServers(nextServers);
+
+  await saveTablesNow(nextTables);
+
+  const { error } = await supabase
+
+    .from("host_servers")
+
+    .upsert(
+
+      nextServers.map((server) => ({
+
+        id: server.id,
+
+        data: server,
+
+      }))
+
+    );
+
+  if (error) {
+
+    alert(
+
+      `Could not save table assignment: ${error.message}`
+
+    );
+
+  }
+
+  return true;
+
+}
   
   const lastLocalSaveRef = useRef(0);
 
@@ -1054,7 +1170,19 @@ export default function Home() {
 
               onPointerDown={() => startDrag(table.id)}
 
-              onClick={() => cycleTable(table.id)}
+              onClick={async () => {
+                
+                const assigned =
+                  
+                  await assignSelectedServerToTable(table.id);
+                
+                if (!assigned) {
+                  
+                  cycleTable(table.id);
+                
+                }
+              
+              }}
 
               style={{
 
