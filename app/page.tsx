@@ -38,6 +38,18 @@ export default function Home() {
 
   const [newServerStartTime, setNewServerStartTime] = useState("");
 
+  const [servers, setServers] = useState([
+
+  { name: "Ashley", tables: [1,2,3,4,5] },
+
+  { name: "Caleb", tables: [6,7,8,9,10] },
+
+  { name: "Jose", tables: [11,12,13,14,15] },
+
+  { name: "Maria", tables: [16,17,18,19,20] },
+
+  ]);
+
   const lastLocalSaveRef = useRef(0);
 
   async function saveTablesNow(nextTables: TableItem[]) {
