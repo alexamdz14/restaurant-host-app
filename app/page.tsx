@@ -590,6 +590,168 @@ export default function Home() {
 
       <div
 
+  style={{
+
+    border: "2px solid #111827",
+
+    borderRadius: 10,
+
+    padding: 12,
+
+    background: "white",
+
+    marginBottom: 12,
+
+    maxWidth: 520,
+
+  }}
+
+>
+
+  <h2 style={{ marginTop: 0, marginBottom: 10 }}>
+
+    Server Center
+
+  </h2>
+
+  <div
+
+    style={{
+
+      display: "flex",
+
+      gap: 8,
+
+      flexWrap: "wrap",
+
+      marginBottom: 12,
+
+    }}
+
+  >
+
+    <input
+
+      value={newServerName}
+
+      onChange={(e) => setNewServerName(e.target.value)}
+
+      placeholder="Server name"
+
+      style={{
+
+        padding: 8,
+
+        border: "2px solid #111827",
+
+        borderRadius: 8,
+
+      }}
+
+    />
+
+    <input
+
+      type="time"
+
+      value={newServerStartTime}
+
+      onChange={(e) => setNewServerStartTime(e.target.value)}
+
+      style={{
+
+        padding: 8,
+
+        border: "2px solid #111827",
+
+        borderRadius: 8,
+
+      }}
+
+    />
+
+    <button onClick={addServer}>
+
+      Add Server
+
+    </button>
+
+  </div>
+
+  {servers.length === 0 ? (
+
+    <div style={{ color: "#64748b" }}>
+
+      No servers added yet.
+
+    </div>
+
+  ) : (
+
+    servers.map((server) => (
+
+      <div
+
+        key={server.id}
+
+        onClick={() => setSelectedServer(server.id)}
+
+        style={{
+
+          display: "flex",
+
+          justifyContent: "space-between",
+
+          alignItems: "center",
+
+          padding: 10,
+
+          marginBottom: 6,
+
+          border:
+
+            selectedServer === server.id
+
+              ? "3px solid #2563eb"
+
+              : "2px solid #cbd5e1",
+
+          borderRadius: 8,
+
+          cursor: "pointer",
+
+        }}
+
+      >
+
+        <div>
+
+          <strong>{server.name}</strong>
+
+          <div style={{ fontSize: 12 }}>
+
+            Start: {server.startTime || "Not set"}
+
+          </div>
+
+        </div>
+
+        <div style={{ fontWeight: "bold" }}>
+
+          {server.status}
+
+        </div>
+
+      </div>
+
+    ))
+
+  )}
+
+</div>
+
+      <div
+
         style={{
 
           display: "flex",
