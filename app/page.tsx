@@ -204,6 +204,38 @@ export default function Home() {
 
   useEffect(() => {
 
+  async function loadServers() {
+
+    const { data, error } = await supabase
+
+      .from("host_servers")
+
+      .select("id, data");
+
+    if (error) {
+
+      console.error("Could not load servers:", error);
+
+      return;
+
+    }
+
+    const savedServers: ServerInfo[] = (data || [])
+
+      .map((row) => row.data as ServerInfo)
+
+      .filter(Boolean);
+
+    setServers(savedServers);
+
+  }
+
+  loadServers();
+
+}, []);
+
+  useEffect(() => {
+
     if (!loaded) return;
 
     const timer = setTimeout(() => {
