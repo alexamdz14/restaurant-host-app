@@ -264,8 +264,6 @@ export default function Home() {
 
   setServers(nextServers);
 
-  setSelectedServer(null);
-
   await saveTablesNow(nextTables);
 
   const { error } = await supabase
@@ -1012,7 +1010,15 @@ export default function Home() {
 
         key={server.id}
 
-        onClick={() => setSelectedServer(server.id)}
+        onClick={() =>
+
+  setSelectedServer(current =>
+
+    current === server.id ? null : server.id
+
+  )
+
+}
 
         style={{
 
