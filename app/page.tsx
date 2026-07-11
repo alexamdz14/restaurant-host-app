@@ -353,6 +353,198 @@ export default function Home() {
   await saveTablesNow(nextTables);
 
 }
+
+  function printServerSection(serverId: string) {
+
+  const server = servers.find((item) => item.id === serverId);
+
+  if (!server) return;
+
+  const assignedTables = tables
+
+    .filter((table) => table.server === server.name)
+
+    .map((table) => table.id)
+
+    .sort((a, b) =>
+
+      a.localeCompare(b, undefined, { numeric: true })
+
+    );
+
+  const printWindow = window.open("", "_blank");
+
+  if (!printWindow) {
+
+    alert("Please allow pop-ups so the section can print.");
+
+    return;
+
+  }
+
+  const startTime = server.startTime || "Not set";
+
+  const cutTime = server.cutTime || "Not cut";
+
+  const date = new Date().toLocaleDateString();
+
+  printWindow.document.write(`
+
+    <html>
+
+      <head>
+
+        <title>${server.name} Section</title>
+
+        <style>
+
+          body {
+
+            font-family: Arial, sans-serif;
+
+            padding: 28px;
+
+            color: #111827;
+
+          }
+
+          h1 {
+
+            margin-bottom: 4px;
+
+          }
+
+          .subtitle {
+
+            margin-bottom: 24px;
+
+            color: #475569;
+
+          }
+
+          .info {
+
+            border: 2px solid #111827;
+
+            border-radius: 10px;
+
+            padding: 16px;
+
+            margin-bottom: 20px;
+
+          }
+
+          .tables {
+
+            display: grid;
+
+            grid-template-columns: repeat(4, 1fr);
+
+            gap: 12px;
+
+          }
+
+          .table {
+
+            border: 3px solid ${server.color || "#111827"};
+
+            border-radius: 10px;
+
+            padding: 18px;
+
+            text-align: center;
+
+            font-size: 22px;
+
+            font-weight: bold;
+
+          }
+
+          @media print {
+
+            button {
+
+              display: none;
+
+            }
+
+          }
+
+        </style>
+
+      </head>
+
+      <body>
+
+        <h1>Enrique's Mexican Restaurant</h1>
+
+        <div class="subtitle">Server Section Sheet</div>
+
+        <div class="info">
+
+          <b>Server:</b> ${server.name}<br />
+
+          <b>Date:</b> ${date}<br />
+
+          <b>Start Time:</b> ${startTime}<br />
+
+          <b>Status:</b> ${server.status}<br />
+
+          <b>Cut Time:</b> ${cutTime}<br />
+
+          <b>Tables Assigned:</b> ${assignedTables.length}
+
+        </div>
+
+        <h2>Section Tables</h2>
+
+        ${
+
+          assignedTables.length
+
+            ? `
+
+              <div class="tables">
+
+                ${assignedTables
+
+                  .map(
+
+                    (tableId) =>
+
+                      `<div class="table">${tableId}</div>`
+
+                  )
+
+                  .join("")}
+
+              </div>
+
+            `
+
+            : `<p>No tables assigned.</p>`
+
+        }
+
+        <script>
+
+          window.onload = function () {
+
+            window.print();
+
+          };
+
+        </script>
+
+      </body>
+
+    </html>
+
+  `);
+
+  printWindow.document.close();
+
+}
   
   const lastLocalSaveRef = useRef(0);
 
@@ -1157,6 +1349,22 @@ export default function Home() {
         }}
 
       >
+
+        <button
+
+  onClick={(e) => {
+
+    e.stopPropagation();
+
+    printServerSection(server.id);
+
+  }}
+
+>
+
+  Print Section
+
+</button>
 
         Cut
 
