@@ -1546,16 +1546,20 @@ export default function Home() {
 
                 border: table.server
                   
-                  ? `5px solid ${
-                    
+                  ? servers.find((server) => server.name === table.server)?.status === "Cut"
+
+                  ? "5px dashed #64748b"
+
+                  : `5px solid ${
+
                     servers.find((server) => server.name === table.server)?.color ||
                     
                     "#111827"
                   
                   }`
-                
-                : "3px solid #111827",
-
+                  
+                  : "3px solid #111827",
+                  
                 boxShadow:
                   
                   selectedServer &&
@@ -1635,6 +1639,12 @@ opacity:
   >
 
     {table.server}
+    
+    {servers.find((server) => server.name === table.server)?.status === "Cut"
+
+  ? " — CUT"
+
+  : ""}
 
   </div>
 
