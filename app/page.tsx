@@ -1545,21 +1545,25 @@ export default function Home() {
                 background: STATUS_COLORS[table.status],
 
                 border: table.server
-                  
-                  ? servers.find((server) => server.name === table.server)?.status === "Cut"
 
-                  ? "5px dashed #64748b"
+  ? servers.find((server) => server.name === table.server)?.status === "Checked In"
 
-                  : `5px solid ${
+    ? `5px solid ${
 
-                    servers.find((server) => server.name === table.server)?.color ||
-                    
-                    "#111827"
-                  
-                  }`
-                  
-                  : "3px solid #111827",
-                  
+        servers.find((server) => server.name === table.server)?.color ||
+
+        "#111827"
+
+      }`
+
+    : servers.find((server) => server.name === table.server)?.status === "Cut"
+
+      ? "5px dashed #64748b"
+
+      : "4px solid #cbd5e1"
+
+  : "3px solid #111827",
+                
                 boxShadow:
                   
                   selectedServer &&
@@ -1644,7 +1648,11 @@ opacity:
 
   ? " — CUT"
 
-  : ""}
+    : servers.find((server) => server.name === table.server)?.status === "Off"
+
+    ? " — NOT IN"
+
+    : ""}
 
   </div>
 
