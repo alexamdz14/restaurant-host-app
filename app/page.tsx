@@ -211,6 +211,8 @@ setRotation((current) => {
       (name) => name !== updatedServer.name
     
     );
+
+  }
   
   return current;
 
