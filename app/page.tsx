@@ -191,29 +191,27 @@ export default function Home() {
   );
 
 setRotation((current) => {
-
+  
   if (status === "Checked In") {
-
-    if (current.includes(updatedServer.name)) return current;
+  
+    if (current.includes(updatedServer.name)) {
+    
+      return current;
+    
+    }
 
     return [...current, updatedServer.name];
-
+ 
   }
 
   if (status === "Cut" || status === "Off") {
-
-  return current.filter(
-
-    (name) => name !== updatedServer.name
-
-  );
-
-}
-
-    return current.filter((name) => name !== updatedServer.name);
-
-  }
-
+    
+    return current.filter(
+      
+      (name) => name !== updatedServer.name
+    
+    );
+  
   return current;
 
 });
