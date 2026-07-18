@@ -200,13 +200,15 @@ setRotation((current) => {
 
   }
 
-  if (
+  if (status === "Cut" || status === "Off") {
 
-    status === "Cut" ||
+  return current.filter(
 
-    status === "Off" ||
+    (name) => name !== updatedServer.name
 
-  ) {
+  );
+
+}
 
     return current.filter((name) => name !== updatedServer.name);
 
