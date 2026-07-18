@@ -68,6 +68,10 @@ export default function Home() {
 
   const [selectedServer, setSelectedServer] = useState<string | null>(null);
 
+  const [rotation, setRotation] = useState<string[]>([]);
+
+  const [lastSeated, setLastSeated] = useState<Record<string, number>>({});
+
   const [newServerName, setNewServerName] = useState("");
 
   const [newServerStartTime, setNewServerStartTime] = useState("");
@@ -113,6 +117,14 @@ export default function Home() {
     )
 
   );
+
+    setRotation((current) => {
+
+      if (current.includes(updatedServer.name)) return current;
+
+      return [...current, updatedServer.name];
+
+});
 
 }
 
@@ -178,6 +190,32 @@ export default function Home() {
 
   );
 
+setRotation((current) => {
+
+  if (status === "Checked In") {
+
+    if (current.includes(updatedServer.name)) return current;
+
+    return [...current, updatedServer.name];
+
+  }
+
+  if (
+
+    status === "Cut" ||
+
+    status === "Off" ||
+
+  ) {
+
+    return current.filter((name) => name !== updatedServer.name);
+
+  }
+
+  return current;
+
+});
+    
 }
 
   async function assignSelectedServerToTable(tableId: string) {
