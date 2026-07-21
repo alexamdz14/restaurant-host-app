@@ -1560,6 +1560,206 @@ const skipNextServer = () => {
 
           <Label x={810} y={600} w={275} h={48} text="Buffet" />
 
+          <div
+
+  style={{
+
+    position: "absolute",
+
+    left: 810,
+
+    top: 655,
+
+    width: 275,
+
+    background: "white",
+
+    border: "3px solid #111827",
+
+    borderRadius: 10,
+
+    padding: 10,
+
+    zIndex: 3,
+
+  }}
+
+>
+
+  <div
+
+    style={{
+
+      fontWeight: "bold",
+
+      fontSize: 16,
+
+      marginBottom: 8,
+
+      textAlign: "center",
+
+    }}
+
+  >
+
+    SERVER ROTATION
+
+  </div>
+
+  {rotation.length === 0 ? (
+
+    <div
+
+      style={{
+
+        textAlign: "center",
+
+        color: "#64748b",
+
+        fontSize: 13,
+
+      }}
+
+    >
+
+      No servers checked in
+
+    </div>
+
+  ) : (
+
+    <>
+
+      {rotation.map((name, index) => {
+
+        const server = servers.find((s) => s.name === name);
+
+        return (
+
+          <div
+
+            key={name}
+
+            style={{
+
+              display: "flex",
+
+              justifyContent: "space-between",
+
+              alignItems: "center",
+
+              padding: "6px 8px",
+
+              marginBottom: 4,
+
+              borderRadius: 6,
+
+              background:
+
+                index === 0
+
+                  ? "#dcfce7"
+
+                  : index === 1
+
+                  ? "#dbeafe"
+
+                  : "#f8fafc",
+
+            }}
+
+          >
+
+            <div>
+
+              <strong>
+
+                {index === 0
+
+                  ? "🟢 NEXT"
+
+                  : index === 1
+
+                  ? "🔵 ON DECK"
+
+                  : `#${index + 1}`}
+
+              </strong>
+
+              <br />
+
+              {name}
+
+            </div>
+
+            <div
+
+              style={{
+
+                fontSize: 11,
+
+                textAlign: "right",
+
+              }}
+
+            >
+
+              Tables: {server?.tables.length || 0}
+
+            </div>
+
+          </div>
+
+        );
+
+      })}
+
+      <div
+
+        style={{
+
+          display: "flex",
+
+          gap: 8,
+
+          marginTop: 8,
+
+        }}
+
+      >
+
+        <button
+
+          style={{ flex: 1 }}
+
+          onClick={seatNextServer}
+
+        >
+
+          Seat Next
+
+        </button>
+
+        <button
+
+          style={{ flex: 1 }}
+
+          onClick={skipNextServer}
+
+        >
+
+          Skip
+
+        </button>
+
+      </div>
+
+    </>
+
+  )}
+
+</div>
+
           <Label x={310} y={625} w={335} h={85} text="BAR" blue />
 
           <Label x={95} y={520} w={150} h={38} text="Take-Out" />
