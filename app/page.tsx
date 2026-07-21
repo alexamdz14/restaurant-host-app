@@ -120,9 +120,13 @@ export default function Home() {
 
     setRotation((current) => {
 
-      if (current.includes(updatedServer.name)) return current;
+  if (current.includes(updatedServer.name)) {
 
-      return [...current, updatedServer.name];
+    return current;
+
+  }
+
+  return [...current, updatedServer.name];
 
 });
 
@@ -190,34 +194,16 @@ export default function Home() {
 
   );
 
-setRotation((current) => {
-  
-  if (status === "Checked In") {
-  
-    if (current.includes(updatedServer.name)) {
-    
-      return current;
-    
-    }
+setRotation((current) =>
 
-    return [...current, updatedServer.name];
- 
-  }
+  current.filter(
 
-  if (status === "Cut" || status === "Off") {
-    
-    return current.filter(
-      
-      (name) => name !== updatedServer.name
-    
-    );
+    (name) => name !== updatedServer.name
 
-  }
-  
-  return current;
+  )
 
-});
-    
+);
+
 }
 
   const seatNextServer = () => {
@@ -1412,19 +1398,23 @@ const skipNextServer = () => {
 
     <>
 
-      <button
+ <button
 
-        onClick={(e) => {
+  onClick={(e) => {
 
-          e.stopPropagation();
+    e.stopPropagation();
 
-          updateServerStatus(server.id, "Cut");
+    updateServerStatus(server.id, "Cut");
 
-        }}
+  }}
 
-      >
+>
 
-        <button
+  Cut
+
+</button>
+
+<button
 
   onClick={(e) => {
 
@@ -1439,10 +1429,6 @@ const skipNextServer = () => {
   Print Section
 
 </button>
-
-        Cut
-
-      </button>
 
       <button
 
