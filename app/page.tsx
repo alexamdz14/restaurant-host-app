@@ -1558,207 +1558,445 @@ const skipNextServer = () => {
 
           {wall(800, 575, 360, 8)}
 
-          <Label x={810} y={600} w={275} h={48} text="Buffet" />
-
           <div
-
   style={{
-
+    
     position: "absolute",
-
-    left: 810,
-
-    top: 655,
-
-    width: 275,
-
+    
+    left: 785,
+    
+    top: 585,
+    
+    width: 415,
+    
+    height: 205,
+    
     background: "white",
-
+    
     border: "3px solid #111827",
-
+    
     borderRadius: 10,
-
+    
     padding: 10,
-
-    zIndex: 3,
-
+    
+    zIndex: 4,
+    
+    boxSizing: "border-box",
+    
+    overflow: "hidden",
+  
   }}
 
->
-
-  <div
-
-    style={{
-
-      fontWeight: "bold",
-
-      fontSize: 16,
-
-      marginBottom: 8,
-
-      textAlign: "center",
-
-    }}
-
-  >
-
-    SERVER ROTATION
-
-  </div>
-
-  {rotation.length === 0 ? (
-
-    <div
-
-      style={{
-
-        textAlign: "center",
-
-        color: "#64748b",
-
-        fontSize: 13,
-
-      }}
-
-    >
-
-      No servers checked in
-
-    </div>
-
-  ) : (
-
-    <>
-
-      {rotation.map((name, index) => {
-
-        const server = servers.find((s) => s.name === name);
-
-        return (
-
-          <div
-
-            key={name}
-
-            style={{
-
-              display: "flex",
-
-              justifyContent: "space-between",
-
-              alignItems: "center",
-
-              padding: "6px 8px",
-
-              marginBottom: 4,
-
-              borderRadius: 6,
-
-              background:
-
-                index === 0
-
-                  ? "#dcfce7"
-
-                  : index === 1
-
-                  ? "#dbeafe"
-
-                  : "#f8fafc",
-
-            }}
-
-          >
-
-            <div>
-
-              <strong>
-
-                {index === 0
-
-                  ? "🟢 NEXT"
-
-                  : index === 1
-
-                  ? "🔵 ON DECK"
-
-                  : `#${index + 1}`}
-
+            >
+ 
+            {/* Header */}
+ 
+            <div
+    
+              style={{
+     
+                display: "flex",
+      
+                justifyContent: "space-between",
+      
+                alignItems: "center",
+      
+                marginBottom: 8,
+   
+              }}
+ 
+              >
+    
+              <strong style={{ fontSize: 16 }}>
+     
+                SERVER ROTATION
+   
               </strong>
 
-              <br />
+    
+              <span
+     
+                style={{
+        
+                  fontSize: 12,
+        
+                  fontWeight: "bold",
+       
+                  border: "1px solid #94a3b8",
+       
+                  borderRadius: 20,
+       
+                  padding: "3px 7px",
+        
+                  whiteSpace: "nowrap",
+     
+                }}
+    
+                >
+     
+                {rotation.length} Checked In
+   
+              </span>
+ 
+            </div>
 
+  {rotation.length === 0 ? (
+    
+              <div
+      
+                style={{
+       
+                  height: 105,
+       
+                  display: "flex",
+       
+                  alignItems: "center",
+        
+                  justifyContent: "center",
+        
+                  color: "#64748b",
+       
+                  fontSize: 13,
+     
+                }}
+   
+                >
+     
+                No servers checked in
+    
+              </div>
+  
+            ) : (
+    
+              <div
+      
+                style={{
+       
+                  display: "flex",
+      
+                  gap: 6,
+       
+                  overflowX: "auto",
+       
+                  overflowY: "hidden",
+        
+                  paddingBottom: 5,
+       
+                  WebkitOverflowScrolling: "touch",
+      
+                }}
+   
+                >
+      
+                {rotation.map((name, index) => {
+        
+                  const server = servers.find(
+          
+                    (item) => item.name === name
+        
+                  );
+
+        const seatedTime = lastSeated[name];
+
+        const minutesAgo = seatedTime
+         
+          ? Math.max(
+             
+            0,
+              
+            Math.floor(
+              
+              (Date.now() - seatedTime) / 60000
+             
+            )
+           
+          )
+         
+          : null;
+
+        return (
+          
+          <div
+            
+            key={`${name}-${index}`}
+            
+            style={{
+              
+              minWidth: 72,
+              
+              width: 72,
+              
+              height: 104,
+              
+              flexShrink: 0,
+              
+              border: "1px solid #cbd5e1",
+              
+              borderRadius: 8,
+              
+              padding: 6,
+              
+              boxSizing: "border-box",
+              
+              textAlign: "center",
+             
+              background:
+               
+                index === 0
+                  
+                ? "#dcfce7"
+                  
+                : index === 1
+                   
+                ? "#dbeafe"
+                   
+                : "#f8fafc",
+           
+            }}
+          
+            >
+           
+            <div
+              
+              style={{
+                
+                fontSize: 10,
+                
+                fontWeight: "bold",
+                
+                color:
+                  
+                  index === 0
+                    
+                  ? "#15803d"
+                    
+                  : index === 1
+                     
+                  ? "#1d4ed8"
+                    
+                  : "#475569",
+               
+                height: 16,
+             
+              }}
+           
+              >
+              
+              {index === 0
+                
+                ? "● NEXT"
+                
+                : index === 1
+                 
+                ? "● ON DECK"
+                
+              : `#${index + 1}`}
+           
+            </div>
+
+           
+            <div
+              
+              style={{
+                
+                fontSize: 14,
+                
+                fontWeight: "bold",
+                
+                marginTop: 2,
+                
+                overflow: "hidden",
+                
+                textOverflow: "ellipsis",
+                
+                whiteSpace: "nowrap",
+              
+              }}
+             
+              title={name}
+           
+              >
+             
               {name}
-
+            
             </div>
 
             <div
-
+              
               style={{
-
-                fontSize: 11,
-
-                textAlign: "right",
-
+              
+                fontSize: 10,
+                
+                marginTop: 8,
+             
               }}
-
-            >
-
-              Tables: {server?.tables.length || 0}
-
+           
+              >
+             
+              {server?.tables.length || 0}{" "}
+             
+              {(server?.tables.length || 0) === 1
+               
+                ? "Table"
+                
+              : "Tables"}
+           
             </div>
 
+            <div
+              
+              style={{
+                
+                borderTop: "1px solid #cbd5e1",
+                
+                marginTop: 6,
+                
+                paddingTop: 5,
+                
+                fontSize: 10,
+                
+                color: "#475569",
+             
+              }}
+        
+              >
+              
+              {minutesAgo === null
+               
+                ? "—"
+               
+                : minutesAgo === 0
+                 
+                ? "Just now"
+                 
+              : `${minutesAgo}m ago`}
+            
+            </div>
+          
           </div>
-
+       
         );
+     
+                })}
+   
+              </div>
+  
+            )}
 
-      })}
+  
+            {/* Buttons */}
+ 
+            <div
+   
+              style={{
+      
+                position: "absolute",
+      
+                left: 10,
+     
+                right: 10,
+      
+                bottom: 9,
+      
+                display: "flex",
+     
+                gap: 8,
+   
+              }}
+ 
+              >
+   
+              <button
+      
+                onClick={seatNextServer}
+      
+                disabled={rotation.length === 0}
+     
+                style={{
+        
+                  flex: 1,
+        
+                  height: 31,
+        
+                  border: "none",
+       
+                  borderRadius: 7,
+       
+                  background:
+         
+                    rotation.length === 0
+           
+                    ? "#cbd5e1"
+            
+                    : "#16a34a",
+       
+                  color: "white",
+        
+                  fontWeight: "bold",
+        
+                  cursor:
+         
+                    rotation.length === 0
+            
+                    ? "not-allowed"
+           
+                    : "pointer",
+     
+                }}
+    
+                >
+      
+                ✓ Seat Next
+    
+              </button>
 
-      <div
-
-        style={{
-
-          display: "flex",
-
-          gap: 8,
-
-          marginTop: 8,
-
-        }}
-
+    <button
+      
+      onClick={skipNextServer}
+      
+      disabled={rotation.length === 0}
+      
+      style={{
+        
+        flex: 1,
+        
+        height: 31,
+       
+        border: "none",
+        
+        borderRadius: 7,
+        
+        background:
+         
+          rotation.length === 0
+            
+          ? "#cbd5e1"
+           
+          : "#2563eb",
+        
+        color: "white",
+        
+        fontWeight: "bold",
+        
+        cursor:
+          
+          rotation.length === 0
+            
+          ? "not-allowed"
+           
+          : "pointer",
+     
+      }}
+   
       >
+     
+      Skip
+    
+    </button>
+ 
+  </div>
 
-        <button
-
-          style={{ flex: 1 }}
-
-          onClick={seatNextServer}
-
-        >
-
-          Seat Next
-
-        </button>
-
-        <button
-
-          style={{ flex: 1 }}
-
-          onClick={skipNextServer}
-
-        >
-
-          Skip
-
-        </button>
-
-      </div>
-
-    </>
-
-  )}
-
-</div>
+          </div>
 
           <Label x={310} y={625} w={335} h={85} text="BAR" blue />
 
