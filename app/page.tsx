@@ -220,6 +220,40 @@ setRotation((current) => {
     
 }
 
+  const seatNextServer = () => {
+
+  setRotation((current) => {
+
+    if (current.length === 0) return current;
+
+    const next = current[0];
+
+    setLastSeated((previous) => ({
+
+      ...previous,
+
+      [next]: Date.now(),
+
+    }));
+
+    return [...current.slice(1), next];
+
+  });
+
+};
+
+const skipNextServer = () => {
+
+  setRotation((current) => {
+
+    if (current.length === 0) return current;
+
+    return [...current.slice(1), current[0]];
+
+  });
+
+};
+
   async function assignSelectedServerToTable(tableId: string) {
 
   if (!selectedServer) return false;
