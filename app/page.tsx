@@ -889,41 +889,155 @@ const skipNextServer = () => {
   }
 
   async function cycleTable(id: string) {
+ 
+    if (editMode) return;
 
-  if (editMode) return;
+  const currentTable = tables.find(
+   
+    (table) => table.id === id
+ 
+  );
+
+  if (!currentTable) return;
+
+  const currentIndex = STATUS_ORDER.indexOf(
+   
+    currentTable.status
+  
+  );
+
+  const nextStatus =
+    
+    STATUS_ORDER[
+      
+    (currentIndex + 1) % STATUS_ORDER.length
+    
+    ];
+
+  const nextServerName =
+    
+    nextStatus === "Seated" && rotation.length > 0
+      
+    ? rotation[0]
+      
+    : currentTable.server;
 
   const nextTables = tables.map((table) => {
-
+    
     if (table.id !== id) return table;
 
-    const currentIndex = STATUS_ORDER.indexOf(table.status);
-
-    const nextStatus =
-
-      STATUS_ORDER[(currentIndex + 1) % STATUS_ORDER.length];
-
     return {
-
+     
       ...table,
-
+      
       status: nextStatus,
-
-      seatedAt: nextStatus === "Seated" ? Date.now() : table.seatedAt,
-
-      guest: nextStatus === "Open" ? undefined : table.guest,
-
-      partySize: nextStatus === "Open" ? undefined : table.partySize,
-
-      server: table.server,
-
+      
+      seatedAt:
+      
+        nextStatus === "Seated"
+        
+        ? Date.now()
+        
+        : table.seatedAt,
+      
+      guest:
+      
+        nextStatus === "Open"
+        
+        ? undefined
+        
+        : table.guest,
+      
+      partySize:
+      
+        nextStatus === "Open"
+        
+        ? undefined
+        
+        : table.partySize,
+      
+      server: nextServerName,
+    
     };
-
+  
   });
 
   setTables(nextTables);
+  
+    await saveTablesNow(nextTables);
 
-  await saveTablesNow(nextTables);
+  /*
+  
+   * When the table becomes seated,
+   
+   * update the server and rotation.
+   
+   */
+  
+    if (
+    
+      nextStatus === "Seated" &&
+    
+      nextServerName
+  
+    ) {
+    
+      const nextServers = servers.map((server) => {
+      
+        if (server.name !== nextServerName) {
+        
+          return server;
+      }
 
+      return {
+        
+        ...server,
+        
+        tables: server.tables.includes(id)
+        
+          ? server.tables
+          
+          : [...server.tables, id],
+      
+      };
+    
+      });
+
+    setServers(nextServers);
+
+    const { error } = await supabase
+      .from("host_servers")
+      .upsert(
+        nextServers.map((server) => ({
+          id: server.id,
+          data: server,
+        }))
+      );
+
+    if (error) {
+      alert(
+        `Could not update server rotation: ${error.message}`
+      );
+    }
+
+    setLastSeated((previous) => ({
+      ...previous,
+      [nextServerName]: Date.now(),
+    }));
+
+    setRotation((current) => {
+      if (!current.includes(nextServerName)) {
+        return current;
+      }
+
+      return [
+        ...current.filter(
+          (name) => name !== nextServerName
+        ),
+        nextServerName,
+      ];
+    });
+  }
 }
 
   function clearBoard() {
