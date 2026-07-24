@@ -72,6 +72,26 @@ export default function Home() {
 
   const [lastSeated, setLastSeated] = useState<Record<string, number>>({});
 
+  const [seatingServerName, setSeatingServerName] =
+  
+    useState<string | null>(null);
+
+  const [lastSeatAction, setLastSeatAction] = useState<{
+ 
+    tableId: string;
+  
+    serverName: string;
+  
+    previousTable: TableItem;
+  
+    previousRotation: string[];
+  
+    previousLastSeated?: number;
+  
+    createdAt: number;
+
+  } | null>(null);
+
   const [newServerName, setNewServerName] = useState("");
 
   const [newServerStartTime, setNewServerStartTime] = useState("");
@@ -206,27 +226,13 @@ setRotation((current) =>
 
 }
 
-  const seatNextServer = () => {
+const seatNextServer = () => {
+  
+  if (rotation.length === 0) return;
 
-  setRotation((current) => {
-
-    if (current.length === 0) return current;
-
-    const next = current[0];
-
-    setLastSeated((previous) => ({
-
-      ...previous,
-
-      [next]: Date.now(),
-
-    }));
-
-    return [...current.slice(1), next];
-
-  });
-
-};
+  setSeatingServerName(rotation[0]);
+  
+}; 
 
 const skipNextServer = () => {
 
@@ -239,6 +245,157 @@ const skipNextServer = () => {
   });
 
 };
+
+  async function seatRotationServerAtTable(tableId: string) {
+  
+  function cancelSeatingMode() {
+  
+    setSeatingServerName(null);
+
+  }
+
+async function undoLastSeat() {
+  
+  if (!lastSeatAction) return;
+
+  const {
+    
+    tableId,
+   
+    serverName,
+    
+    previousTable,
+   
+    previousRotation,
+    
+    previousLastSeated,
+ 
+  } = lastSeatAction;
+
+  const nextTables = tables.map((table) =>
+    
+    table.id === tableId
+      
+    ? previousTable
+      
+    : table
+  
+  );
+
+  setTables(nextTables);
+  
+  setRotation(previousRotation);
+
+  setLastSeated((previous) => {
+   
+    const next = { ...previous };
+
+    if (previousLastSeated === undefined) {
+     
+      delete next[serverName];
+    
+    } else {
+     
+      next[serverName] = previousLastSeated;
+   
+    }
+
+    return next;
+ 
+  });
+
+  setLastSeatAction(null);
+  
+  setSeatingServerName(null);
+
+  await saveTablesNow(nextTables);
+
+}
+    
+    if (!seatingServerName) return;
+
+  const currentTable = tables.find(
+   
+    (table) => table.id === tableId
+  
+  );
+
+  if (!currentTable) return;
+
+  if (currentTable.status !== "Open") {
+   
+    alert("Please select an open table.");
+   
+    return;
+  
+  }
+
+  const serverName = seatingServerName;
+    
+  const previousRotation = [...rotation];
+  
+    const previousLastSeated = lastSeated[serverName];
+  
+    const seatedAt = Date.now();
+
+  const nextTables = tables.map((table) =>
+    
+    table.id === tableId
+      
+    ? {
+         
+      ...table,
+         
+      status: "Seated" as TableStatus,
+          
+      seatedAt,
+       
+    }
+     
+    : table
+  
+    );
+
+  const nextRotation = [
+    
+    ...rotation.filter((name) => name !== serverName),
+    
+    serverName,
+  
+  ];
+
+  setLastSeatAction({
+    
+    tableId,
+    
+    serverName,
+    
+    previousTable: { ...currentTable },
+    
+    previousRotation,
+    
+    previousLastSeated,
+    
+    createdAt: Date.now(),
+  
+  });
+
+  setTables(nextTables);
+ 
+  setRotation(nextRotation);
+
+  setLastSeated((previous) => ({
+    
+    ...previous,
+   
+    [serverName]: seatedAt,
+ 
+  }));
+
+  setSeatingServerName(null);
+
+  await saveTablesNow(nextTables);
+}
 
   async function assignSelectedServerToTable(tableId: string) {
 
@@ -807,6 +964,32 @@ const skipNextServer = () => {
 }, []);
 
   useEffect(() => {
+  
+    if (!lastSeatAction) return;
+
+  const remainingTime =
+    
+    30000 - (Date.now() - lastSeatAction.createdAt);
+
+  if (remainingTime <= 0) {
+   
+    setLastSeatAction(null);
+   
+    return;
+ 
+  }
+
+  const timer = setTimeout(() => {
+    
+    setLastSeatAction(null);
+  
+  }, remainingTime);
+
+  return () => clearTimeout(timer);
+
+  }, [lastSeatAction]);
+ 
+  useEffect(() => {
 
     if (!loaded) return;
 
@@ -1006,39 +1189,64 @@ const skipNextServer = () => {
     setServers(nextServers);
 
     const { error } = await supabase
+      
       .from("host_servers")
+     
       .upsert(
+        
         nextServers.map((server) => ({
+         
           id: server.id,
+          
           data: server,
+       
         }))
+     
       );
 
     if (error) {
+      
       alert(
+        
         `Could not update server rotation: ${error.message}`
+     
       );
+   
     }
 
     setLastSeated((previous) => ({
+      
       ...previous,
+      
       [nextServerName]: Date.now(),
+    
     }));
 
     setRotation((current) => {
+     
       if (!current.includes(nextServerName)) {
+       
         return current;
+     
       }
 
       return [
+        
         ...current.filter(
+         
           (name) => name !== nextServerName
+       
         ),
+       
         nextServerName,
+     
       ];
+   
     });
+  
+    }
+
   }
-}
 
   function clearBoard() {
 
@@ -1649,6 +1857,95 @@ const skipNextServer = () => {
           }}
 
         >
+          {seatingServerName && (
+  
+          <div
+    
+            style={{
+      
+              position: "absolute",
+      
+              top: 12,
+      
+              left: 500,
+     
+              width: 430,
+      
+              minHeight: 58,
+      
+              background: "#dcfce7",
+      
+              border: "3px solid #16a34a",
+     
+              borderRadius: 10,
+      
+              zIndex: 30,
+      
+              display: "flex",
+      
+              justifyContent: "space-between",
+      
+              alignItems: "center",
+      
+              padding: "8px 12px",
+     
+              boxSizing: "border-box",
+   
+            }}
+  
+            >
+   
+            <div>
+     
+              <strong style={{ fontSize: 17 }}>
+       
+                Seating {seatingServerName}
+     
+              </strong>
+
+      <div style={{ fontSize: 12 }}>
+       
+        Tap an open table
+     
+      </div>
+    
+            </div>
+
+    <button
+      
+      onClick={(event) => {
+       
+        event.stopPropagation();
+        
+        cancelSeatingMode();
+     
+      }}
+      
+      style={{
+        
+        background: "#dc2626",
+        
+        color: "white",
+        
+        border: "none",
+        
+        borderRadius: 7,
+       
+        padding: "7px 12px",
+       
+        fontWeight: "bold",
+     
+      }}
+    
+      >
+     
+      Cancel
+    
+    </button>
+  
+          </div>
+
+        )}
 
           {wall(0, 105, 1240, 6)}
 
@@ -2020,97 +2317,147 @@ const skipNextServer = () => {
  
               >
    
-              <button
-      
-                onClick={seatNextServer}
-      
-                disabled={rotation.length === 0}
-     
-                style={{
-        
-                  flex: 1,
-        
-                  height: 31,
-        
-                  border: "none",
-       
-                  borderRadius: 7,
-       
-                  background:
-         
-                    rotation.length === 0
-           
-                    ? "#cbd5e1"
-            
-                    : "#16a34a",
-       
-                  color: "white",
-        
-                  fontWeight: "bold",
-        
-                  cursor:
-         
-                    rotation.length === 0
-            
-                    ? "not-allowed"
-           
-                    : "pointer",
-     
-                }}
+            {seatingServerName ? (
+  
+                <button
     
-                >
-      
-                ✓ Seat Next
+                  onClick={cancelSeatingMode}
     
-              </button>
+                  style={{
+      
+                    flex: 1,
+      
+                    height: 31,
+     
+                    border: "none",
+      
+                    borderRadius: 7,
+      
+                    background: "#dc2626",
+      
+                    color: "white",
+     
+                    fontWeight: "bold",
+    
+                  }}
+  
+                  >
+    
+                  Cancel Seating
+ 
+                </button>
 
-    <button
+              ) : lastSeatAction ? (
+ 
+                <button
+    
+                  onClick={undoLastSeat}
+    
+                  style={{
+      
+                    flex: 1,
+     
+                    height: 31,
+      
+                    border: "none",
+     
+                    borderRadius: 7,
+     
+                    background: "#ea580c",
+     
+                    color: "white",
+     
+                    fontWeight: "bold",
+    
+                  }}
+  
+                  >
+   
+                  ↩ Undo Last Seat
+ 
+                </button>
+
+              ) : (
+  
+                <>
+   
+                  <button
+     
+                    onClick={seatNextServer}
+     
+                    disabled={rotation.length === 0}
+     
+                    style={{
+        
+                      flex: 1,
+       
+                      height: 31,
+       
+                      border: "none",
+        
+                      borderRadius: 7,
+       
+                      background:
+          
+                        rotation.length === 0
+            
+                        ? "#cbd5e1"
+           
+                        : "#16a34a",
+        
+                      color: "white",
+      
+                      fontWeight: "bold",
+     
+                    }}
+    
+                    >
+     
+                    {rotation.length > 0
+       
+                    ? `Seat ${rotation[0]}`
+       
+                    : "Seat Next"}
+   
+                  </button>
+                  
+                  <button
       
       onClick={skipNextServer}
-      
-      disabled={rotation.length === 0}
-      
-      style={{
-        
-        flex: 1,
-        
-        height: 31,
-       
-        border: "none",
-        
-        borderRadius: 7,
-        
-        background:
-         
-          rotation.length === 0
-            
-          ? "#cbd5e1"
-           
-          : "#2563eb",
-        
-        color: "white",
-        
-        fontWeight: "bold",
-        
-        cursor:
-          
-          rotation.length === 0
-            
-          ? "not-allowed"
-           
-          : "pointer",
      
-      }}
-   
-      >
-     
-      Skip
+                    disabled={rotation.length === 0}
     
-    </button>
+                    style={{
+      
+                      flex: 1,
+      
+                        border: "none",
+     
+                      borderRadius: 7,
+       
+                      background:
+        
+                        rotation.length === 0
+           
+                        ? "#cbd5e1"
+           
+                        : "#2563eb",
+        
+                      color: "white",
+      
+                      fontWeight: "bold",
+     
+                    }}
+   
+                    >
+     
+                    Skip
+   
+                  </button>
  
-  </div>
+                </>
 
-          </div>
+              )}
 
           <Label x={310} y={625} w={335} h={85} text="BAR" blue />
 
@@ -2128,19 +2475,27 @@ const skipNextServer = () => {
 
               onPointerDown={() => startDrag(table.id)}
 
-              onClick={async () => {
-                
-                const assigned =
-                  
-                  await assignSelectedServerToTable(table.id);
-                
-                if (!assigned) {
-                  
-                  cycleTable(table.id);
-                
-                }
-              
-              }}
+            onClick={async () => {
+  
+              if (seatingServerName) {
+   
+                await seatRotationServerAtTable(table.id);
+   
+                return;
+ 
+              }
+
+  const assigned =
+    
+    await assignSelectedServerToTable(table.id);
+
+  if (!assigned) {
+    
+    cycleTable(table.id);
+  
+  }
+
+   }}
 
               style={{
 
@@ -2177,30 +2532,52 @@ const skipNextServer = () => {
   : "3px solid #111827",
                 
                 boxShadow:
-                  
-                  selectedServer &&
-                  
-                  servers.find((server) => server.id === selectedServer)?.name === table.server
-                  
+  
+                  seatingServerName && table.status === "Open"
+    
+                  ? "0 0 0 7px rgba(34, 197, 94, 0.65)"
+   
+                  : selectedServer &&
+        
+                  servers.find(
+          
+                    (server) => server.id === selectedServer
+        
+                  )?.name === table.server
+     
                   ? `0 0 0 6px ${
-                    
-                    servers.find((server) => server.id === selectedServer)?.color ||
-                    
-                    "#2563eb"
-                  
+         
+                    servers.find(
+           
+                      (server) => server.id === selectedServer
+          
+                    )?.color || "#2563eb"
+       
                   }55`
-                  
+      
                   : "none",
 
-opacity:
-
-  selectedServer &&
-
-  servers.find((server) => server.id === selectedServer)?.name !== table.server
-
-    ? 0.38
-
-    : 1,
+                opacity:
+ 
+                  seatingServerName
+   
+                  ? table.status === "Open"
+     
+                  ? 1
+      
+                  : 0.45
+   
+                  : selectedServer &&
+       
+                  servers.find(
+         
+          (server) => server.id === selectedServer
+        
+        )?.name !== table.server
+      
+                  ? 0.38
+      
+                  : 1,
 
                 borderRadius: table.seats === "Couch" ? 16 : 8,
 
