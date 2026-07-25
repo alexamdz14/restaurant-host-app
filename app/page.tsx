@@ -246,13 +246,99 @@ const skipNextServer = () => {
 
 };
 
-  async function seatRotationServerAtTable(tableId: string) {
+ async function seatRotationServerAtTable(tableId: string) {
   
-  function cancelSeatingMode() {
-  
-    setSeatingServerName(null);
+   if (!seatingServerName) return;
 
+  const currentTable = tables.find(
+    
+    (table) => table.id === tableId
+ 
+  );
+
+  if (!currentTable) return;
+
+  if (currentTable.status !== "Open") {
+   
+    alert("Please select an open table.");
+   
+    return;
+ 
   }
+
+  const serverName = seatingServerName;
+  
+   const previousRotation = [...rotation];
+  
+   const previousLastSeated = lastSeated[serverName];
+  
+   const seatedAt = Date.now();
+
+  const nextTables = tables.map((table) =>
+    
+    table.id === tableId
+     
+    ? {
+          
+      ...table,
+         
+      status: "Seated" as TableStatus,
+         
+      seatedAt,
+      
+    }
+    
+    : table
+  
+    );
+
+  const nextRotation = [
+    
+    ...rotation.filter((name) => name !== serverName),
+    
+    serverName,
+ 
+  ];
+
+  setLastSeatAction({
+    
+    tableId,
+   
+    serverName,
+    
+    previousTable: { ...currentTable },
+    
+    previousRotation,
+    
+    previousLastSeated,
+    
+    createdAt: Date.now(),
+ 
+  });
+
+  setTables(nextTables);
+  
+   setRotation(nextRotation);
+
+  setLastSeated((previous) => ({
+   
+    ...previous,
+   
+    [serverName]: seatedAt,
+ 
+  }));
+
+  setSeatingServerName(null);
+
+  await saveTablesNow(nextTables);
+
+ }
+
+function cancelSeatingMode() {
+ 
+  setSeatingServerName(null);
+
+}
 
 async function undoLastSeat() {
   
@@ -265,22 +351,18 @@ async function undoLastSeat() {
     serverName,
     
     previousTable,
-   
-    previousRotation,
     
+    previousRotation,
+   
     previousLastSeated,
  
   } = lastSeatAction;
 
   const nextTables = tables.map((table) =>
-    
-    table.id === tableId
-      
-    ? previousTable
-      
-    : table
+   
+    table.id === tableId ? previousTable : table
   
-  );
+                               );
 
   setTables(nextTables);
   
@@ -295,13 +377,13 @@ async function undoLastSeat() {
       delete next[serverName];
     
     } else {
-     
+    
       next[serverName] = previousLastSeated;
    
     }
 
     return next;
- 
+  
   });
 
   setLastSeatAction(null);
@@ -310,91 +392,6 @@ async function undoLastSeat() {
 
   await saveTablesNow(nextTables);
 
-}
-    
-    if (!seatingServerName) return;
-
-  const currentTable = tables.find(
-   
-    (table) => table.id === tableId
-  
-  );
-
-  if (!currentTable) return;
-
-  if (currentTable.status !== "Open") {
-   
-    alert("Please select an open table.");
-   
-    return;
-  
-  }
-
-  const serverName = seatingServerName;
-    
-  const previousRotation = [...rotation];
-  
-    const previousLastSeated = lastSeated[serverName];
-  
-    const seatedAt = Date.now();
-
-  const nextTables = tables.map((table) =>
-    
-    table.id === tableId
-      
-    ? {
-         
-      ...table,
-         
-      status: "Seated" as TableStatus,
-          
-      seatedAt,
-       
-    }
-     
-    : table
-  
-    );
-
-  const nextRotation = [
-    
-    ...rotation.filter((name) => name !== serverName),
-    
-    serverName,
-  
-  ];
-
-  setLastSeatAction({
-    
-    tableId,
-    
-    serverName,
-    
-    previousTable: { ...currentTable },
-    
-    previousRotation,
-    
-    previousLastSeated,
-    
-    createdAt: Date.now(),
-  
-  });
-
-  setTables(nextTables);
- 
-  setRotation(nextRotation);
-
-  setLastSeated((previous) => ({
-    
-    ...previous,
-   
-    [serverName]: seatedAt,
- 
-  }));
-
-  setSeatingServerName(null);
-
-  await saveTablesNow(nextTables);
 }
 
   async function assignSelectedServerToTable(tableId: string) {
@@ -1970,6 +1967,7 @@ async function undoLastSeat() {
           {wall(800, 575, 360, 8)}
 
           <div
+            
   style={{
     
     position: "absolute",
@@ -2458,6 +2456,10 @@ async function undoLastSeat() {
                 </>
 
               )}
+
+              </div>
+         
+          </div> 
 
           <Label x={310} y={625} w={335} h={85} text="BAR" blue />
 
