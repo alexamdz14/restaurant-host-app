@@ -1141,7 +1141,7 @@ async function undoLastSeat() {
     }
 
     const okay = confirm(
-      "End this shift? This will open all tables, clear active guest/timer data, clear the rotation, and check out all servers. Server profiles and assigned sections will be kept."
+      "End this shift? This will open all tables, clear active guest/timer data, clear the rotation, and check out all servers. Server profiles will be kept, but table assignments will be cleared."
     );
 
     if (!okay) return;
@@ -1158,8 +1158,8 @@ async function undoLastSeat() {
 
       seatedAt: undefined,
 
-      // Keep table.server so the next shift does not lose the saved section layout.
-      server: table.server,
+      // Clear the server name/section assignment from the table for a fresh shift.
+      server: undefined,
 
     }));
 
@@ -1172,6 +1172,8 @@ async function undoLastSeat() {
       checkedInAt: undefined,
 
       cutTime: undefined,
+
+      tables: [],
 
     }));
 
