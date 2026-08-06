@@ -10,18 +10,6 @@ import { STATUS_COLORS, TableItem, TableStatus,WaitParty,ServerInfo,} from "./ty
 
 const STATUS_ORDER: TableStatus[] = ["Open", "Seated", "Boxed", "Dirty"];
 
-type ServerShiftStats = {
-  partiesSat: number;
-  skipCount: number;
-  doubleSitCount: number;
-};
-
-const EMPTY_SERVER_STATS: ServerShiftStats = {
-  partiesSat: 0,
-  skipCount: 0,
-  doubleSitCount: 0,
-};
-
 const SERVER_COLORS = [
 
   "#2563eb", // blue
@@ -84,8 +72,6 @@ export default function Home() {
 
   const [lastSeated, setLastSeated] = useState<Record<string, number>>({});
 
-  const [serverStats, setServerStats] = useState<Record<string, ServerShiftStats>>({});
-
   const [seatingServerName, setSeatingServerName] =
   
     useState<string | null>(null);
@@ -101,8 +87,6 @@ export default function Home() {
     previousRotation: string[];
   
     previousLastSeated?: number;
-
-    previousServerStats: ServerShiftStats;
   
     createdAt: number;
 
@@ -154,25 +138,17 @@ export default function Home() {
 
   );
 
-  const nextRotation = rotation.includes(updatedServer.name)
-    ? rotation
-    : [...rotation, updatedServer.name];
+    setRotation((current) => {
 
-  const nextStats = {
-    ...serverStats,
-    [updatedServer.name]:
-      serverStats[updatedServer.name] || { ...EMPTY_SERVER_STATS },
-  };
+  if (current.includes(updatedServer.name)) {
 
-  setRotation(nextRotation);
-  setServerStats(nextStats);
+    return current;
 
-  await saveHostStateNow(
-    tables,
-    nextRotation,
-    nextStats,
-    lastSeated
-  );
+  }
+
+  return [...current, updatedServer.name];
+
+});
 
 }
 
@@ -238,17 +214,14 @@ export default function Home() {
 
   );
 
-const nextRotation = rotation.filter(
-  (name) => name !== updatedServer.name
-);
+setRotation((current) =>
 
-setRotation(nextRotation);
+  current.filter(
 
-await saveHostStateNow(
-  tables,
-  nextRotation,
-  serverStats,
-  lastSeated
+    (name) => name !== updatedServer.name
+
+  )
+
 );
 
 }
@@ -261,34 +234,15 @@ const seatNextServer = () => {
   
 }; 
 
-const skipNextServer = async () => {
+const skipNextServer = () => {
 
-  if (rotation.length === 0) return;
+  setRotation((current) => {
 
-  const skippedName = rotation[0];
-  const nextRotation =
-    rotation.length <= 1
-      ? rotation
-      : [rotation[1], rotation[0], ...rotation.slice(2)];
+    if (current.length === 0) return current;
 
-  const nextStats = {
-    ...serverStats,
-    [skippedName]: {
-      ...(serverStats[skippedName] || EMPTY_SERVER_STATS),
-      skipCount:
-        (serverStats[skippedName]?.skipCount || 0) + 1,
-    },
-  };
+    return [...current.slice(1), current[0]];
 
-  setRotation(nextRotation);
-  setServerStats(nextStats);
-
-  await saveHostStateNow(
-    tables,
-    nextRotation,
-    nextStats,
-    lastSeated
-  );
+  });
 
 };
 
@@ -317,9 +271,6 @@ const skipNextServer = async () => {
    const previousRotation = [...rotation];
   
    const previousLastSeated = lastSeated[serverName];
-
-   const previousServerStats =
-     serverStats[serverName] || EMPTY_SERVER_STATS;
   
    const seatedAt = Date.now();
 
@@ -349,14 +300,6 @@ const skipNextServer = async () => {
  
   ];
 
-  const nextStats = {
-    ...serverStats,
-    [serverName]: {
-      ...previousServerStats,
-      partiesSat: previousServerStats.partiesSat + 1,
-    },
-  };
-
   setLastSeatAction({
     
     tableId,
@@ -368,8 +311,6 @@ const skipNextServer = async () => {
     previousRotation,
     
     previousLastSeated,
-
-    previousServerStats,
     
     createdAt: Date.now(),
  
@@ -378,8 +319,6 @@ const skipNextServer = async () => {
   setTables(nextTables);
   
    setRotation(nextRotation);
-
-  setServerStats(nextStats);
 
   setLastSeated((previous) => ({
    
@@ -391,12 +330,7 @@ const skipNextServer = async () => {
 
   setSeatingServerName(null);
 
-  await saveHostStateNow(
-    nextTables,
-    nextRotation,
-    nextStats,
-    { ...lastSeated, [serverName]: seatedAt }
-  );
+  await saveTablesNow(nextTables);
 
  }
 
@@ -421,8 +355,6 @@ async function undoLastSeat() {
     previousRotation,
    
     previousLastSeated,
-
-    previousServerStats,
  
   } = lastSeatAction;
 
@@ -435,13 +367,6 @@ async function undoLastSeat() {
   setTables(nextTables);
   
   setRotation(previousRotation);
-
-  const nextStats = {
-    ...serverStats,
-    [serverName]: previousServerStats,
-  };
-
-  setServerStats(nextStats);
 
   setLastSeated((previous) => {
    
@@ -465,20 +390,7 @@ async function undoLastSeat() {
   
   setSeatingServerName(null);
 
-  const nextLastSeated = { ...lastSeated };
-
-  if (previousLastSeated === undefined) {
-    delete nextLastSeated[serverName];
-  } else {
-    nextLastSeated[serverName] = previousLastSeated;
-  }
-
-  await saveHostStateNow(
-    nextTables,
-    previousRotation,
-    nextStats,
-    nextLastSeated
-  );
+  await saveTablesNow(nextTables);
 
 }
 
@@ -850,12 +762,7 @@ async function undoLastSeat() {
   
   const lastLocalSaveRef = useRef(0);
 
-  async function saveHostStateNow(
-    nextTables: TableItem[],
-    nextRotation: string[] = rotation,
-    nextServerStats: Record<string, ServerShiftStats> = serverStats,
-    nextLastSeated: Record<string, number> = lastSeated
-  ) {
+  async function saveTablesNow(nextTables: TableItem[]) {
 
     const updatedAt = Date.now();
 
@@ -863,24 +770,19 @@ async function undoLastSeat() {
 
     await supabase.from("host_tables").upsert({
 
-      id: "main",
+    id: "main",
 
-      data: {
-        tables: nextTables,
-        rotation: nextRotation,
-        serverStats: nextServerStats,
-        lastSeated: nextLastSeated,
-        updatedAt,
-      },
+    data: {
 
-    });
+      tables: nextTables,
 
-  }
+      updatedAt,
 
-  async function saveTablesNow(nextTables: TableItem[]) {
-    await saveHostStateNow(nextTables);
-  }
+    },
 
+  });
+
+}
 
   const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
 
@@ -919,9 +821,6 @@ async function undoLastSeat() {
     if (tableData?.data?.tables) {
 
       setTables(tableData.data.tables);
-      setRotation(tableData.data.rotation || []);
-      setServerStats(tableData.data.serverStats || {});
-      setLastSeated(tableData.data.lastSeated || {});
 
     } else {
 
@@ -984,9 +883,6 @@ async function undoLastSeat() {
           if (cloudUpdatedAt >= lastLocalSaveRef.current) {
 
           setTables(data.data.tables);
-          setRotation(data.data.rotation || []);
-          setServerStats(data.data.serverStats || {});
-          setLastSeated(data.data.lastSeated || {});
 
           }
 
@@ -1150,14 +1046,6 @@ async function undoLastSeat() {
 
   setServers((current) => [...current, server]);
 
-  const nextStats = {
-    ...serverStats,
-    [server.name]: { ...EMPTY_SERVER_STATS },
-  };
-
-  setServerStats(nextStats);
-  await saveHostStateNow(tables, rotation, nextStats, lastSeated);
-
   setNewServerName("");
 
   setNewServerStartTime("");
@@ -1253,7 +1141,7 @@ async function undoLastSeat() {
     }
 
     const okay = confirm(
-      "End this shift? This will open every table, remove guest and server names, clear the Party Queue, reset shift counts, and check out all servers."
+      "End this shift? This will open all tables, clear active guest/timer data, clear the rotation, and check out all servers. Server profiles and assigned sections will be kept."
     );
 
     if (!okay) return;
@@ -1268,66 +1156,66 @@ async function undoLastSeat() {
 
       partySize: undefined,
 
-      // A new shift starts without a server assigned to any table.
-      server: undefined,
-
       seatedAt: undefined,
 
+      // Keep table.server so the next shift does not lose the saved section layout.
+      server: table.server,
+
     }));
 
-    const resetStats = Object.fromEntries(
-      servers.map((server) => [server.name, { ...EMPTY_SERVER_STATS }])
-    );
+    const nextServers = servers.map((server) => ({
 
-    const checkedOutServers = servers.map((server) => ({
       ...server,
+
       status: "Off" as const,
+
       checkedInAt: undefined,
+
       cutTime: undefined,
+
     }));
-
-    const serverRows = checkedOutServers.map((server) => ({
-      id: server.id,
-      data: server,
-    }));
-
-    if (serverRows.length > 0) {
-      const { error: serverError } = await supabase
-        .from("host_servers")
-        .upsert(serverRows);
-
-      if (serverError) {
-        alert(`Could not check out all servers: ${serverError.message}`);
-        return;
-      }
-    }
-
-    const { error: stateError } = await supabase.from("host_tables").upsert({
-      id: "main",
-      data: {
-        tables: nextTables,
-        rotation: [],
-        serverStats: resetStats,
-        lastSeated: {},
-        updatedAt: Date.now(),
-      },
-    });
-
-    if (stateError) {
-      alert(`Could not end shift: ${stateError.message}`);
-      return;
-    }
 
     setTables(nextTables);
-    setServers(checkedOutServers);
+
+    setServers(nextServers);
+
     setRotation([]);
-    setSelectedServer(null);
-    setSeatingServerName(null);
-    setServerStats(resetStats);
+
     setLastSeated({});
+
     setLastSeatAction(null);
 
-    alert("Shift ended. All tables are open and all servers are checked out.");
+    setSeatingServerName(null);
+
+    setSelectedServer(null);
+
+    await saveTablesNow(nextTables);
+
+    if (nextServers.length > 0) {
+
+      const { error } = await supabase.from("host_servers").upsert(
+
+        nextServers.map((server) => ({
+
+          id: server.id,
+
+          data: server,
+
+        }))
+
+      );
+
+      if (error) {
+
+        alert(`Shift ended, but server checkout could not be saved: ${error.message}`);
+
+        return;
+
+      }
+
+    }
+
+    alert("Shift ended. The board is ready for the next service.");
 
   }
 
@@ -2292,16 +2180,14 @@ async function undoLastSeat() {
            
               >
              
-              {serverStats[name]?.partiesSat || 0}{" "}
-
-              {(serverStats[name]?.partiesSat || 0) === 1
-                ? "Party Sat"
-                : "Parties Sat"}
+              {server?.tables.length || 0}{" "}
+             
+              {(server?.tables.length || 0) === 1
+               
+                ? "Table"
+                
+              : "Tables"}
            
-            </div>
-
-            <div style={{ fontSize: 9, color: "#64748b", marginTop: 2 }}>
-              Skips: {serverStats[name]?.skipCount || 0}
             </div>
 
             <div
@@ -3023,3 +2909,5 @@ function Label({
     </div>
 
   );
+
+}
