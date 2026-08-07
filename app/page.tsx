@@ -1133,92 +1133,73 @@ async function undoLastSeat() {
   async function endShift() {
 
     if (!managerUnlocked) {
-
       alert("Manager must unlock first.");
-
       return;
-
     }
 
     const okay = confirm(
-      "End this shift? This will open all tables, clear active guest/timer data, clear the rotation, and check out all servers. Server profiles will be kept, but table assignments will be cleared."
+      "End this shift? This will open all tables, remove server names from the floor, clear the rotation, and check out all servers. Server profiles will be kept."
     );
 
     if (!okay) return;
 
-    const nextTables = tables.map((table) => ({
+    const updatedAt = Date.now();
 
+    const nextTables: TableItem[] = tables.map((table) => ({
       ...table,
-
       status: "Open" as TableStatus,
-
       guest: undefined,
-
       partySize: undefined,
-
       seatedAt: undefined,
-
-      // Clear the server name/section assignment from the table for a fresh shift.
       server: undefined,
-
     }));
 
-    const nextServers = servers.map((server) => ({
-
+    const nextServers: ServerInfo[] = servers.map((server) => ({
       ...server,
-
-      status: "Off" as const,
-
+      status: "Off",
       checkedInAt: undefined,
-
       cutTime: undefined,
-
       tables: [],
-
     }));
 
-    setTables(nextTables);
+    lastLocalSaveRef.current = updatedAt;
 
-    setServers(nextServers);
+    const { error: tableError } = await supabase.from("host_tables").upsert({
+      id: "main",
+      data: { tables: nextTables, updatedAt },
+    });
 
-    setRotation([]);
-
-    setLastSeated({});
-
-    setLastSeatAction(null);
-
-    setSeatingServerName(null);
-
-    setSelectedServer(null);
-
-    await saveTablesNow(nextTables);
-
-    if (nextServers.length > 0) {
-
-      const { error } = await supabase.from("host_servers").upsert(
-
-        nextServers.map((server) => ({
-
-          id: server.id,
-
-          data: server,
-
-        }))
-
-      );
-
-      if (error) {
-
-        alert(`Shift ended, but server checkout could not be saved: ${error.message}`);
-
-        return;
-
-      }
-
+    if (tableError) {
+      alert(`Could not end shift because the floor reset did not save: ${tableError.message}`);
+      return;
     }
 
-    alert("Shift ended. The board is ready for the next service.");
+    if (nextServers.length > 0) {
+      const { error: serverError } = await supabase.from("host_servers").upsert(
+        nextServers.map((server) => ({
+          id: server.id,
+          data: server,
+        }))
+      );
 
+      if (serverError) {
+        alert(`The floor was reset, but server checkout could not be saved: ${serverError.message}`);
+        return;
+      }
+    }
+
+    setTables(nextTables);
+    setServers(nextServers);
+    setRotation([]);
+    setLastSeated({});
+    setLastSeatAction(null);
+    setSeatingServerName(null);
+    setSelectedServer(null);
+    setDraggingId(null);
+    setEditMode(false);
+    setFloorLocked(true);
+
+    alert("Shift ended successfully. Tables are open and server assignments have been cleared.");
   }
 
   function startDrag(id: string) {
