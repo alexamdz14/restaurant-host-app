@@ -796,6 +796,9 @@ async function undoLastSeat() {
 
   const [quotedWait, setQuotedWait] = useState("");
 
+  const [shiftHistory, setShiftHistory] = useState<any[]>([]);
+  const [showShiftHistory, setShowShiftHistory] = useState(false);
+
   const openCount = tables.filter((t) => t.status === "Open").length;
 
   const seatedCount = tables.filter((t) => t.status === "Seated").length;
@@ -846,6 +849,16 @@ async function undoLastSeat() {
 
       setWaitlist(waitData.map((row) => row.data as WaitParty));
 
+    }
+
+    const { data: shiftData, error: shiftError } = await supabase
+      .from("host_shift_history")
+      .select("id, data")
+      .order("created_at", { ascending: false })
+      .limit(30);
+
+    if (!shiftError && shiftData) {
+      setShiftHistory(shiftData.map((row) => row.data).filter(Boolean));
     }
 
     setLoaded(true);
@@ -1131,20 +1144,63 @@ async function undoLastSeat() {
   }
  
   async function endShift() {
-
     if (!managerUnlocked) {
       alert("Manager must unlock first.");
       return;
     }
 
+    const endedAt = Date.now();
+    const activeServers = servers.filter(
+      (server) => server.status !== "Off" || server.checkedInAt
+    );
+
+    const shiftSnapshot = {
+      id: `shift-${endedAt}`,
+      endedAt,
+      date: new Date(endedAt).toLocaleDateString(),
+      endedTime: new Date(endedAt).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+      tableSummary: {
+        open: tables.filter((table) => table.status === "Open").length,
+        seated: tables.filter((table) => table.status === "Seated").length,
+        boxed: tables.filter((table) => table.status === "Boxed").length,
+        dirty: tables.filter((table) => table.status === "Dirty").length,
+      },
+      servers: activeServers.map((server) => ({
+        id: server.id,
+        name: server.name,
+        startTime: server.startTime,
+        cutTime: server.cutTime,
+        status: server.status,
+        checkedInAt: server.checkedInAt,
+        assignedTables: [...server.tables],
+        lastSeatedAt: lastSeated[server.name] || null,
+      })),
+      rotation: [...rotation],
+      waitlist: waitlist.map((party) => ({ ...party })),
+      floor: tables.map((table) => ({ ...table })),
+    };
+
     const okay = confirm(
-      "End this shift? This will open all tables, remove server names from the floor, clear the rotation, and check out all servers. Server profiles will be kept."
+      `End this shift?\n\nServers worked: ${activeServers.length}\nTables currently seated: ${shiftSnapshot.tableSummary.seated}\nWaitlist entries: ${waitlist.length}\n\nA shift archive will be saved BEFORE the board is cleared.`
     );
 
     if (!okay) return;
 
-    const updatedAt = Date.now();
+    const { error: archiveError } = await supabase
+      .from("host_shift_history")
+      .insert({ id: shiftSnapshot.id, data: shiftSnapshot });
 
+    if (archiveError) {
+      alert(
+        `End Shift stopped because the archive could not be saved: ${archiveError.message}\n\nNothing was cleared.`
+      );
+      return;
+    }
+
+    const updatedAt = Date.now();
     const nextTables: TableItem[] = tables.map((table) => ({
       ...table,
       status: "Open" as TableStatus,
@@ -1170,24 +1226,21 @@ async function undoLastSeat() {
     });
 
     if (tableError) {
-      alert(`Could not end shift because the floor reset did not save: ${tableError.message}`);
+      alert(`The shift was archived, but the floor reset did not save: ${tableError.message}`);
       return;
     }
 
     if (nextServers.length > 0) {
       const { error: serverError } = await supabase.from("host_servers").upsert(
-        nextServers.map((server) => ({
-          id: server.id,
-          data: server,
-        }))
+        nextServers.map((server) => ({ id: server.id, data: server }))
       );
-
       if (serverError) {
-        alert(`The floor was reset, but server checkout could not be saved: ${serverError.message}`);
+        alert(`The shift was archived and floor reset, but server checkout could not be saved: ${serverError.message}`);
         return;
       }
     }
 
+    setShiftHistory((current) => [shiftSnapshot, ...current].slice(0, 30));
     setTables(nextTables);
     setServers(nextServers);
     setRotation([]);
@@ -1199,7 +1252,7 @@ async function undoLastSeat() {
     setEditMode(false);
     setFloorLocked(true);
 
-    alert("Shift ended successfully. Tables are open and server assignments have been cleared.");
+    alert("Shift archived and ended successfully.");
   }
 
   function startDrag(id: string) {
@@ -1393,8 +1446,55 @@ async function undoLastSeat() {
         </button>
 
         <button onClick={endShift}>🌙 End Shift</button>
+        <button
+          onClick={() => setShowShiftHistory((current) => !current)}
+          disabled={!managerUnlocked}
+        >
+          {showShiftHistory ? "Hide Shift History" : "📊 Shift History"}
+        </button>
 
       </div>
+
+      {showShiftHistory && managerUnlocked && (
+        <section
+          style={{
+            border: "3px solid #111827",
+            borderRadius: 10,
+            padding: 12,
+            background: "white",
+            marginBottom: 12,
+            maxWidth: 760,
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>Shift History</h2>
+          {shiftHistory.length === 0 ? (
+            <div style={{ color: "#64748b" }}>No archived shifts yet.</div>
+          ) : (
+            shiftHistory.map((shift) => (
+              <div
+                key={shift.id}
+                style={{
+                  border: "2px solid #cbd5e1",
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 8,
+                  background: "#f8fafc",
+                }}
+              >
+                <strong>{shift.date} • {shift.endedTime}</strong>
+                <div style={{ fontSize: 13, marginTop: 4 }}>
+                  Servers: {shift.servers?.length || 0} •{" "}
+                  Seated at close: {shift.tableSummary?.seated || 0} •{" "}
+                  Waitlist entries: {shift.waitlist?.length || 0}
+                </div>
+                <div style={{ fontSize: 12, color: "#475569", marginTop: 4 }}>
+                  {(shift.servers || []).map((server: any) => server.name).join(", ") || "No servers recorded"}
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+      )}
 
       <div
 
