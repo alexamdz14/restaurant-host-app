@@ -61,6 +61,15 @@ type LocalBackup = {
 };
 
 const OFFLINE_QUEUE_KEY = "enriques-os-offline-queue-v1";
+const RECOVERY_SNAPSHOTS_KEY = "enriques-os-recovery-snapshots-v1";
+const MAX_RECOVERY_SNAPSHOTS = 8;
+const AUTO_SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000;
+
+type RecoverySnapshot = LocalBackup & {
+  id: string;
+  label: string;
+  reason: "automatic" | "manual" | "before-end-shift" | "before-restore";
+};
 
 type OfflineOperation =
   | {
@@ -777,6 +786,8 @@ async function undoLastSeat() {
   const [showRecoveryCenter, setShowRecoveryCenter] = useState(false);
   const [recoveryMessage, setRecoveryMessage] = useState("");
 
+  const [recoverySnapshots, setRecoverySnapshots] = useState<RecoverySnapshot[]>([]);
+
   function readOfflineQueue(): OfflineOperation[] {
     if (typeof window === "undefined") return [];
 
@@ -944,6 +955,159 @@ async function undoLastSeat() {
     setIsSyncingOfflineQueue(false);
   }
 
+  function readRecoverySnapshots(): RecoverySnapshot[] {
+    if (typeof window === "undefined") return [];
+
+    try {
+      const raw = window.localStorage.getItem(RECOVERY_SNAPSHOTS_KEY);
+      return raw ? (JSON.parse(raw) as RecoverySnapshot[]) : [];
+    } catch (error) {
+      console.error("Could not read recovery snapshots:", error);
+      return [];
+    }
+  }
+
+  function writeRecoverySnapshots(snapshots: RecoverySnapshot[]) {
+    if (typeof window === "undefined") return;
+
+    try {
+      const trimmed = snapshots
+        .sort((a, b) => b.savedAt - a.savedAt)
+        .slice(0, MAX_RECOVERY_SNAPSHOTS);
+
+      window.localStorage.setItem(
+        RECOVERY_SNAPSHOTS_KEY,
+        JSON.stringify(trimmed)
+      );
+
+      setRecoverySnapshots(trimmed);
+    } catch (error) {
+      console.error("Could not save recovery snapshots:", error);
+    }
+  }
+
+  function createRecoverySnapshot(
+    reason: RecoverySnapshot["reason"],
+    label: string
+  ) {
+    if (typeof window === "undefined") return;
+
+    const savedAt = Date.now();
+
+    const snapshot: RecoverySnapshot = {
+      id: `snapshot-${savedAt}-${Math.random().toString(36).slice(2, 7)}`,
+      label,
+      reason,
+      savedAt,
+      tables,
+      servers,
+      waitlist,
+      rotation,
+      lastSeated,
+      shiftHistory,
+    };
+
+    const current = readRecoverySnapshots();
+    writeRecoverySnapshots([snapshot, ...current]);
+
+    // Keep the latest backup key aligned with the newest snapshot.
+    const backup: LocalBackup = {
+      savedAt,
+      tables,
+      servers,
+      waitlist,
+      rotation,
+      lastSeated,
+      shiftHistory,
+    };
+
+    window.localStorage.setItem(
+      LOCAL_BACKUP_KEY,
+      JSON.stringify(backup)
+    );
+
+    setLastLocalBackupAt(savedAt);
+    return snapshot;
+  }
+
+  async function restoreRecoverySnapshot(snapshotId: string) {
+    const snapshot = recoverySnapshots.find(
+      (item) => item.id === snapshotId
+    );
+
+    if (!snapshot) {
+      alert("That recovery snapshot could not be found.");
+      return;
+    }
+
+    const okay = confirm(
+      `Restore "${snapshot.label}" from ${new Date(
+        snapshot.savedAt
+      ).toLocaleString()}?\n\nThe current board will be saved as a safety snapshot first.`
+    );
+
+    if (!okay) return;
+
+    createRecoverySnapshot(
+      "before-restore",
+      "Safety copy before restore"
+    );
+
+    setTables(snapshot.tables || []);
+    setServers(snapshot.servers || []);
+    setWaitlist(snapshot.waitlist || []);
+    setRotation(snapshot.rotation || []);
+    setLastSeated(snapshot.lastSeated || {});
+    setShiftHistory(snapshot.shiftHistory || []);
+    setLastLocalBackupAt(snapshot.savedAt);
+    setRestoredFromLocal(true);
+
+    await syncOrQueue({
+      type: "host_tables_upsert",
+      payload: {
+        id: "main",
+        data: {
+          tables: snapshot.tables || [],
+          updatedAt: Date.now(),
+        },
+      },
+    });
+
+    if ((snapshot.servers || []).length > 0) {
+      await syncOrQueue({
+        type: "host_servers_upsert",
+        payload: {
+          rows: snapshot.servers.map((server) => ({
+            id: server.id,
+            data: server,
+          })),
+        },
+      });
+    }
+
+    setRecoveryMessage(
+      `Restored "${snapshot.label}". The restored floor/server state is protected and queued for cloud sync if needed.`
+    );
+  }
+
+  function deleteRecoverySnapshot(snapshotId: string) {
+    const snapshot = recoverySnapshots.find(
+      (item) => item.id === snapshotId
+    );
+
+    if (!snapshot) return;
+
+    const okay = confirm(
+      `Delete recovery snapshot "${snapshot.label}"?`
+    );
+
+    if (!okay) return;
+
+    writeRecoverySnapshots(
+      recoverySnapshots.filter((item) => item.id !== snapshotId)
+    );
+  }
+
   function createManualLocalBackup() {
     if (typeof window === "undefined") return;
 
@@ -964,8 +1128,17 @@ async function undoLastSeat() {
         LOCAL_BACKUP_KEY,
         JSON.stringify(backup)
       );
+
+      createRecoverySnapshot(
+        "manual",
+        `Manual backup ${new Date(savedAt).toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        })}`
+      );
+
       setLastLocalBackupAt(savedAt);
-      setRecoveryMessage("Manual backup saved on this iPad.");
+      setRecoveryMessage("Manual backup and recovery snapshot saved on this iPad.");
     } catch (error) {
       console.error("Could not create manual backup:", error);
       setRecoveryMessage("Could not create the manual backup.");
@@ -1101,6 +1274,7 @@ async function undoLastSeat() {
 
     setIsOnline(window.navigator.onLine);
     setPendingSyncCount(readOfflineQueue().length);
+    setRecoverySnapshots(readRecoverySnapshots());
 
     const rawBackup = window.localStorage.getItem(LOCAL_BACKUP_KEY);
 
@@ -1175,6 +1349,30 @@ async function undoLastSeat() {
     if (!isOnline) return;
     flushOfflineQueue();
   }, [isOnline]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !loaded) return;
+
+    const timer = window.setInterval(() => {
+      createRecoverySnapshot(
+        "automatic",
+        `Auto backup ${new Date().toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        })}`
+      );
+    }, AUTO_SNAPSHOT_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [
+    loaded,
+    tables,
+    servers,
+    waitlist,
+    rotation,
+    lastSeated,
+    shiftHistory,
+  ]);
 
   useEffect(() => {
 
@@ -1534,6 +1732,14 @@ async function undoLastSeat() {
     );
 
     if (!okay) return;
+
+    createRecoverySnapshot(
+      "before-end-shift",
+      `Before End Shift ${new Date().toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      })}`
+    );
 
     setShiftHistory((current) =>
       [shiftSnapshot, ...current].slice(0, 30)
@@ -2001,6 +2207,66 @@ async function undoLastSeat() {
               {recoveryMessage}
             </div>
           )}
+
+          <div
+            style={{
+              marginTop: 14,
+              borderTop: "2px solid #e2e8f0",
+              paddingTop: 12,
+            }}
+          >
+            <strong>Recovery Snapshots</strong>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2, marginBottom: 8 }}>
+              The most recent {MAX_RECOVERY_SNAPSHOTS} snapshots are kept on this iPad.
+              Automatic snapshots are created about every 2 minutes during service.
+            </div>
+
+            {recoverySnapshots.length === 0 ? (
+              <div style={{ color: "#64748b", fontSize: 12 }}>
+                No recovery snapshots yet.
+              </div>
+            ) : (
+              recoverySnapshots.map((snapshot) => (
+                <div
+                  key={snapshot.id}
+                  style={{
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    padding: 8,
+                    marginBottom: 6,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                    background: "#f8fafc",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: "bold", fontSize: 12 }}>
+                      {snapshot.label}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#64748b" }}>
+                      {new Date(snapshot.savedAt).toLocaleString()} • {snapshot.reason}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      onClick={() => restoreRecoverySnapshot(snapshot.id)}
+                    >
+                      Restore
+                    </button>
+                    <button
+                      onClick={() => deleteRecoverySnapshot(snapshot.id)}
+                      style={{ background: "#fee2e2" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
 
           <div
             style={{
