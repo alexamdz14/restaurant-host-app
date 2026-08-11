@@ -60,7 +60,6 @@ type LocalBackup = {
   shiftHistory: any[];
   partyCounts?: Record<string, number>;
   reservations?: ReservationRecord[];
-  activeFloorCheck?: FloorCheckSession | null;
 };
 
 type ReservationRecord = {
@@ -76,24 +75,6 @@ type ReservationRecord = {
   createdAt: number;
   syncDeviceId?: string;
   syncUpdatedAt?: number;
-};
-
-type FloorCheckItem = {
-  clean: boolean;
-  menus: boolean;
-  silverware: boolean;
-  salsa: boolean;
-  chairs: boolean;
-  maintenanceNote: string;
-};
-
-type FloorCheckSession = {
-  id: string;
-  startedAt: number;
-  completedAt?: number;
-  mode: "Opening" | "Shift Change" | "Closing";
-  tableChecks: Record<string, FloorCheckItem>;
-  completed: boolean;
 };
 
 const OFFLINE_QUEUE_KEY = "enriques-os-offline-queue-v1";
@@ -166,12 +147,6 @@ type OfflineOperation =
   | {
       id: string;
       createdAt: number;
-      type: "host_floor_checks_upsert";
-      payload: { id: string; data: FloorCheckSession };
-    }
-  | {
-      id: string;
-      createdAt: number;
       type: "host_shift_history_insert";
       payload: { id: string; data: any };
     };
@@ -179,6 +154,8 @@ type OfflineOperation =
 export default function Home() {
 
   const [tables, setTables] = useState<TableItem[]>(ENRIQUES_TABLES);
+
+  const [timerNow, setTimerNow] = useState(Date.now());
 
   const [loaded, setLoaded] = useState(false);
 
@@ -218,15 +195,8 @@ export default function Home() {
     useState<string | null>(null);
 
   const [floorCheckMode, setFloorCheckMode] = useState(false);
-  const [floorCheckType, setFloorCheckType] = useState<
-    "Opening" | "Shift Change" | "Closing"
-  >("Opening");
-  const [activeFloorCheck, setActiveFloorCheck] =
-    useState<FloorCheckSession | null>(null);
-  const [floorCheckTableId, setFloorCheckTableId] =
-    useState<string | null>(null);
-  const [showFloorCheckSummary, setShowFloorCheckSummary] =
-    useState(false);
+  const [floorCheckStatus, setFloorCheckStatus] =
+    useState<TableStatus | null>(null);
 
   const [rotation, setRotation] = useState<string[]>([]);
 
@@ -963,6 +933,7 @@ async function undoLastSeat() {
             ...table,
             status: "Seated" as TableStatus,
             seatedAt: now,
+            statusStartedAt: now,
             partySize: String(parsedGuests),
           }
         : table
@@ -1135,126 +1106,197 @@ async function undoLastSeat() {
     });
   }
 
-  function createBlankFloorCheckItem(): FloorCheckItem {
-    return {
-      clean: false,
-      menus: false,
-      silverware: false,
-      salsa: false,
-      chairs: false,
-      maintenanceNote: "",
+  function getTableTimerStart(table: TableItem) {
+    const timedTable = table as TableItem & {
+      statusStartedAt?: number;
+      seatedAt?: number;
     };
+
+    if (table.status === "Open") return null;
+
+    if (table.status === "Seated") {
+      return timedTable.seatedAt || timedTable.statusStartedAt || null;
+    }
+
+    return timedTable.statusStartedAt || timedTable.seatedAt || null;
   }
 
-  function startFloorCheck() {
-    const tableChecks: Record<string, FloorCheckItem> = {};
+  function getElapsedMinutes(table: TableItem) {
+    const startedAt = getTableTimerStart(table);
 
-    tables
-      .filter((table) => table.seats !== "Couch")
-      .forEach((table) => {
-        tableChecks[table.id] = createBlankFloorCheckItem();
-      });
+    if (!startedAt) return null;
 
-    setActiveFloorCheck({
-      id: `floor-check-${Date.now()}`,
-      startedAt: Date.now(),
-      mode: floorCheckType,
-      tableChecks,
-      completed: false,
-    });
-
-    setFloorCheckMode(true);
-    setFloorCheckTableId(null);
-    setShowFloorCheckSummary(false);
-  }
-
-  function updateFloorCheckItem(
-    tableId: string,
-    updates: Partial<FloorCheckItem>
-  ) {
-    setActiveFloorCheck((current) => {
-      if (!current) return current;
-
-      return {
-        ...current,
-        tableChecks: {
-          ...current.tableChecks,
-          [tableId]: {
-            ...(current.tableChecks[tableId] ||
-              createBlankFloorCheckItem()),
-            ...updates,
-          },
-        },
-      };
-    });
-  }
-
-  function isFloorCheckTableReady(tableId: string) {
-    const item = activeFloorCheck?.tableChecks[tableId];
-
-    if (!item) return false;
-
-    return (
-      item.clean &&
-      item.menus &&
-      item.silverware &&
-      item.salsa &&
-      item.chairs &&
-      !item.maintenanceNote.trim()
+    return Math.max(
+      0,
+      Math.floor((timerNow - startedAt) / 60000)
     );
   }
 
-  function getFloorCheckProgress() {
-    if (!activeFloorCheck) {
-      return { complete: 0, total: 0, percent: 0 };
-    }
+  function formatElapsedMinutes(minutes: number | null) {
+    if (minutes === null) return "";
 
-    const entries = Object.entries(activeFloorCheck.tableChecks);
-    const total = entries.length;
-    const complete = entries.filter(([tableId]) =>
-      isFloorCheckTableReady(tableId)
-    ).length;
-    const percent =
-      total === 0 ? 0 : Math.round((complete / total) * 100);
+    if (minutes < 60) return `${minutes}m`;
 
-    return { complete, total, percent };
+    const hours = Math.floor(minutes / 60);
+    const remaining = minutes % 60;
+
+    return remaining === 0
+      ? `${hours}h`
+      : `${hours}h ${remaining}m`;
   }
 
-  async function completeFloorCheck() {
-    if (!activeFloorCheck) return;
+  function getTimerBadgeStyle(table: TableItem) {
+    const minutes = getElapsedMinutes(table);
 
-    const progress = getFloorCheckProgress();
-
-    if (progress.complete !== progress.total) {
-      const okay = confirm(
-        `${progress.total - progress.complete} tables still need attention. Complete this floor check anyway?`
-      );
-
-      if (!okay) return;
+    if (minutes === null) {
+      return {
+        background: "white",
+        color: "#475569",
+        border: "1px solid #cbd5e1",
+      };
     }
 
-    const completedSession: FloorCheckSession = {
-      ...activeFloorCheck,
-      completedAt: Date.now(),
-      completed: true,
+    if (table.status === "Dirty") {
+      return minutes >= 5
+        ? {
+            background: "#fee2e2",
+            color: "#991b1b",
+            border: "2px solid #dc2626",
+          }
+        : {
+            background: "#fef2f2",
+            color: "#7f1d1d",
+            border: "1px solid #f87171",
+          };
+    }
+
+    if (table.status === "Boxed") {
+      return minutes >= 10
+        ? {
+            background: "#fef3c7",
+            color: "#92400e",
+            border: "2px solid #d97706",
+          }
+        : {
+            background: "#fffbeb",
+            color: "#78350f",
+            border: "1px solid #f59e0b",
+          };
+    }
+
+    if (table.status === "Seated") {
+      if (minutes >= 90) {
+        return {
+          background: "#fee2e2",
+          color: "#991b1b",
+          border: "2px solid #dc2626",
+        };
+      }
+
+      if (minutes >= 60) {
+        return {
+          background: "#fef3c7",
+          color: "#92400e",
+          border: "2px solid #d97706",
+        };
+      }
+
+      return {
+        background: "#ecfdf5",
+        color: "#166534",
+        border: "1px solid #16a34a",
+      };
+    }
+
+    return {
+      background: "white",
+      color: "#475569",
+      border: "1px solid #cbd5e1",
     };
-
-    setActiveFloorCheck(completedSession);
-    setShowFloorCheckSummary(true);
-
-    await syncOrQueue({
-      type: "host_floor_checks_upsert",
-      payload: {
-        id: completedSession.id,
-        data: completedSession,
-      },
-    });
   }
 
-  function exitFloorCheck() {
-    setFloorCheckMode(false);
-    setFloorCheckTableId(null);
-    setShowFloorCheckSummary(false);
+  function getLongestTableByStatus(status: TableStatus) {
+    const candidates = tables
+      .filter((table) => table.status === status)
+      .map((table) => ({
+        table,
+        minutes: getElapsedMinutes(table),
+      }))
+      .filter(
+        (item): item is { table: TableItem; minutes: number } =>
+          item.minutes !== null
+      )
+      .sort((a, b) => b.minutes - a.minutes);
+
+    return candidates[0] || null;
+  }
+
+  async function applyFloorCheckStatus(tableId: string) {
+    const table = tables.find((item) => item.id === tableId);
+    if (!table) return;
+
+    let nextStatus: TableStatus;
+
+    if (floorCheckStatus) {
+      nextStatus = floorCheckStatus;
+    } else {
+      const cycle: TableStatus[] = [
+        "Seated",
+        "Boxed",
+        "Dirty",
+        "Open",
+      ];
+
+      const currentIndex = cycle.indexOf(table.status);
+      nextStatus =
+        cycle[(currentIndex + 1 + cycle.length) % cycle.length];
+    }
+
+    const now = Date.now();
+
+    const nextTables = tables.map((item) => {
+      if (item.id !== tableId) return item;
+
+      const timedItem = item as TableItem & {
+        statusStartedAt?: number;
+      };
+
+      if (nextStatus === "Open") {
+        return {
+          ...item,
+          status: "Open" as TableStatus,
+          guest: undefined,
+          partySize: undefined,
+          seatedAt: undefined,
+          statusStartedAt: undefined,
+        };
+      }
+
+      if (nextStatus === "Seated") {
+        return {
+          ...item,
+          status: "Seated" as TableStatus,
+          seatedAt: item.seatedAt || now,
+          statusStartedAt:
+            item.status === "Seated"
+              ? timedItem.statusStartedAt || item.seatedAt || now
+              : now,
+        };
+      }
+
+      return {
+        ...item,
+        status: nextStatus,
+        seatedAt: item.seatedAt || now,
+        statusStartedAt:
+          item.status === nextStatus
+            ? timedItem.statusStartedAt || now
+            : now,
+      };
+    });
+
+    setTables(nextTables);
+    await saveTablesNow(nextTables);
   }
 
   function getReservationForTable(tableId: string) {
@@ -1552,22 +1594,6 @@ async function undoLastSeat() {
       return;
     }
 
-    if (operation.type === "host_floor_checks_upsert") {
-      const { error } = await supabase
-        .from("host_floor_checks")
-        .upsert({
-          ...operation.payload,
-          data: {
-            ...operation.payload.data,
-            syncDeviceId:
-              deviceIdRef.current || getOrCreateDeviceId(),
-            syncUpdatedAt: operation.createdAt,
-          },
-        });
-      if (error) throw error;
-      return;
-    }
-
     if (operation.type === "host_shift_history_insert") {
       const { error } = await supabase
         .from("host_shift_history")
@@ -1755,7 +1781,6 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
-      activeFloorCheck,
     };
 
     const current = readRecoverySnapshots();
@@ -1772,7 +1797,6 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
-      activeFloorCheck,
     };
 
     window.localStorage.setItem(
@@ -1815,7 +1839,6 @@ async function undoLastSeat() {
     setShiftHistory(snapshot.shiftHistory || []);
     setPartyCounts(snapshot.partyCounts || {});
     setReservations(snapshot.reservations || []);
-    setActiveFloorCheck(snapshot.activeFloorCheck || null);
     setLastLocalBackupAt(snapshot.savedAt);
     setRestoredFromLocal(true);
 
@@ -1880,7 +1903,6 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
-      activeFloorCheck,
     };
 
     try {
@@ -1937,7 +1959,6 @@ async function undoLastSeat() {
       setShiftHistory(backup.shiftHistory || []);
       setPartyCounts(backup.partyCounts || {});
       setReservations(backup.reservations || []);
-      setActiveFloorCheck(backup.activeFloorCheck || null);
       setLastLocalBackupAt(backup.savedAt || Date.now());
       setRestoredFromLocal(true);
 
@@ -2054,9 +2075,6 @@ async function undoLastSeat() {
         if (backup.shiftHistory) setShiftHistory(backup.shiftHistory);
         if (backup.partyCounts) setPartyCounts(backup.partyCounts);
         if (backup.reservations) setReservations(backup.reservations);
-        if (backup.activeFloorCheck) {
-          setActiveFloorCheck(backup.activeFloorCheck);
-        }
 
         if (backup.savedAt) {
           setLastLocalBackupAt(backup.savedAt);
@@ -2095,7 +2113,6 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
-      activeFloorCheck,
     };
 
     try {
@@ -2117,7 +2134,6 @@ async function undoLastSeat() {
     shiftHistory,
     partyCounts,
     reservations,
-    activeFloorCheck,
   ]);
 
   useEffect(() => {
@@ -2149,8 +2165,15 @@ async function undoLastSeat() {
     shiftHistory,
     partyCounts,
     reservations,
-    activeFloorCheck,
   ]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTimerNow(Date.now());
+    }, 15000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
 
@@ -2601,7 +2624,6 @@ async function undoLastSeat() {
       rotation: [...rotation],
       waitlist: waitlist.map((party) => ({ ...party })),
       reservations: reservations.map((reservation) => ({ ...reservation })),
-      floorCheck: activeFloorCheck,
       floor: tables.map((table) => ({ ...table })),
     };
 
@@ -2639,6 +2661,7 @@ async function undoLastSeat() {
       guest: undefined,
       partySize: undefined,
       seatedAt: undefined,
+      statusStartedAt: undefined,
       server: undefined,
     }));
 
@@ -2665,9 +2688,7 @@ async function undoLastSeat() {
     setPartyServerId(null);
     setPartyGuestCount("");
     setFloorCheckMode(false);
-    setActiveFloorCheck(null);
-    setFloorCheckTableId(null);
-    setShowFloorCheckSummary(false);
+    setFloorCheckStatus(null);
     setDraggingId(null);
     setEditMode(false);
     setFloorLocked(true);
@@ -2957,15 +2978,17 @@ async function undoLastSeat() {
 
         <button
           onClick={() => {
-            if (floorCheckMode) {
-              exitFloorCheck();
-            } else {
-              setFloorCheckMode(true);
-            }
-
+            setFloorCheckMode((current) => !current);
+            setFloorCheckStatus(null);
             setPartySeatingMode(false);
             setSelectedPartyTables([]);
             setPlannerSelectedReservationId(null);
+            setSeatingServerName(null);
+            setSelectedServer(null);
+          }}
+          style={{
+            background: floorCheckMode ? "#111827" : undefined,
+            color: floorCheckMode ? "white" : undefined,
           }}
         >
           {floorCheckMode ? "Close Floor Check" : "🧹 Floor Check"}
@@ -3622,256 +3645,91 @@ async function undoLastSeat() {
       {floorCheckMode && (
         <section
           style={{
-            border: "4px solid #16a34a",
+            border: "4px solid #111827",
             borderRadius: 12,
             padding: 12,
-            background: "#f0fdf4",
+            background: "white",
             marginBottom: 14,
           }}
         >
-          <h2 style={{ marginTop: 0, marginBottom: 6 }}>
-            🧹 Floor Check Mode
-          </h2>
-
-          {!activeFloorCheck ? (
-            <>
-              <div style={{ fontSize: 13, color: "#475569", marginBottom: 10 }}>
-                Start an opening, shift-change, or closing floor inspection.
-              </div>
-
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <select
-                  value={floorCheckType}
-                  onChange={(event) =>
-                    setFloorCheckType(
-                      event.target.value as
-                        | "Opening"
-                        | "Shift Change"
-                        | "Closing"
-                    )
-                  }
-                  style={{ padding: 8 }}
-                >
-                  <option>Opening</option>
-                  <option>Shift Change</option>
-                  <option>Closing</option>
-                </select>
-
-                <button
-                  onClick={startFloorCheck}
-                  style={{
-                    background: "#16a34a",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "9px 14px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Start Floor Check
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              {(() => {
-                const progress = getFloorCheckProgress();
-
-                return (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 12,
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      marginBottom: 10,
-                    }}
-                  >
-                    <strong>{activeFloorCheck.mode} Floor Check</strong>
-                    <span>
-                      {progress.complete}/{progress.total} Ready
-                    </span>
-                    <span>{progress.percent}%</span>
-                  </div>
-                );
-              })()}
-
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0 }}>🧹 Floor Check</h2>
               <div
                 style={{
                   fontSize: 12,
                   color: "#475569",
-                  marginBottom: 10,
+                  marginTop: 3,
                 }}
               >
-                Tap a table on the floor map to inspect it.
-                Green outline = ready. Orange outline = needs attention.
+                Walk the floor and update the real table status.
               </div>
+            </div>
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {(
+                [
+                  ["Seated", "#bfdbfe"],
+                  ["Boxed", "#fde68a"],
+                  ["Dirty", "#f87171"],
+                  ["Open", "#d8f5df"],
+                ] as Array<[TableStatus, string]>
+              ).map(([status, background]) => (
                 <button
-                  onClick={completeFloorCheck}
+                  key={status}
+                  onClick={() =>
+                    setFloorCheckStatus((current) =>
+                      current === status ? null : status
+                    )
+                  }
                   style={{
-                    background: "#16a34a",
-                    color: "white",
-                    border: "none",
+                    background,
+                    border:
+                      floorCheckStatus === status
+                        ? "4px solid #111827"
+                        : "2px solid #64748b",
                     borderRadius: 8,
                     padding: "8px 12px",
                     fontWeight: "bold",
                   }}
                 >
-                  Complete Floor Check
+                  {status === "Open" ? "Open / Clean" : status}
                 </button>
+              ))}
+            </div>
+          </div>
 
-                <button
-                  onClick={() => {
-                    const okay = confirm(
-                      "Discard this active floor check?"
-                    );
-
-                    if (!okay) return;
-
-                    setActiveFloorCheck(null);
-                    setFloorCheckTableId(null);
-                    setShowFloorCheckSummary(false);
-                  }}
-                >
-                  Start Over
-                </button>
-              </div>
-
-              {showFloorCheckSummary && (() => {
-                const progress = getFloorCheckProgress();
-
-                const remaining = Object.keys(
-                  activeFloorCheck.tableChecks
-                ).filter(
-                  (tableId) => !isFloorCheckTableReady(tableId)
-                );
-
-                return (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      border: "2px solid #111827",
-                      borderRadius: 8,
-                      background: "white",
-                      padding: 10,
-                    }}
-                  >
-                    <strong>
-                      Floor Check Saved • {progress.percent}%
-                    </strong>
-
-                    {remaining.length === 0 ? (
-                      <div style={{ marginTop: 5 }}>
-                        ✅ All checked tables are ready.
-                      </div>
-                    ) : (
-                      <div style={{ marginTop: 5 }}>
-                        ⚠ Needs attention: {remaining.join(", ")}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </>
-          )}
+          <div
+            style={{
+              marginTop: 10,
+              padding: 8,
+              borderRadius: 8,
+              background: "#f8fafc",
+              fontSize: 12,
+            }}
+          >
+            {floorCheckStatus ? (
+              <>
+                <strong>{floorCheckStatus === "Open" ? "Open / Clean" : floorCheckStatus}</strong>{" "}
+                selected — tap as many tables as needed.
+              </>
+            ) : (
+              <>
+                <strong>Quick Cycle:</strong> tap each table to move{" "}
+                Seated → Boxed → Dirty → Open.
+              </>
+            )}
+          </div>
         </section>
       )}
-
-      {floorCheckMode &&
-        activeFloorCheck &&
-        floorCheckTableId &&
-        (() => {
-          const item =
-            activeFloorCheck.tableChecks[floorCheckTableId] ||
-            createBlankFloorCheckItem();
-
-          return (
-            <section
-              style={{
-                border: "4px solid #111827",
-                borderRadius: 12,
-                padding: 12,
-                background: "white",
-                marginBottom: 14,
-                maxWidth: 720,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <h2 style={{ margin: 0 }}>
-                  Table {floorCheckTableId}
-                </h2>
-                <button onClick={() => setFloorCheckTableId(null)}>
-                  Close
-                </button>
-              </div>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                  gap: 7,
-                  marginTop: 10,
-                }}
-              >
-                {[
-                  ["clean", "Clean"],
-                  ["menus", "Menus"],
-                  ["silverware", "Silverware"],
-                  ["salsa", "Salsa"],
-                  ["chairs", "Chairs"],
-                ].map(([key, label]) => (
-                  <button
-                    key={key}
-                    onClick={() =>
-                      updateFloorCheckItem(floorCheckTableId, {
-                        [key]: !item[key as keyof FloorCheckItem],
-                      } as Partial<FloorCheckItem>)
-                    }
-                    style={{
-                      padding: 9,
-                      borderRadius: 8,
-                      border: "2px solid #111827",
-                      background: item[key as keyof FloorCheckItem]
-                        ? "#dcfce7"
-                        : "#fff7ed",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {item[key as keyof FloorCheckItem] ? "✓ " : ""}
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <input
-                value={item.maintenanceNote}
-                onChange={(event) =>
-                  updateFloorCheckItem(floorCheckTableId, {
-                    maintenanceNote: event.target.value,
-                  })
-                }
-                placeholder="Maintenance issue / note"
-                style={{
-                  marginTop: 9,
-                  padding: 9,
-                  width: "100%",
-                  boxSizing: "border-box",
-                  border: "2px solid #111827",
-                  borderRadius: 8,
-                }}
-              />
-            </section>
-          );
-        })()}
 
       {reservationBookOpen && (
         <section
@@ -4518,6 +4376,74 @@ async function undoLastSeat() {
         <Summary label="Dirty" value={dirtyCount} color={STATUS_COLORS.Dirty} />
 
       </div>
+
+      {(() => {
+        const longestSeated = getLongestTableByStatus("Seated");
+        const longestBoxed = getLongestTableByStatus("Boxed");
+        const longestDirty = getLongestTableByStatus("Dirty");
+
+        return (
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                background: "#ecfdf5",
+                border: "2px solid #16a34a",
+                borderRadius: 8,
+                padding: 8,
+                minWidth: 150,
+              }}
+            >
+              <strong>⏱ Longest Seated</strong>
+              <div style={{ fontSize: 12, marginTop: 3 }}>
+                {longestSeated
+                  ? `Table ${longestSeated.table.id} • ${formatElapsedMinutes(longestSeated.minutes)}`
+                  : "—"}
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "#fffbeb",
+                border: "2px solid #f59e0b",
+                borderRadius: 8,
+                padding: 8,
+                minWidth: 150,
+              }}
+            >
+              <strong>📦 Longest Boxed</strong>
+              <div style={{ fontSize: 12, marginTop: 3 }}>
+                {longestBoxed
+                  ? `Table ${longestBoxed.table.id} • ${formatElapsedMinutes(longestBoxed.minutes)}`
+                  : "—"}
+              </div>
+            </div>
+
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "2px solid #dc2626",
+                borderRadius: 8,
+                padding: 8,
+                minWidth: 150,
+              }}
+            >
+              <strong>🧹 Longest Dirty</strong>
+              <div style={{ fontSize: 12, marginTop: 3 }}>
+                {longestDirty
+                  ? `Table ${longestDirty.table.id} • ${formatElapsedMinutes(longestDirty.minutes)}`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ width: "100%", overflowX: "auto" }}>
 
@@ -5260,12 +5186,7 @@ async function undoLastSeat() {
 
                 background: STATUS_COLORS[table.status],
 
-                border:
-                  floorCheckMode && activeFloorCheck
-                    ? isFloorCheckTableReady(table.id)
-                      ? "6px solid #16a34a"
-                      : "6px solid #f59e0b"
-                    : table.server
+                border: table.server
 
   ? servers.find((server) => server.name === table.server)?.status === "Checked In"
 
@@ -5377,25 +5298,18 @@ async function undoLastSeat() {
   </div>
 )}
 
-{floorCheckMode && activeFloorCheck && (
+{floorCheckMode && (
   <div
     style={{
       fontSize: 9,
       fontWeight: "bold",
-      color: isFloorCheckTableReady(table.id)
-        ? "#166534"
-        : "#9a3412",
-      background: isFloorCheckTableReady(table.id)
-        ? "#dcfce7"
-        : "#ffedd5",
+      background: "rgba(255,255,255,.88)",
       borderRadius: 5,
-      padding: "2px 4px",
+      padding: "1px 4px",
       marginTop: 2,
     }}
   >
-    {isFloorCheckTableReady(table.id)
-      ? "✓ READY"
-      : "CHECK"}
+    {table.status === "Open" ? "CLEAN" : table.status.toUpperCase()}
   </div>
 )}
 
@@ -5434,6 +5348,22 @@ async function undoLastSeat() {
     </div>
   );
 })()}
+
+{table.status !== "Open" && getElapsedMinutes(table) !== null && (
+  <div
+    style={{
+      ...getTimerBadgeStyle(table),
+      fontSize: 9,
+      fontWeight: "bold",
+      borderRadius: 10,
+      padding: "2px 5px",
+      marginTop: 2,
+      whiteSpace: "nowrap",
+    }}
+  >
+    ⏱ {formatElapsedMinutes(getElapsedMinutes(table))}
+  </div>
+)}
 
 {table.server && (
 
