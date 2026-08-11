@@ -48,6 +48,18 @@ const GRID = 5;
 
 const snap = (n: number) => Math.round(n / GRID) * GRID;
 
+const LOCAL_BACKUP_KEY = "enriques-os-local-backup-v1";
+
+type LocalBackup = {
+  savedAt: number;
+  tables: TableItem[];
+  servers: ServerInfo[];
+  waitlist: WaitParty[];
+  rotation: string[];
+  lastSeated: Record<string, number>;
+  shiftHistory: any[];
+};
+
 export default function Home() {
 
   const [tables, setTables] = useState<TableItem[]>(ENRIQUES_TABLES);
@@ -799,6 +811,10 @@ async function undoLastSeat() {
   const [shiftHistory, setShiftHistory] = useState<any[]>([]);
   const [showShiftHistory, setShowShiftHistory] = useState(false);
 
+  const [isOnline, setIsOnline] = useState(true);
+  const [lastLocalBackupAt, setLastLocalBackupAt] = useState<number | null>(null);
+  const [restoredFromLocal, setRestoredFromLocal] = useState(false);
+
   const openCount = tables.filter((t) => t.status === "Open").length;
 
   const seatedCount = tables.filter((t) => t.status === "Seated").length;
@@ -806,6 +822,80 @@ async function undoLastSeat() {
   const boxedCount = tables.filter((t) => t.status === "Boxed").length;
 
   const dirtyCount = tables.filter((t) => t.status === "Dirty").length;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    setIsOnline(window.navigator.onLine);
+
+    const rawBackup = window.localStorage.getItem(LOCAL_BACKUP_KEY);
+
+    if (rawBackup) {
+      try {
+        const backup = JSON.parse(rawBackup) as LocalBackup;
+
+        if (backup.tables?.length) setTables(backup.tables);
+        if (backup.servers) setServers(backup.servers);
+        if (backup.waitlist) setWaitlist(backup.waitlist);
+        if (backup.rotation) setRotation(backup.rotation);
+        if (backup.lastSeated) setLastSeated(backup.lastSeated);
+        if (backup.shiftHistory) setShiftHistory(backup.shiftHistory);
+
+        if (backup.savedAt) {
+          setLastLocalBackupAt(backup.savedAt);
+          setRestoredFromLocal(true);
+        }
+      } catch (error) {
+        console.error("Could not restore local Enrique's backup:", error);
+      }
+    }
+
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!loaded) return;
+
+    const savedAt = Date.now();
+
+    const backup: LocalBackup = {
+      savedAt,
+      tables,
+      servers,
+      waitlist,
+      rotation,
+      lastSeated,
+      shiftHistory,
+    };
+
+    try {
+      window.localStorage.setItem(
+        LOCAL_BACKUP_KEY,
+        JSON.stringify(backup)
+      );
+      setLastLocalBackupAt(savedAt);
+    } catch (error) {
+      console.error("Could not save local Enrique's backup:", error);
+    }
+  }, [
+    loaded,
+    tables,
+    servers,
+    waitlist,
+    rotation,
+    lastSeated,
+    shiftHistory,
+  ]);
 
   useEffect(() => {
 
@@ -1351,6 +1441,42 @@ async function undoLastSeat() {
 
     >
 
+      {!isOnline && (
+        <div
+          style={{
+            background: "#fef3c7",
+            border: "3px solid #d97706",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 12,
+            fontWeight: "bold",
+          }}
+        >
+          📶 Offline Protection Active — this iPad is using its local restaurant backup.
+          Table changes continue to be protected on this device. Some cloud-only actions
+          will sync in the next offline-queue upgrade.
+        </div>
+      )}
+
+      {isOnline && restoredFromLocal && lastLocalBackupAt && (
+        <div
+          style={{
+            background: "#ecfdf5",
+            border: "2px solid #16a34a",
+            borderRadius: 10,
+            padding: "8px 12px",
+            marginBottom: 12,
+            fontSize: 13,
+          }}
+        >
+          ✅ Local recovery backup available • Last protected{" "}
+          {new Date(lastLocalBackupAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </div>
+      )}
+
       <div
 
         style={{
@@ -1452,6 +1578,19 @@ async function undoLastSeat() {
         >
           {showShiftHistory ? "Hide Shift History" : "📊 Shift History"}
         </button>
+
+        <span
+          style={{
+            fontSize: 12,
+            padding: "6px 9px",
+            borderRadius: 20,
+            background: isOnline ? "#dcfce7" : "#fef3c7",
+            border: `1px solid ${isOnline ? "#16a34a" : "#d97706"}`,
+            fontWeight: "bold",
+          }}
+        >
+          {isOnline ? "● Online + Local Backup" : "● Offline"}
+        </span>
 
       </div>
 
