@@ -60,6 +60,52 @@ type LocalBackup = {
   shiftHistory: any[];
 };
 
+const OFFLINE_QUEUE_KEY = "enriques-os-offline-queue-v1";
+
+type OfflineOperation =
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_tables_upsert";
+      payload: { id: string; data: any };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_servers_upsert";
+      payload: { rows: Array<{ id: string; data: ServerInfo }> };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_servers_delete";
+      payload: { id: string };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_waitlist_insert";
+      payload: { id: number; data: WaitParty };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_waitlist_update";
+      payload: { id: number; data: WaitParty };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_waitlist_delete";
+      payload: { id: number };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_shift_history_insert";
+      payload: { id: string; data: any };
+    };
+
 export default function Home() {
 
   const [tables, setTables] = useState<TableItem[]>(ENRIQUES_TABLES);
@@ -109,134 +155,74 @@ export default function Home() {
   const [newServerStartTime, setNewServerStartTime] = useState("");
 
   async function checkInServer(serverId: string) {
+    const server = servers.find((item) => item.id === serverId);
+    if (!server) return;
 
-  const server = servers.find((item) => item.id === serverId);
+    const updatedServer: ServerInfo = {
+      ...server,
+      status: "Checked In",
+      checkedInAt: Date.now(),
+    };
 
-  if (!server) return;
+    setServers((current) =>
+      current.map((item) =>
+        item.id === serverId ? updatedServer : item
+      )
+    );
 
-  const updatedServer: ServerInfo = {
+    setRotation((current) =>
+      current.includes(updatedServer.name)
+        ? current
+        : [...current, updatedServer.name]
+    );
 
-    ...server,
-
-    status: "Checked In",
-
-    checkedInAt: Date.now(),
-
-  };
-
-  const { error } = await supabase.from("host_servers").upsert({
-
-    id: updatedServer.id,
-
-    data: updatedServer,
-
-  });
-
-  if (error) {
-
-    alert(`Could not check in server: ${error.message}`);
-
-    return;
-
+    await syncOrQueue({
+      type: "host_servers_upsert",
+      payload: {
+        rows: [{ id: updatedServer.id, data: updatedServer }],
+      },
+    });
   }
-
-  setServers((current) =>
-
-    current.map((item) =>
-
-      item.id === serverId ? updatedServer : item
-
-    )
-
-  );
-
-    setRotation((current) => {
-
-  if (current.includes(updatedServer.name)) {
-
-    return current;
-
-  }
-
-  return [...current, updatedServer.name];
-
-});
-
-}
 
   async function updateServerStatus(
+    serverId: string,
+    status: "Off" | "Break" | "Cut"
+  ) {
+    const server = servers.find((item) => item.id === serverId);
+    if (!server) return;
 
-  serverId: string,
+    const updatedServer: ServerInfo = {
+      ...server,
+      status,
+      cutTime:
+        status === "Cut"
+          ? new Date().toLocaleTimeString([], {
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : server.cutTime,
+      checkedInAt: status === "Off" ? undefined : server.checkedInAt,
+    };
 
-  status: "Off" | "Break" | "Cut"
+    setServers((current) =>
+      current.map((item) =>
+        item.id === serverId ? updatedServer : item
+      )
+    );
 
-) {
+    if (status === "Cut" || status === "Off") {
+      setRotation((current) =>
+        current.filter((name) => name !== updatedServer.name)
+      );
+    }
 
-  const server = servers.find((item) => item.id === serverId);
-
-  if (!server) return;
-
-  const updatedServer: ServerInfo = {
-
-    ...server,
-
-    status,
-
-    cutTime:
-
-      status === "Cut"
-
-        ? new Date().toLocaleTimeString([], {
-
-            hour: "numeric",
-
-            minute: "2-digit",
-
-          })
-
-        : server.cutTime,
-
-    checkedInAt: status === "Off" ? undefined : server.checkedInAt,
-
-  };
-
-  const { error } = await supabase.from("host_servers").upsert({
-
-    id: updatedServer.id,
-
-    data: updatedServer,
-
-  });
-
-  if (error) {
-
-    alert(`Could not update server: ${error.message}`);
-
-    return;
-
+    await syncOrQueue({
+      type: "host_servers_upsert",
+      payload: {
+        rows: [{ id: updatedServer.id, data: updatedServer }],
+      },
+    });
   }
-
-  setServers((current) =>
-
-    current.map((item) =>
-
-      item.id === serverId ? updatedServer : item
-
-    )
-
-  );
-
-setRotation((current) =>
-
-  current.filter(
-
-    (name) => name !== updatedServer.name
-
-  )
-
-);
-
-}
 
 const seatNextServer = () => {
   
@@ -492,31 +478,15 @@ async function undoLastSeat() {
 
   await saveTablesNow(nextTables);
 
-  const { error } = await supabase
-
-    .from("host_servers")
-
-    .upsert(
-
-      nextServers.map((server) => ({
-
+  await syncOrQueue({
+    type: "host_servers_upsert",
+    payload: {
+      rows: nextServers.map((server) => ({
         id: server.id,
-
         data: server,
-
-      }))
-
-    );
-
-  if (error) {
-
-    alert(
-
-      `Could not save table assignment: ${error.message}`
-
-    );
-
-  }
+      })),
+    },
+  });
 
   return true;
 
@@ -546,27 +516,18 @@ async function undoLastSeat() {
 
   );
 
-  const { error } = await supabase
-
-    .from("host_servers")
-
-    .delete()
-
-    .eq("id", serverId);
-
-  if (error) {
-
-    alert(`Could not delete server: ${error.message}`);
-
-    return;
-
-  }
-
   setServers((current) =>
-
     current.filter((item) => item.id !== serverId)
-
   );
+
+  setRotation((current) =>
+    current.filter((name) => name !== server.name)
+  );
+
+  await syncOrQueue({
+    type: "host_servers_delete",
+    payload: { id: serverId },
+  });
 
   if (selectedServer === serverId) {
 
@@ -775,26 +736,20 @@ async function undoLastSeat() {
   const lastLocalSaveRef = useRef(0);
 
   async function saveTablesNow(nextTables: TableItem[]) {
-
     const updatedAt = Date.now();
-
     lastLocalSaveRef.current = updatedAt;
 
-    await supabase.from("host_tables").upsert({
-
-    id: "main",
-
-    data: {
-
-      tables: nextTables,
-
-      updatedAt,
-
-    },
-
-  });
-
-}
+    await syncOrQueue({
+      type: "host_tables_upsert",
+      payload: {
+        id: "main",
+        data: {
+          tables: nextTables,
+          updatedAt,
+        },
+      },
+    });
+  }
 
   const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
 
@@ -815,6 +770,177 @@ async function undoLastSeat() {
   const [lastLocalBackupAt, setLastLocalBackupAt] = useState<number | null>(null);
   const [restoredFromLocal, setRestoredFromLocal] = useState(false);
 
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isSyncingOfflineQueue, setIsSyncingOfflineQueue] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+
+  function readOfflineQueue(): OfflineOperation[] {
+    if (typeof window === "undefined") return [];
+
+    try {
+      const raw = window.localStorage.getItem(OFFLINE_QUEUE_KEY);
+      return raw ? (JSON.parse(raw) as OfflineOperation[]) : [];
+    } catch (error) {
+      console.error("Could not read offline sync queue:", error);
+      return [];
+    }
+  }
+
+  function writeOfflineQueue(queue: OfflineOperation[]) {
+    if (typeof window === "undefined") return;
+
+    try {
+      window.localStorage.setItem(
+        OFFLINE_QUEUE_KEY,
+        JSON.stringify(queue)
+      );
+      setPendingSyncCount(queue.length);
+    } catch (error) {
+      console.error("Could not save offline sync queue:", error);
+    }
+  }
+
+  function queueOfflineOperation(
+    operation: Omit<OfflineOperation, "id" | "createdAt">
+  ) {
+    const queuedOperation = {
+      ...operation,
+      id: `offline-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`,
+      createdAt: Date.now(),
+    } as OfflineOperation;
+
+    const queue = readOfflineQueue();
+    writeOfflineQueue([...queue, queuedOperation]);
+  }
+
+  async function executeOfflineOperation(operation: OfflineOperation) {
+    if (operation.type === "host_tables_upsert") {
+      const { error } = await supabase
+        .from("host_tables")
+        .upsert(operation.payload);
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_servers_upsert") {
+      const { error } = await supabase
+        .from("host_servers")
+        .upsert(operation.payload.rows);
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_servers_delete") {
+      const { error } = await supabase
+        .from("host_servers")
+        .delete()
+        .eq("id", operation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_waitlist_insert") {
+      const { error } = await supabase
+        .from("host_waitlist")
+        .insert(operation.payload);
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_waitlist_update") {
+      const { error } = await supabase
+        .from("host_waitlist")
+        .update({ data: operation.payload.data })
+        .eq("id", operation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_waitlist_delete") {
+      const { error } = await supabase
+        .from("host_waitlist")
+        .delete()
+        .eq("id", operation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_shift_history_insert") {
+      const { error } = await supabase
+        .from("host_shift_history")
+        .insert(operation.payload);
+      if (error) throw error;
+    }
+  }
+
+  async function syncOrQueue(
+    operation: Omit<OfflineOperation, "id" | "createdAt">
+  ) {
+    const browserOnline =
+      typeof window === "undefined" ? true : window.navigator.onLine;
+
+    if (!browserOnline) {
+      queueOfflineOperation(operation);
+      return { queued: true };
+    }
+
+    const executable = {
+      ...operation,
+      id: `live-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`,
+      createdAt: Date.now(),
+    } as OfflineOperation;
+
+    try {
+      await executeOfflineOperation(executable);
+      setLastSyncAt(Date.now());
+      return { queued: false };
+    } catch (error) {
+      console.error("Cloud save failed; queued for retry:", error);
+      queueOfflineOperation(operation);
+      return { queued: true };
+    }
+  }
+
+  async function flushOfflineQueue() {
+    if (typeof window === "undefined" || !window.navigator.onLine) return;
+    if (isSyncingOfflineQueue) return;
+
+    const queue = readOfflineQueue();
+
+    if (queue.length === 0) {
+      setPendingSyncCount(0);
+      return;
+    }
+
+    setIsSyncingOfflineQueue(true);
+
+    const remaining: OfflineOperation[] = [];
+
+    for (let index = 0; index < queue.length; index += 1) {
+      const operation = queue[index];
+
+      try {
+        await executeOfflineOperation(operation);
+      } catch (error) {
+        console.error("Offline sync stopped at operation:", operation, error);
+        remaining.push(...queue.slice(index));
+        break;
+      }
+    }
+
+    writeOfflineQueue(remaining);
+
+    if (remaining.length === 0) {
+      setLastSyncAt(Date.now());
+    }
+
+    setIsSyncingOfflineQueue(false);
+  }
+
   const openCount = tables.filter((t) => t.status === "Open").length;
 
   const seatedCount = tables.filter((t) => t.status === "Seated").length;
@@ -827,6 +953,7 @@ async function undoLastSeat() {
     if (typeof window === "undefined") return;
 
     setIsOnline(window.navigator.onLine);
+    setPendingSyncCount(readOfflineQueue().length);
 
     const rawBackup = window.localStorage.getItem(LOCAL_BACKUP_KEY);
 
@@ -896,6 +1023,11 @@ async function undoLastSeat() {
     lastSeated,
     shiftHistory,
   ]);
+
+  useEffect(() => {
+    if (!isOnline) return;
+    flushOfflineQueue();
+  }, [isOnline]);
 
   useEffect(() => {
 
@@ -1104,57 +1236,34 @@ async function undoLastSeat() {
   }, [tables, loaded]);
 
   async function addServer() {
-
     const name = newServerName.trim();
 
-  if (!name) {
+    if (!name) {
+      alert("Enter the server's name.");
+      return;
+    }
 
-    alert("Enter the server's name.");
+    const server: ServerInfo = {
+      id: `server-${Date.now()}`,
+      name,
+      startTime: newServerStartTime,
+      status: "Off",
+      color: pickServerColor(servers),
+      tables: [],
+    };
 
-    return;
+    setServers((current) => [...current, server]);
+    setNewServerName("");
+    setNewServerStartTime("");
 
+    await syncOrQueue({
+      type: "host_servers_upsert",
+      payload: {
+        rows: [{ id: server.id, data: server }],
+      },
+    });
   }
 
-  const server: ServerInfo = {
-
-    id: `server-${Date.now()}`,
-
-    name,
-
-    startTime: newServerStartTime,
-
-    status: "Off",
-
-    color: pickServerColor(servers),
-
-    tables: [],
-
-  };
-
-  const { error } = await supabase.from("host_servers").upsert({
-
-    id: server.id,
-
-    data: server,
-
-  });
-
-  if (error) {
-
-    alert(`Could not add server: ${error.message}`);
-
-    return;
-
-  }
-
-  setServers((current) => [...current, server]);
-
-  setNewServerName("");
-
-  setNewServerStartTime("");
-
-}
-  
   function unlockManager() {
 
     if (pin.trim() === "1884") {
@@ -1274,23 +1383,25 @@ async function undoLastSeat() {
     };
 
     const okay = confirm(
-      `End this shift?\n\nServers worked: ${activeServers.length}\nTables currently seated: ${shiftSnapshot.tableSummary.seated}\nWaitlist entries: ${waitlist.length}\n\nA shift archive will be saved BEFORE the board is cleared.`
+      `End this shift?\n\nServers worked: ${activeServers.length}\nTables currently seated: ${shiftSnapshot.tableSummary.seated}\nWaitlist entries: ${waitlist.length}\n\nThe shift will be protected locally immediately and synced to the cloud when available.`
     );
 
     if (!okay) return;
 
-    const { error: archiveError } = await supabase
-      .from("host_shift_history")
-      .insert({ id: shiftSnapshot.id, data: shiftSnapshot });
+    setShiftHistory((current) =>
+      [shiftSnapshot, ...current].slice(0, 30)
+    );
 
-    if (archiveError) {
-      alert(
-        `End Shift stopped because the archive could not be saved: ${archiveError.message}\n\nNothing was cleared.`
-      );
-      return;
-    }
+    await syncOrQueue({
+      type: "host_shift_history_insert",
+      payload: {
+        id: shiftSnapshot.id,
+        data: shiftSnapshot,
+      },
+    });
 
     const updatedAt = Date.now();
+
     const nextTables: TableItem[] = tables.map((table) => ({
       ...table,
       status: "Open" as TableStatus,
@@ -1310,27 +1421,6 @@ async function undoLastSeat() {
 
     lastLocalSaveRef.current = updatedAt;
 
-    const { error: tableError } = await supabase.from("host_tables").upsert({
-      id: "main",
-      data: { tables: nextTables, updatedAt },
-    });
-
-    if (tableError) {
-      alert(`The shift was archived, but the floor reset did not save: ${tableError.message}`);
-      return;
-    }
-
-    if (nextServers.length > 0) {
-      const { error: serverError } = await supabase.from("host_servers").upsert(
-        nextServers.map((server) => ({ id: server.id, data: server }))
-      );
-      if (serverError) {
-        alert(`The shift was archived and floor reset, but server checkout could not be saved: ${serverError.message}`);
-        return;
-      }
-    }
-
-    setShiftHistory((current) => [shiftSnapshot, ...current].slice(0, 30));
     setTables(nextTables);
     setServers(nextServers);
     setRotation([]);
@@ -1342,7 +1432,31 @@ async function undoLastSeat() {
     setEditMode(false);
     setFloorLocked(true);
 
-    alert("Shift archived and ended successfully.");
+    await syncOrQueue({
+      type: "host_tables_upsert",
+      payload: {
+        id: "main",
+        data: { tables: nextTables, updatedAt },
+      },
+    });
+
+    if (nextServers.length > 0) {
+      await syncOrQueue({
+        type: "host_servers_upsert",
+        payload: {
+          rows: nextServers.map((server) => ({
+            id: server.id,
+            data: server,
+          })),
+        },
+      });
+    }
+
+    alert(
+      typeof window !== "undefined" && !window.navigator.onLine
+        ? "Shift ended and protected on this iPad. It will sync automatically when internet returns."
+        : "Shift archived and ended successfully."
+    );
   }
 
   function startDrag(id: string) {
@@ -1452,9 +1566,8 @@ async function undoLastSeat() {
             fontWeight: "bold",
           }}
         >
-          📶 Offline Protection Active — this iPad is using its local restaurant backup.
-          Table changes continue to be protected on this device. Some cloud-only actions
-          will sync in the next offline-queue upgrade.
+          📶 Offline Mode — service can continue. Changes are being saved on this iPad
+          and queued for automatic cloud sync when internet returns.
         </div>
       )}
 
@@ -1589,8 +1702,33 @@ async function undoLastSeat() {
             fontWeight: "bold",
           }}
         >
-          {isOnline ? "● Online + Local Backup" : "● Offline"}
+          {isOnline
+            ? pendingSyncCount > 0
+              ? `● Online • ${pendingSyncCount} Pending`
+              : "● Online + Synced"
+            : `● Offline • ${pendingSyncCount} Pending`}
         </span>
+
+        {pendingSyncCount > 0 && isOnline && (
+          <button
+            onClick={flushOfflineQueue}
+            disabled={isSyncingOfflineQueue}
+          >
+            {isSyncingOfflineQueue
+              ? "Syncing..."
+              : `🔄 Sync ${pendingSyncCount}`}
+          </button>
+        )}
+
+        {lastSyncAt && (
+          <span style={{ fontSize: 11, color: "#475569" }}>
+            Last sync{" "}
+            {new Date(lastSyncAt).toLocaleTimeString([], {
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </span>
+        )}
 
       </div>
 
@@ -2894,12 +3032,14 @@ async function undoLastSeat() {
 
         };
 
-        await supabase.from("host_waitlist").insert({
+        setWaitlist((current) => [...current, party]);
 
-          id: party.id,
-
-          data: party,
-
+        await syncOrQueue({
+          type: "host_waitlist_insert",
+          payload: {
+            id: party.id,
+            data: party,
+          },
         });
 
         setGuestName("");
@@ -2968,11 +3108,24 @@ async function undoLastSeat() {
 
           onClick={async () => {
 
-            await supabase.from("host_waitlist").update({
+            const updatedParty: WaitParty = {
+              ...party,
+              status: "Paged",
+            };
 
-              data: { ...party, status: "Paged" },
+            setWaitlist((current) =>
+              current.map((item) =>
+                item.id === party.id ? updatedParty : item
+              )
+            );
 
-            }).eq("id", party.id);
+            await syncOrQueue({
+              type: "host_waitlist_update",
+              payload: {
+                id: party.id,
+                data: updatedParty,
+              },
+            });
 
           }}
 
@@ -2986,7 +3139,14 @@ async function undoLastSeat() {
 
           onClick={async () => {
 
-            await supabase.from("host_waitlist").delete().eq("id", party.id);
+            setWaitlist((current) =>
+              current.filter((item) => item.id !== party.id)
+            );
+
+            await syncOrQueue({
+              type: "host_waitlist_delete",
+              payload: { id: party.id },
+            });
 
           }}
 
