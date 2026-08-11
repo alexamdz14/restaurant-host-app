@@ -59,6 +59,22 @@ type LocalBackup = {
   lastSeated: Record<string, number>;
   shiftHistory: any[];
   partyCounts?: Record<string, number>;
+  reservations?: ReservationRecord[];
+};
+
+type ReservationRecord = {
+  id: string;
+  date: string;
+  time: string;
+  name: string;
+  guests: string;
+  phone: string;
+  notes: string;
+  status: "Booked" | "Arrived" | "Seated" | "No Show" | "Cancelled";
+  tableIds: string[];
+  createdAt: number;
+  syncDeviceId?: string;
+  syncUpdatedAt?: number;
 };
 
 const OFFLINE_QUEUE_KEY = "enriques-os-offline-queue-v1";
@@ -113,6 +129,24 @@ type OfflineOperation =
   | {
       id: string;
       createdAt: number;
+      type: "host_reservations_insert";
+      payload: { id: string; data: ReservationRecord };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_reservations_update";
+      payload: { id: string; data: ReservationRecord };
+    }
+  | {
+      id: string;
+      createdAt: number;
+      type: "host_reservations_delete";
+      payload: { id: string };
+    }
+  | {
+      id: string;
+      createdAt: number;
       type: "host_shift_history_insert";
       payload: { id: string; data: any };
     };
@@ -141,6 +175,19 @@ export default function Home() {
   const [partyServerId, setPartyServerId] = useState<string | null>(null);
   const [partyGuestCount, setPartyGuestCount] = useState("");
   const [partySeatingMode, setPartySeatingMode] = useState(false);
+
+  const [headHostMode, setHeadHostMode] = useState(false);
+  const [reservationBookOpen, setReservationBookOpen] = useState(false);
+
+  const [reservations, setReservations] = useState<ReservationRecord[]>([]);
+  const [reservationName, setReservationName] = useState("");
+  const [reservationDate, setReservationDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [reservationTime, setReservationTime] = useState("");
+  const [reservationGuests, setReservationGuests] = useState("");
+  const [reservationPhone, setReservationPhone] = useState("");
+  const [reservationNotes, setReservationNotes] = useState("");
 
   const [rotation, setRotation] = useState<string[]>([]);
 
@@ -926,6 +973,129 @@ async function undoLastSeat() {
     );
   }
 
+  async function addReservation() {
+    const name = reservationName.trim();
+    const date = reservationDate.trim();
+    const time = reservationTime.trim();
+    const guests = reservationGuests.trim();
+
+    if (!name || !date || !time || !guests) {
+      alert("Enter reservation name, date, time, and guest count.");
+      return;
+    }
+
+    const reservation: ReservationRecord = {
+      id: `reservation-${Date.now()}`,
+      date,
+      time,
+      name,
+      guests,
+      phone: reservationPhone.trim(),
+      notes: reservationNotes.trim(),
+      status: "Booked",
+      tableIds: [],
+      createdAt: Date.now(),
+    };
+
+    setReservations((current) =>
+      [...current, reservation].sort((a, b) =>
+        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+      )
+    );
+
+    setReservationName("");
+    setReservationTime("");
+    setReservationGuests("");
+    setReservationPhone("");
+    setReservationNotes("");
+
+    await syncOrQueue({
+      type: "host_reservations_insert",
+      payload: {
+        id: reservation.id,
+        data: reservation,
+      },
+    });
+  }
+
+  async function updateReservation(
+    reservationId: string,
+    updates: Partial<ReservationRecord>
+  ) {
+    const currentReservation = reservations.find(
+      (reservation) => reservation.id === reservationId
+    );
+
+    if (!currentReservation) return;
+
+    const updatedReservation: ReservationRecord = {
+      ...currentReservation,
+      ...updates,
+    };
+
+    setReservations((current) =>
+      current
+        .map((reservation) =>
+          reservation.id === reservationId
+            ? updatedReservation
+            : reservation
+        )
+        .sort((a, b) =>
+          `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+        )
+    );
+
+    await syncOrQueue({
+      type: "host_reservations_update",
+      payload: {
+        id: updatedReservation.id,
+        data: updatedReservation,
+      },
+    });
+  }
+
+  async function toggleReservationTable(
+    reservationId: string,
+    tableId: string
+  ) {
+    const reservation = reservations.find(
+      (item) => item.id === reservationId
+    );
+
+    if (!reservation) return;
+
+    const nextTableIds = reservation.tableIds.includes(tableId)
+      ? reservation.tableIds.filter((id) => id !== tableId)
+      : [...reservation.tableIds, tableId];
+
+    await updateReservation(reservationId, {
+      tableIds: nextTableIds,
+    });
+  }
+
+  async function deleteReservation(reservationId: string) {
+    const reservation = reservations.find(
+      (item) => item.id === reservationId
+    );
+
+    if (!reservation) return;
+
+    const okay = confirm(
+      `Delete reservation for ${reservation.name}?`
+    );
+
+    if (!okay) return;
+
+    setReservations((current) =>
+      current.filter((item) => item.id !== reservationId)
+    );
+
+    await syncOrQueue({
+      type: "host_reservations_delete",
+      payload: { id: reservationId },
+    });
+  }
+
   function readOfflineQueue(): OfflineOperation[] {
     if (typeof window === "undefined") return [];
 
@@ -1027,6 +1197,36 @@ async function undoLastSeat() {
       });
     }
 
+    if (queuedOperation.type === "host_reservations_update") {
+      queue = queue.filter(
+        (item) =>
+          !(
+            item.type === "host_reservations_update" &&
+            item.payload.id === queuedOperation.payload.id
+          )
+      );
+    }
+
+    if (queuedOperation.type === "host_reservations_delete") {
+      queue = queue.filter((item) => {
+        if (
+          item.type === "host_reservations_update" &&
+          item.payload.id === queuedOperation.payload.id
+        ) {
+          return false;
+        }
+
+        if (
+          item.type === "host_reservations_insert" &&
+          item.payload.id === queuedOperation.payload.id
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+    }
+
     writeOfflineQueue([...queue, queuedOperation]);
   }
 
@@ -1111,6 +1311,45 @@ async function undoLastSeat() {
       return;
     }
 
+    if (operation.type === "host_reservations_insert") {
+      const { error } = await supabase
+        .from("host_reservations")
+        .insert({
+          ...operation.payload,
+          data: {
+            ...operation.payload.data,
+            syncDeviceId: deviceIdRef.current || getOrCreateDeviceId(),
+            syncUpdatedAt: operation.createdAt,
+          },
+        });
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_reservations_update") {
+      const { error } = await supabase
+        .from("host_reservations")
+        .update({
+          data: {
+            ...operation.payload.data,
+            syncDeviceId: deviceIdRef.current || getOrCreateDeviceId(),
+            syncUpdatedAt: operation.createdAt,
+          },
+        })
+        .eq("id", operation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    if (operation.type === "host_reservations_delete") {
+      const { error } = await supabase
+        .from("host_reservations")
+        .delete()
+        .eq("id", operation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
     if (operation.type === "host_shift_history_insert") {
       const { error } = await supabase
         .from("host_shift_history")
@@ -1183,8 +1422,12 @@ async function undoLastSeat() {
       setSyncConflictNotice("");
 
       // Pull fresh cloud state after replay so every iPad converges.
-      const [{ data: tableData }, { data: serverData }, { data: waitData }] =
-        await Promise.all([
+      const [
+        { data: tableData },
+        { data: serverData },
+        { data: waitData },
+        { data: reservationData },
+      ] = await Promise.all([
           supabase
             .from("host_tables")
             .select("data")
@@ -1195,6 +1438,10 @@ async function undoLastSeat() {
             .from("host_waitlist")
             .select("data")
             .order("id", { ascending: true }),
+          supabase
+            .from("host_reservations")
+            .select("id, data")
+            .order("created_at", { ascending: true }),
         ]);
 
       if (tableData?.data?.tables) {
@@ -1220,6 +1467,17 @@ async function undoLastSeat() {
       if (waitData) {
         setWaitlist(
           waitData.map((row) => row.data as WaitParty)
+        );
+      }
+
+      if (reservationData) {
+        setReservations(
+          reservationData
+            .map((row) => row.data as ReservationRecord)
+            .filter(Boolean)
+            .sort((a, b) =>
+              `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+            )
         );
       }
     }
@@ -1278,6 +1536,7 @@ async function undoLastSeat() {
       lastSeated,
       shiftHistory,
       partyCounts,
+      reservations,
     };
 
     const current = readRecoverySnapshots();
@@ -1293,6 +1552,7 @@ async function undoLastSeat() {
       lastSeated,
       shiftHistory,
       partyCounts,
+      reservations,
     };
 
     window.localStorage.setItem(
@@ -1334,6 +1594,7 @@ async function undoLastSeat() {
     setLastSeated(snapshot.lastSeated || {});
     setShiftHistory(snapshot.shiftHistory || []);
     setPartyCounts(snapshot.partyCounts || {});
+    setReservations(snapshot.reservations || []);
     setLastLocalBackupAt(snapshot.savedAt);
     setRestoredFromLocal(true);
 
@@ -1397,6 +1658,7 @@ async function undoLastSeat() {
       lastSeated,
       shiftHistory,
       partyCounts,
+      reservations,
     };
 
     try {
@@ -1452,6 +1714,7 @@ async function undoLastSeat() {
       setLastSeated(backup.lastSeated || {});
       setShiftHistory(backup.shiftHistory || []);
       setPartyCounts(backup.partyCounts || {});
+      setReservations(backup.reservations || []);
       setLastLocalBackupAt(backup.savedAt || Date.now());
       setRestoredFromLocal(true);
 
@@ -1567,6 +1830,7 @@ async function undoLastSeat() {
         if (backup.lastSeated) setLastSeated(backup.lastSeated);
         if (backup.shiftHistory) setShiftHistory(backup.shiftHistory);
         if (backup.partyCounts) setPartyCounts(backup.partyCounts);
+        if (backup.reservations) setReservations(backup.reservations);
 
         if (backup.savedAt) {
           setLastLocalBackupAt(backup.savedAt);
@@ -1604,6 +1868,7 @@ async function undoLastSeat() {
       lastSeated,
       shiftHistory,
       partyCounts,
+      reservations,
     };
 
     try {
@@ -1624,6 +1889,7 @@ async function undoLastSeat() {
     lastSeated,
     shiftHistory,
     partyCounts,
+    reservations,
   ]);
 
   useEffect(() => {
@@ -1654,6 +1920,7 @@ async function undoLastSeat() {
     lastSeated,
     shiftHistory,
     partyCounts,
+    reservations,
   ]);
 
   useEffect(() => {
@@ -1698,6 +1965,23 @@ async function undoLastSeat() {
 
       setWaitlist(waitData.map((row) => row.data as WaitParty));
 
+    }
+
+    const { data: reservationData, error: reservationError } =
+      await supabase
+        .from("host_reservations")
+        .select("id, data")
+        .order("created_at", { ascending: true });
+
+    if (!reservationError && reservationData) {
+      setReservations(
+        reservationData
+          .map((row) => row.data as ReservationRecord)
+          .filter(Boolean)
+          .sort((a, b) =>
+            `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+          )
+      );
     }
 
     const { data: shiftData, error: shiftError } = await supabase
@@ -1802,6 +2086,36 @@ async function undoLastSeat() {
 
       }
 
+    )
+
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "host_reservations" },
+      async () => {
+        if (queueHasTypePrefix("host_reservations")) {
+          setSyncConflictNotice(
+            "Another iPad updated reservations while this iPad has unsynced reservation changes. Local changes are protected until sync finishes."
+          );
+          return;
+        }
+
+        const { data } = await supabase
+          .from("host_reservations")
+          .select("id, data")
+          .order("created_at", { ascending: true });
+
+        if (data) {
+          setReservations(
+            data
+              .map((row) => row.data as ReservationRecord)
+              .filter(Boolean)
+              .sort((a, b) =>
+                `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+              )
+          );
+          markRemoteUpdate("Reservations updated by another iPad");
+        }
+      }
     )
 
     .on(
@@ -2057,6 +2371,7 @@ async function undoLastSeat() {
       })),
       rotation: [...rotation],
       waitlist: waitlist.map((party) => ({ ...party })),
+      reservations: reservations.map((reservation) => ({ ...reservation })),
       floor: tables.map((table) => ({ ...table })),
     };
 
@@ -2404,6 +2719,24 @@ async function undoLastSeat() {
 
           {floorLocked ? "Floor Locked" : "Floor Unlocked"}
 
+        </button>
+
+        <button
+          onClick={() => setReservationBookOpen((current) => !current)}
+        >
+          {reservationBookOpen ? "Close Reservations" : "📅 Reservations"}
+        </button>
+
+        <button
+          onClick={() => {
+            setHeadHostMode((current) => !current);
+            setPartySeatingMode(false);
+            setSelectedPartyTables([]);
+            setPartyServerId(null);
+            setPartyGuestCount("");
+          }}
+        >
+          {headHostMode ? "Close Head Host" : "👑 Head Host"}
         </button>
 
         <button
@@ -3034,6 +3367,438 @@ async function undoLastSeat() {
   )}
 
 </div>
+
+      {reservationBookOpen && (
+        <section
+          style={{
+            border: "4px solid #2563eb",
+            borderRadius: 12,
+            padding: 12,
+            background: "white",
+            marginBottom: 14,
+          }}
+        >
+          <h2 style={{ marginTop: 0 }}>📅 Reservation Book</h2>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.2fr .9fr .8fr .6fr 1.1fr",
+              gap: 6,
+              marginBottom: 6,
+            }}
+          >
+            <input
+              value={reservationName}
+              onChange={(event) => setReservationName(event.target.value)}
+              placeholder="Guest name"
+              style={{ padding: 8 }}
+            />
+            <input
+              type="date"
+              value={reservationDate}
+              onChange={(event) => setReservationDate(event.target.value)}
+              style={{ padding: 8 }}
+            />
+            <input
+              type="time"
+              value={reservationTime}
+              onChange={(event) => setReservationTime(event.target.value)}
+              style={{ padding: 8 }}
+            />
+            <input
+              type="number"
+              min="1"
+              value={reservationGuests}
+              onChange={(event) => setReservationGuests(event.target.value)}
+              placeholder="Guests"
+              style={{ padding: 8 }}
+            />
+            <input
+              value={reservationPhone}
+              onChange={(event) => setReservationPhone(event.target.value)}
+              placeholder="Phone"
+              style={{ padding: 8 }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            <input
+              value={reservationNotes}
+              onChange={(event) => setReservationNotes(event.target.value)}
+              placeholder="Special request / notes"
+              style={{ padding: 8, flex: 1 }}
+            />
+            <button
+              onClick={addReservation}
+              style={{
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 14px",
+                fontWeight: "bold",
+              }}
+            >
+              Add Reservation
+            </button>
+          </div>
+
+          {reservations.length === 0 ? (
+            <div style={{ color: "#64748b" }}>No reservations yet.</div>
+          ) : (
+            reservations.map((reservation) => (
+              <div
+                key={reservation.id}
+                style={{
+                  border: "2px solid #cbd5e1",
+                  borderRadius: 8,
+                  padding: 10,
+                  marginBottom: 7,
+                  background: "#f8fafc",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    alignItems: "center",
+                  }}
+                >
+                  <div>
+                    <strong>
+                      {reservation.date} • {reservation.time} • {reservation.name}
+                    </strong>
+                    <div style={{ fontSize: 12, marginTop: 2 }}>
+                      {reservation.guests} guests
+                      {reservation.phone ? ` • ${reservation.phone}` : ""}
+                    </div>
+                    <div style={{ fontSize: 11, marginTop: 2 }}>
+                      Status: {reservation.status} • Tables:{" "}
+                      {reservation.tableIds.length
+                        ? reservation.tableIds.join(", ")
+                        : "Not planned"}
+                    </div>
+                    {reservation.notes && (
+                      <div style={{ fontSize: 11, marginTop: 2 }}>
+                        {reservation.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    {(["Booked", "Arrived", "Seated", "No Show"] as const).map(
+                      (status) => (
+                        <button
+                          key={status}
+                          onClick={() =>
+                            updateReservation(reservation.id, { status })
+                          }
+                          style={{
+                            fontSize: 10,
+                            background:
+                              reservation.status === status
+                                ? "#dbeafe"
+                                : "white",
+                          }}
+                        >
+                          {status}
+                        </button>
+                      )
+                    )}
+                    <button
+                      onClick={() => deleteReservation(reservation.id)}
+                      style={{ background: "#fee2e2" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </section>
+      )}
+
+      {headHostMode && (
+        <section
+          style={{
+            border: "4px solid #111827",
+            borderRadius: 12,
+            padding: 12,
+            background: "#f8fafc",
+            marginBottom: 14,
+          }}
+        >
+          <h2 style={{ marginTop: 0, marginBottom: 4 }}>
+            👑 Head Host Command Board
+          </h2>
+
+          <div style={{ fontSize: 12, color: "#475569", marginBottom: 12 }}>
+            Reservations and live waitlist together for planning the floor.
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+            }}
+          >
+            <div
+              style={{
+                border: "3px solid #2563eb",
+                borderRadius: 10,
+                background: "white",
+                padding: 10,
+              }}
+            >
+              <h3 style={{ marginTop: 0 }}>Reservations / Table Plan</h3>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1.2fr .9fr .8fr .7fr",
+                  gap: 6,
+                  marginBottom: 6,
+                }}
+              >
+                <input
+                  value={reservationName}
+                  onChange={(event) =>
+                    setReservationName(event.target.value)
+                  }
+                  placeholder="Guest name"
+                  style={{ padding: 7 }}
+                />
+                <input
+                  type="date"
+                  value={reservationDate}
+                  onChange={(event) =>
+                    setReservationDate(event.target.value)
+                  }
+                  style={{ padding: 7 }}
+                />
+                <input
+                  value={reservationTime}
+                  onChange={(event) =>
+                    setReservationTime(event.target.value)
+                  }
+                  placeholder="Time"
+                  style={{ padding: 7 }}
+                />
+                <input
+                  type="number"
+                  min="1"
+                  value={reservationGuests}
+                  onChange={(event) =>
+                    setReservationGuests(event.target.value)
+                  }
+                  placeholder="Guests"
+                  style={{ padding: 7 }}
+                />
+              </div>
+
+              <input
+                value={reservationNotes}
+                onChange={(event) =>
+                  setReservationNotes(event.target.value)
+                }
+                placeholder="Special request / notes"
+                style={{
+                  padding: 7,
+                  width: "100%",
+                  boxSizing: "border-box",
+                  marginBottom: 6,
+                }}
+              />
+
+              <button
+                onClick={addReservation}
+                style={{
+                  width: "100%",
+                  marginBottom: 10,
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 7,
+                  padding: 8,
+                  fontWeight: "bold",
+                }}
+              >
+                + Add to Plan
+              </button>
+
+              {reservations.filter(
+                (reservation) => reservation.date === reservationDate
+              ).length === 0 ? (
+                <div style={{ color: "#64748b", fontSize: 12 }}>
+                  No reservations for {reservationDate}.
+                </div>
+              ) : (
+                reservations
+                  .filter((reservation) => reservation.date === reservationDate)
+                  .map((reservation) => (
+                  <div
+                    key={reservation.id}
+                    style={{
+                      border: "2px solid #cbd5e1",
+                      borderRadius: 8,
+                      padding: 8,
+                      marginBottom: 7,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <div>
+                        <strong>
+                          {reservation.time} • {reservation.name}
+                        </strong>
+                        <div style={{ fontSize: 11 }}>
+                          {reservation.guests} guests
+                          {reservation.notes
+                            ? ` • ${reservation.notes}`
+                            : ""}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          deleteReservation(reservation.id)
+                        }
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 7,
+                        fontSize: 11,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Planned Tables:{" "}
+                      {reservation.tableIds.length
+                        ? reservation.tableIds.join(", ")
+                        : "Not assigned"}
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 4,
+                        marginTop: 6,
+                        maxHeight: 105,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {tables
+                        .filter(
+                          (table) =>
+                            table.seats !== "Couch" &&
+                            table.status === "Open"
+                        )
+                        .map((table) => (
+                          <button
+                            key={table.id}
+                            onClick={() =>
+                              toggleReservationTable(
+                                reservation.id,
+                                table.id
+                              )
+                            }
+                            style={{
+                              fontSize: 10,
+                              padding: "4px 6px",
+                              border:
+                                reservation.tableIds.includes(table.id)
+                                  ? "3px solid #2563eb"
+                                  : "1px solid #94a3b8",
+                              background:
+                                reservation.tableIds.includes(table.id)
+                                  ? "#dbeafe"
+                                  : "white",
+                              borderRadius: 6,
+                            }}
+                          >
+                            {table.id}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div
+              style={{
+                border: "3px solid #f59e0b",
+                borderRadius: 10,
+                background: "white",
+                padding: 10,
+              }}
+            >
+              <h3 style={{ marginTop: 0 }}>
+                Live Waitlist ({waitlist.length})
+              </h3>
+
+              {waitlist.length === 0 ? (
+                <div style={{ color: "#64748b", fontSize: 12 }}>
+                  No parties currently waiting.
+                </div>
+              ) : (
+                waitlist.map((party) => (
+                  <div
+                    key={party.id}
+                    style={{
+                      border: "2px solid #fde68a",
+                      borderRadius: 8,
+                      padding: 8,
+                      marginBottom: 7,
+                      background:
+                        party.status === "Paged"
+                          ? "#fef3c7"
+                          : "#fff",
+                    }}
+                  >
+                    <strong>
+                      {party.name} • {party.size}
+                    </strong>
+                    <div style={{ fontSize: 11, marginTop: 2 }}>
+                      {party.status} • Quoted {party.quotedWait || "—"}
+                    </div>
+                    {party.notes && (
+                      <div style={{ fontSize: 11, marginTop: 2 }}>
+                        {party.notes}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+
+              <div
+                style={{
+                  borderTop: "2px solid #e2e8f0",
+                  marginTop: 10,
+                  paddingTop: 8,
+                  fontSize: 11,
+                  color: "#475569",
+                }}
+              >
+                Head Host view is planning-only in this release. It does not
+                change permanent server sections.
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {partySeatingMode && (
         <section
