@@ -6103,7 +6103,10 @@ async function undoLastSeat() {
   </div>
 
 </section>
-      
+
+      </>
+      )}
+
     </main>
 
   );
