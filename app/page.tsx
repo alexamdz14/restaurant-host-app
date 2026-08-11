@@ -60,6 +60,7 @@ type LocalBackup = {
   shiftHistory: any[];
   partyCounts?: Record<string, number>;
   reservations?: ReservationRecord[];
+  activeFloorCheck?: FloorCheckSession | null;
 };
 
 type ReservationRecord = {
@@ -75,6 +76,24 @@ type ReservationRecord = {
   createdAt: number;
   syncDeviceId?: string;
   syncUpdatedAt?: number;
+};
+
+type FloorCheckItem = {
+  clean: boolean;
+  menus: boolean;
+  silverware: boolean;
+  salsa: boolean;
+  chairs: boolean;
+  maintenanceNote: string;
+};
+
+type FloorCheckSession = {
+  id: string;
+  startedAt: number;
+  completedAt?: number;
+  mode: "Opening" | "Shift Change" | "Closing";
+  tableChecks: Record<string, FloorCheckItem>;
+  completed: boolean;
 };
 
 const OFFLINE_QUEUE_KEY = "enriques-os-offline-queue-v1";
@@ -147,6 +166,12 @@ type OfflineOperation =
   | {
       id: string;
       createdAt: number;
+      type: "host_floor_checks_upsert";
+      payload: { id: string; data: FloorCheckSession };
+    }
+  | {
+      id: string;
+      createdAt: number;
       type: "host_shift_history_insert";
       payload: { id: string; data: any };
     };
@@ -188,6 +213,20 @@ export default function Home() {
   const [reservationGuests, setReservationGuests] = useState("");
   const [reservationPhone, setReservationPhone] = useState("");
   const [reservationNotes, setReservationNotes] = useState("");
+
+  const [plannerSelectedReservationId, setPlannerSelectedReservationId] =
+    useState<string | null>(null);
+
+  const [floorCheckMode, setFloorCheckMode] = useState(false);
+  const [floorCheckType, setFloorCheckType] = useState<
+    "Opening" | "Shift Change" | "Closing"
+  >("Opening");
+  const [activeFloorCheck, setActiveFloorCheck] =
+    useState<FloorCheckSession | null>(null);
+  const [floorCheckTableId, setFloorCheckTableId] =
+    useState<string | null>(null);
+  const [showFloorCheckSummary, setShowFloorCheckSummary] =
+    useState(false);
 
   const [rotation, setRotation] = useState<string[]>([]);
 
@@ -1096,6 +1135,169 @@ async function undoLastSeat() {
     });
   }
 
+  function createBlankFloorCheckItem(): FloorCheckItem {
+    return {
+      clean: false,
+      menus: false,
+      silverware: false,
+      salsa: false,
+      chairs: false,
+      maintenanceNote: "",
+    };
+  }
+
+  function startFloorCheck() {
+    const tableChecks: Record<string, FloorCheckItem> = {};
+
+    tables
+      .filter((table) => table.seats !== "Couch")
+      .forEach((table) => {
+        tableChecks[table.id] = createBlankFloorCheckItem();
+      });
+
+    setActiveFloorCheck({
+      id: `floor-check-${Date.now()}`,
+      startedAt: Date.now(),
+      mode: floorCheckType,
+      tableChecks,
+      completed: false,
+    });
+
+    setFloorCheckMode(true);
+    setFloorCheckTableId(null);
+    setShowFloorCheckSummary(false);
+  }
+
+  function updateFloorCheckItem(
+    tableId: string,
+    updates: Partial<FloorCheckItem>
+  ) {
+    setActiveFloorCheck((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        tableChecks: {
+          ...current.tableChecks,
+          [tableId]: {
+            ...(current.tableChecks[tableId] ||
+              createBlankFloorCheckItem()),
+            ...updates,
+          },
+        },
+      };
+    });
+  }
+
+  function isFloorCheckTableReady(tableId: string) {
+    const item = activeFloorCheck?.tableChecks[tableId];
+
+    if (!item) return false;
+
+    return (
+      item.clean &&
+      item.menus &&
+      item.silverware &&
+      item.salsa &&
+      item.chairs &&
+      !item.maintenanceNote.trim()
+    );
+  }
+
+  function getFloorCheckProgress() {
+    if (!activeFloorCheck) {
+      return { complete: 0, total: 0, percent: 0 };
+    }
+
+    const entries = Object.entries(activeFloorCheck.tableChecks);
+    const total = entries.length;
+    const complete = entries.filter(([tableId]) =>
+      isFloorCheckTableReady(tableId)
+    ).length;
+    const percent =
+      total === 0 ? 0 : Math.round((complete / total) * 100);
+
+    return { complete, total, percent };
+  }
+
+  async function completeFloorCheck() {
+    if (!activeFloorCheck) return;
+
+    const progress = getFloorCheckProgress();
+
+    if (progress.complete !== progress.total) {
+      const okay = confirm(
+        `${progress.total - progress.complete} tables still need attention. Complete this floor check anyway?`
+      );
+
+      if (!okay) return;
+    }
+
+    const completedSession: FloorCheckSession = {
+      ...activeFloorCheck,
+      completedAt: Date.now(),
+      completed: true,
+    };
+
+    setActiveFloorCheck(completedSession);
+    setShowFloorCheckSummary(true);
+
+    await syncOrQueue({
+      type: "host_floor_checks_upsert",
+      payload: {
+        id: completedSession.id,
+        data: completedSession,
+      },
+    });
+  }
+
+  function exitFloorCheck() {
+    setFloorCheckMode(false);
+    setFloorCheckTableId(null);
+    setShowFloorCheckSummary(false);
+  }
+
+  function getReservationForTable(tableId: string) {
+    const today = new Date().toISOString().slice(0, 10);
+
+    return reservations
+      .filter(
+        (reservation) =>
+          reservation.date === today &&
+          reservation.status !== "Cancelled" &&
+          reservation.tableIds.includes(tableId)
+      )
+      .sort((a, b) => a.time.localeCompare(b.time))[0];
+  }
+
+  async function togglePlannerReservationTableFromFloor(tableId: string) {
+    if (!plannerSelectedReservationId) return;
+
+    const reservation = reservations.find(
+      (item) => item.id === plannerSelectedReservationId
+    );
+
+    if (!reservation) return;
+
+    const nextTableIds = reservation.tableIds.includes(tableId)
+      ? reservation.tableIds.filter((id) => id !== tableId)
+      : [...reservation.tableIds, tableId];
+
+    await updateReservation(reservation.id, {
+      tableIds: nextTableIds,
+    });
+  }
+
+  function getReservationCountdownMinutes(reservation: ReservationRecord) {
+    const target = new Date(
+      `${reservation.date}T${reservation.time || "00:00"}`
+    ).getTime();
+
+    if (!Number.isFinite(target)) return null;
+
+    return Math.round((target - Date.now()) / 60000);
+  }
+
   function readOfflineQueue(): OfflineOperation[] {
     if (typeof window === "undefined") return [];
 
@@ -1350,6 +1552,22 @@ async function undoLastSeat() {
       return;
     }
 
+    if (operation.type === "host_floor_checks_upsert") {
+      const { error } = await supabase
+        .from("host_floor_checks")
+        .upsert({
+          ...operation.payload,
+          data: {
+            ...operation.payload.data,
+            syncDeviceId:
+              deviceIdRef.current || getOrCreateDeviceId(),
+            syncUpdatedAt: operation.createdAt,
+          },
+        });
+      if (error) throw error;
+      return;
+    }
+
     if (operation.type === "host_shift_history_insert") {
       const { error } = await supabase
         .from("host_shift_history")
@@ -1537,6 +1755,7 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
+      activeFloorCheck,
     };
 
     const current = readRecoverySnapshots();
@@ -1553,6 +1772,7 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
+      activeFloorCheck,
     };
 
     window.localStorage.setItem(
@@ -1595,6 +1815,7 @@ async function undoLastSeat() {
     setShiftHistory(snapshot.shiftHistory || []);
     setPartyCounts(snapshot.partyCounts || {});
     setReservations(snapshot.reservations || []);
+    setActiveFloorCheck(snapshot.activeFloorCheck || null);
     setLastLocalBackupAt(snapshot.savedAt);
     setRestoredFromLocal(true);
 
@@ -1659,6 +1880,7 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
+      activeFloorCheck,
     };
 
     try {
@@ -1715,6 +1937,7 @@ async function undoLastSeat() {
       setShiftHistory(backup.shiftHistory || []);
       setPartyCounts(backup.partyCounts || {});
       setReservations(backup.reservations || []);
+      setActiveFloorCheck(backup.activeFloorCheck || null);
       setLastLocalBackupAt(backup.savedAt || Date.now());
       setRestoredFromLocal(true);
 
@@ -1831,6 +2054,9 @@ async function undoLastSeat() {
         if (backup.shiftHistory) setShiftHistory(backup.shiftHistory);
         if (backup.partyCounts) setPartyCounts(backup.partyCounts);
         if (backup.reservations) setReservations(backup.reservations);
+        if (backup.activeFloorCheck) {
+          setActiveFloorCheck(backup.activeFloorCheck);
+        }
 
         if (backup.savedAt) {
           setLastLocalBackupAt(backup.savedAt);
@@ -1869,6 +2095,7 @@ async function undoLastSeat() {
       shiftHistory,
       partyCounts,
       reservations,
+      activeFloorCheck,
     };
 
     try {
@@ -1890,6 +2117,7 @@ async function undoLastSeat() {
     shiftHistory,
     partyCounts,
     reservations,
+    activeFloorCheck,
   ]);
 
   useEffect(() => {
@@ -1921,6 +2149,7 @@ async function undoLastSeat() {
     shiftHistory,
     partyCounts,
     reservations,
+    activeFloorCheck,
   ]);
 
   useEffect(() => {
@@ -2372,6 +2601,7 @@ async function undoLastSeat() {
       rotation: [...rotation],
       waitlist: waitlist.map((party) => ({ ...party })),
       reservations: reservations.map((reservation) => ({ ...reservation })),
+      floorCheck: activeFloorCheck,
       floor: tables.map((table) => ({ ...table })),
     };
 
@@ -2434,6 +2664,10 @@ async function undoLastSeat() {
     setSelectedPartyTables([]);
     setPartyServerId(null);
     setPartyGuestCount("");
+    setFloorCheckMode(false);
+    setActiveFloorCheck(null);
+    setFloorCheckTableId(null);
+    setShowFloorCheckSummary(false);
     setDraggingId(null);
     setEditMode(false);
     setFloorLocked(true);
@@ -2722,6 +2956,22 @@ async function undoLastSeat() {
         </button>
 
         <button
+          onClick={() => {
+            if (floorCheckMode) {
+              exitFloorCheck();
+            } else {
+              setFloorCheckMode(true);
+            }
+
+            setPartySeatingMode(false);
+            setSelectedPartyTables([]);
+            setPlannerSelectedReservationId(null);
+          }}
+        >
+          {floorCheckMode ? "Close Floor Check" : "🧹 Floor Check"}
+        </button>
+
+        <button
           onClick={() => setReservationBookOpen((current) => !current)}
         >
           {reservationBookOpen ? "Close Reservations" : "📅 Reservations"}
@@ -2730,6 +2980,7 @@ async function undoLastSeat() {
         <button
           onClick={() => {
             setHeadHostMode((current) => !current);
+            setPlannerSelectedReservationId(null);
             setPartySeatingMode(false);
             setSelectedPartyTables([]);
             setPartyServerId(null);
@@ -3368,6 +3619,260 @@ async function undoLastSeat() {
 
 </div>
 
+      {floorCheckMode && (
+        <section
+          style={{
+            border: "4px solid #16a34a",
+            borderRadius: 12,
+            padding: 12,
+            background: "#f0fdf4",
+            marginBottom: 14,
+          }}
+        >
+          <h2 style={{ marginTop: 0, marginBottom: 6 }}>
+            🧹 Floor Check Mode
+          </h2>
+
+          {!activeFloorCheck ? (
+            <>
+              <div style={{ fontSize: 13, color: "#475569", marginBottom: 10 }}>
+                Start an opening, shift-change, or closing floor inspection.
+              </div>
+
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <select
+                  value={floorCheckType}
+                  onChange={(event) =>
+                    setFloorCheckType(
+                      event.target.value as
+                        | "Opening"
+                        | "Shift Change"
+                        | "Closing"
+                    )
+                  }
+                  style={{ padding: 8 }}
+                >
+                  <option>Opening</option>
+                  <option>Shift Change</option>
+                  <option>Closing</option>
+                </select>
+
+                <button
+                  onClick={startFloorCheck}
+                  style={{
+                    background: "#16a34a",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "9px 14px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Start Floor Check
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {(() => {
+                const progress = getFloorCheckProgress();
+
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <strong>{activeFloorCheck.mode} Floor Check</strong>
+                    <span>
+                      {progress.complete}/{progress.total} Ready
+                    </span>
+                    <span>{progress.percent}%</span>
+                  </div>
+                );
+              })()}
+
+              <div
+                style={{
+                  fontSize: 12,
+                  color: "#475569",
+                  marginBottom: 10,
+                }}
+              >
+                Tap a table on the floor map to inspect it.
+                Green outline = ready. Orange outline = needs attention.
+              </div>
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  onClick={completeFloorCheck}
+                  style={{
+                    background: "#16a34a",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Complete Floor Check
+                </button>
+
+                <button
+                  onClick={() => {
+                    const okay = confirm(
+                      "Discard this active floor check?"
+                    );
+
+                    if (!okay) return;
+
+                    setActiveFloorCheck(null);
+                    setFloorCheckTableId(null);
+                    setShowFloorCheckSummary(false);
+                  }}
+                >
+                  Start Over
+                </button>
+              </div>
+
+              {showFloorCheckSummary && (() => {
+                const progress = getFloorCheckProgress();
+
+                const remaining = Object.keys(
+                  activeFloorCheck.tableChecks
+                ).filter(
+                  (tableId) => !isFloorCheckTableReady(tableId)
+                );
+
+                return (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      border: "2px solid #111827",
+                      borderRadius: 8,
+                      background: "white",
+                      padding: 10,
+                    }}
+                  >
+                    <strong>
+                      Floor Check Saved • {progress.percent}%
+                    </strong>
+
+                    {remaining.length === 0 ? (
+                      <div style={{ marginTop: 5 }}>
+                        ✅ All checked tables are ready.
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 5 }}>
+                        ⚠ Needs attention: {remaining.join(", ")}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </section>
+      )}
+
+      {floorCheckMode &&
+        activeFloorCheck &&
+        floorCheckTableId &&
+        (() => {
+          const item =
+            activeFloorCheck.tableChecks[floorCheckTableId] ||
+            createBlankFloorCheckItem();
+
+          return (
+            <section
+              style={{
+                border: "4px solid #111827",
+                borderRadius: 12,
+                padding: 12,
+                background: "white",
+                marginBottom: 14,
+                maxWidth: 720,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <h2 style={{ margin: 0 }}>
+                  Table {floorCheckTableId}
+                </h2>
+                <button onClick={() => setFloorCheckTableId(null)}>
+                  Close
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+                  gap: 7,
+                  marginTop: 10,
+                }}
+              >
+                {[
+                  ["clean", "Clean"],
+                  ["menus", "Menus"],
+                  ["silverware", "Silverware"],
+                  ["salsa", "Salsa"],
+                  ["chairs", "Chairs"],
+                ].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() =>
+                      updateFloorCheckItem(floorCheckTableId, {
+                        [key]: !item[key as keyof FloorCheckItem],
+                      } as Partial<FloorCheckItem>)
+                    }
+                    style={{
+                      padding: 9,
+                      borderRadius: 8,
+                      border: "2px solid #111827",
+                      background: item[key as keyof FloorCheckItem]
+                        ? "#dcfce7"
+                        : "#fff7ed",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {item[key as keyof FloorCheckItem] ? "✓ " : ""}
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                value={item.maintenanceNote}
+                onChange={(event) =>
+                  updateFloorCheckItem(floorCheckTableId, {
+                    maintenanceNote: event.target.value,
+                  })
+                }
+                placeholder="Maintenance issue / note"
+                style={{
+                  marginTop: 9,
+                  padding: 9,
+                  width: "100%",
+                  boxSizing: "border-box",
+                  border: "2px solid #111827",
+                  borderRadius: 8,
+                }}
+              />
+            </section>
+          );
+        })()}
+
       {reservationBookOpen && (
         <section
           style={{
@@ -3539,6 +4044,28 @@ async function undoLastSeat() {
             Reservations and live waitlist together for planning the floor.
           </div>
 
+          {plannerSelectedReservationId && (
+            <div
+              style={{
+                background: "#dbeafe",
+                border: "2px solid #2563eb",
+                borderRadius: 8,
+                padding: 8,
+                marginBottom: 10,
+                fontSize: 12,
+              }}
+            >
+              <strong>Floor Planning Active:</strong>{" "}
+              {
+                reservations.find(
+                  (reservation) =>
+                    reservation.id === plannerSelectedReservationId
+                )?.name
+              }{" "}
+              — tap tables directly on the floor map.
+            </div>
+          )}
+
           <div
             style={{
               display: "grid",
@@ -3688,6 +4215,36 @@ async function undoLastSeat() {
                         ? reservation.tableIds.join(", ")
                         : "Not assigned"}
                     </div>
+
+                    <button
+                      onClick={() =>
+                        setPlannerSelectedReservationId((current) =>
+                          current === reservation.id
+                            ? null
+                            : reservation.id
+                        )
+                      }
+                      style={{
+                        marginTop: 6,
+                        width: "100%",
+                        background:
+                          plannerSelectedReservationId === reservation.id
+                            ? "#2563eb"
+                            : "#eff6ff",
+                        color:
+                          plannerSelectedReservationId === reservation.id
+                            ? "white"
+                            : "#1d4ed8",
+                        border: "2px solid #2563eb",
+                        borderRadius: 7,
+                        padding: 6,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {plannerSelectedReservationId === reservation.id
+                        ? "Planning on Floor — Tap Tables"
+                        : "Plan on Floor"}
+                    </button>
 
                     <div
                       style={{
@@ -3991,6 +4548,59 @@ async function undoLastSeat() {
           }}
 
         >
+          {headHostMode && plannerSelectedReservationId && (
+            <div
+              style={{
+                position: "absolute",
+                top: 12,
+                left: 260,
+                width: 700,
+                minHeight: 58,
+                background: "#dbeafe",
+                border: "3px solid #2563eb",
+                borderRadius: 10,
+                zIndex: 35,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "8px 12px",
+                boxSizing: "border-box",
+              }}
+            >
+              <div>
+                <strong style={{ fontSize: 17 }}>
+                  Planning{" "}
+                  {
+                    reservations.find(
+                      (reservation) =>
+                        reservation.id === plannerSelectedReservationId
+                    )?.name
+                  }
+                </strong>
+                <div style={{ fontSize: 12 }}>
+                  Tap open tables to add/remove them from this reservation.
+                </div>
+              </div>
+
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPlannerSelectedReservationId(null);
+                }}
+                style={{
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 7,
+                  padding: "7px 12px",
+                  fontWeight: "bold",
+                }}
+              >
+                Done Planning
+              </button>
+            </div>
+          )}
+
           {seatingServerName && (
   
           <div
@@ -4650,7 +5260,12 @@ async function undoLastSeat() {
 
                 background: STATUS_COLORS[table.status],
 
-                border: table.server
+                border:
+                  floorCheckMode && activeFloorCheck
+                    ? isFloorCheckTableReady(table.id)
+                      ? "6px solid #16a34a"
+                      : "6px solid #f59e0b"
+                    : table.server
 
   ? servers.find((server) => server.name === table.server)?.status === "Checked In"
 
@@ -4761,6 +5376,64 @@ async function undoLastSeat() {
     ✓ SELECTED
   </div>
 )}
+
+{floorCheckMode && activeFloorCheck && (
+  <div
+    style={{
+      fontSize: 9,
+      fontWeight: "bold",
+      color: isFloorCheckTableReady(table.id)
+        ? "#166534"
+        : "#9a3412",
+      background: isFloorCheckTableReady(table.id)
+        ? "#dcfce7"
+        : "#ffedd5",
+      borderRadius: 5,
+      padding: "2px 4px",
+      marginTop: 2,
+    }}
+  >
+    {isFloorCheckTableReady(table.id)
+      ? "✓ READY"
+      : "CHECK"}
+  </div>
+)}
+
+{(() => {
+  const plannedReservation = getReservationForTable(table.id);
+
+  if (!plannedReservation) return null;
+
+  const countdown = getReservationCountdownMinutes(plannedReservation);
+
+  return (
+    <div
+      style={{
+        fontSize: 9,
+        lineHeight: 1.1,
+        fontWeight: "bold",
+        color: "#7c2d12",
+        background: "#ffedd5",
+        border: "1px solid #fb923c",
+        borderRadius: 5,
+        padding: "2px 4px",
+        marginTop: 2,
+        maxWidth: "92%",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+      title={`${plannedReservation.name} • ${plannedReservation.time}`}
+    >
+      📅 {plannedReservation.time} {plannedReservation.name}
+      {countdown !== null &&
+      countdown >= 0 &&
+      countdown <= 120
+        ? ` • ${countdown}m`
+        : ""}
+    </div>
+  );
+})()}
 
 {table.server && (
 
