@@ -191,6 +191,17 @@ export default function Home() {
   const [reservationPhone, setReservationPhone] = useState("");
   const [reservationNotes, setReservationNotes] = useState("");
 
+  const [reservationBookMode, setReservationBookMode] = useState(false);
+  const [reservationBookDate, setReservationBookDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  );
+  const [reservationBookWeekOffset, setReservationBookWeekOffset] = useState(0);
+  const [reservationBookMonth, setReservationBookMonth] = useState(
+    new Date().toISOString().slice(0, 7)
+  );
+  const [reservationBookSelectedSlot, setReservationBookSelectedSlot] =
+    useState<string | null>(null);
+
   const [plannerSelectedReservationId, setPlannerSelectedReservationId] =
     useState<string | null>(null);
 
@@ -983,6 +994,133 @@ async function undoLastSeat() {
     );
   }
 
+  function reservationBookStorageKey() {
+    return "enriques-os-reservation-book-mode-v1";
+  }
+
+  function toggleReservationBookMode() {
+    const next = !reservationBookMode;
+    setReservationBookMode(next);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        reservationBookStorageKey(),
+        next ? "1" : "0"
+      );
+    }
+
+    if (next) {
+      setHeadHostMode(false);
+      setPartySeatingMode(false);
+      setFloorCheckMode(false);
+      setSelectedServer(null);
+      setSeatingServerName(null);
+      setPlannerSelectedReservationId(null);
+    }
+  }
+
+  function getWeekDates(offset: number) {
+    const base = new Date();
+    const day = base.getDay();
+    const diffToTuesday = ((day - 2 + 7) % 7);
+    base.setDate(base.getDate() - diffToTuesday + offset * 7);
+
+    return Array.from({ length: 5 }).map((_, index) => {
+      const date = new Date(base);
+      date.setDate(base.getDate() + index);
+
+      // Skip Sunday/Monday by using Tue-Sat only.
+      return date;
+    });
+  }
+
+  function formatBookDate(date: Date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  function getSlotsForDate(dateString: string) {
+    const date = new Date(`${dateString}T12:00:00`);
+    const day = date.getDay();
+
+    // Tue-Thu: 3:00-8:30 PM
+    // Fri: 11:00 AM-9:30 PM
+    // Sat: 12:00 PM-9:30 PM
+    let startHour = 15;
+    let startMinute = 0;
+    let endHour = 20;
+    let endMinute = 30;
+
+    if (day === 5) {
+      startHour = 11;
+      startMinute = 0;
+      endHour = 21;
+      endMinute = 30;
+    } else if (day === 6) {
+      startHour = 12;
+      startMinute = 0;
+      endHour = 21;
+      endMinute = 30;
+    }
+
+    const slots: string[] = [];
+    const current = new Date(`${dateString}T00:00:00`);
+    current.setHours(startHour, startMinute, 0, 0);
+
+    const end = new Date(`${dateString}T00:00:00`);
+    end.setHours(endHour, endMinute, 0, 0);
+
+    while (current <= end) {
+      slots.push(
+        current.toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        })
+      );
+      current.setMinutes(current.getMinutes() + 15);
+    }
+
+    return slots;
+  }
+
+  function normalizeDisplayTimeTo24Hour(time: string) {
+    const parsed = new Date(`2000-01-01 ${time}`);
+    if (Number.isNaN(parsed.getTime())) return time;
+
+    return parsed.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  function reservationsForSlot(date: string, displayTime: string) {
+    const targetTime = normalizeDisplayTimeTo24Hour(displayTime);
+
+    return reservations
+      .filter(
+        (reservation) =>
+          reservation.date === date &&
+          reservation.time === targetTime &&
+          reservation.status !== "Cancelled"
+      )
+      .sort((a, b) => a.createdAt - b.createdAt);
+  }
+
+  function selectReservationBookSlot(date: string, displayTime: string) {
+    setReservationBookDate(date);
+    setReservationDate(date);
+    setReservationTime(normalizeDisplayTimeTo24Hour(displayTime));
+    setReservationBookSelectedSlot(`${date}|${displayTime}`);
+  }
+
+  function formatBookDayLabel(date: Date) {
+    return date.toLocaleDateString([], {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
   async function addReservation() {
     const name = reservationName.trim();
     const date = reservationDate.trim();
@@ -992,6 +1130,21 @@ async function undoLastSeat() {
     if (!name || !date || !time || !guests) {
       alert("Enter reservation name, date, time, and guest count.");
       return;
+    }
+
+    const bookedInSlot = reservations.filter(
+      (reservation) =>
+        reservation.date === date &&
+        reservation.time === time &&
+        reservation.status !== "Cancelled"
+    ).length;
+
+    if (bookedInSlot >= 5) {
+      const okay = confirm(
+        "This 15-minute slot already has 5 reservations. Add another reservation anyway?"
+      );
+
+      if (!okay) return;
     }
 
     const reservation: ReservationRecord = {
@@ -2057,6 +2210,13 @@ async function undoLastSeat() {
     if (typeof window === "undefined") return;
 
     getOrCreateDeviceId();
+
+    if (
+      window.localStorage.getItem(reservationBookStorageKey()) === "1"
+    ) {
+      setReservationBookMode(true);
+    }
+
     setIsOnline(window.navigator.onLine);
     setPendingSyncCount(readOfflineQueue().length);
     setRecoverySnapshots(readRecoverySnapshots());
@@ -2882,6 +3042,316 @@ async function undoLastSeat() {
         </div>
       )}
 
+      {reservationBookMode ? (
+        <section
+          style={{
+            minHeight: "calc(100vh - 32px)",
+            background: "#fffdf7",
+            border: "4px solid #111827",
+            borderRadius: 14,
+            padding: 14,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <h1 style={{ margin: 0 }}>📖 Enrique’s Reservation Book</h1>
+              <div style={{ fontSize: 13, color: "#475569" }}>
+                Dedicated reservation iPad • Host floor controls are hidden
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => setReservationBookWeekOffset((v) => v - 1)}>
+                ← Previous Week
+              </button>
+              <button onClick={() => setReservationBookWeekOffset(0)}>
+                This Week
+              </button>
+              <button onClick={() => setReservationBookWeekOffset((v) => v + 1)}>
+                Next Week →
+              </button>
+              <button onClick={toggleReservationBookMode}>
+                Exit Reservation Book
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5, minmax(240px, 1fr))",
+              gap: 10,
+              overflowX: "auto",
+              alignItems: "start",
+            }}
+          >
+            {getWeekDates(reservationBookWeekOffset).map((date) => {
+              const dateString = formatBookDate(date);
+              const slots = getSlotsForDate(dateString);
+
+              return (
+                <div
+                  key={dateString}
+                  style={{
+                    minWidth: 240,
+                    border: "3px solid #111827",
+                    borderRadius: 10,
+                    background: "white",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      background: "#111827",
+                      color: "white",
+                      padding: 10,
+                      fontWeight: "bold",
+                      textAlign: "center",
+                    }}
+                  >
+                    {formatBookDayLabel(date)}
+                  </div>
+
+                  <div
+                    style={{
+                      maxHeight: "70vh",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {slots.map((displayTime) => {
+                      const slotReservations = reservationsForSlot(
+                        dateString,
+                        displayTime
+                      );
+                      const isFull = slotReservations.length >= 5;
+
+                      return (
+                        <div
+                          key={`${dateString}-${displayTime}`}
+                          onClick={() =>
+                            selectReservationBookSlot(
+                              dateString,
+                              displayTime
+                            )
+                          }
+                          style={{
+                            borderBottom: "1px solid #e2e8f0",
+                            padding: 7,
+                            background:
+                              reservationBookSelectedSlot ===
+                              `${dateString}|${displayTime}`
+                                ? "#dbeafe"
+                                : isFull
+                                  ? "#fee2e2"
+                                  : "white",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: 6,
+                              alignItems: "center",
+                            }}
+                          >
+                            <strong style={{ fontSize: 12 }}>
+                              {displayTime}
+                            </strong>
+
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: "bold",
+                                color: isFull ? "#991b1b" : "#475569",
+                              }}
+                            >
+                              {slotReservations.length}/5
+                            </span>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 3,
+                              marginTop: 4,
+                            }}
+                          >
+                            {slotReservations.map((reservation) => (
+                              <div
+                                key={reservation.id}
+                                style={{
+                                  border: "1px solid #94a3b8",
+                                  borderRadius: 6,
+                                  padding: "4px 5px",
+                                  background: "#f8fafc",
+                                  fontSize: 10,
+                                }}
+                              >
+                                <strong>
+                                  {reservation.name} • {reservation.guests}
+                                </strong>
+                                {Number(reservation.guests) >= 10 && (
+                                  <span style={{ color: "#b91c1c" }}>
+                                    {" "}⚠ 10+
+                                  </span>
+                                )}
+                                <div style={{ color: "#64748b", marginTop: 1 }}>
+                                  {reservation.status}
+                                  {reservation.notes
+                                    ? ` • ${reservation.notes}`
+                                    : ""}
+                                </div>
+                              </div>
+                            ))}
+
+                            {slotReservations.length === 0 && (
+                              <div
+                                style={{
+                                  color: "#94a3b8",
+                                  fontSize: 10,
+                                }}
+                              >
+                                Open
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div
+            style={{
+              marginTop: 14,
+              border: "3px solid #2563eb",
+              borderRadius: 10,
+              background: "white",
+              padding: 12,
+            }}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: 8 }}>
+              Add Reservation
+            </h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "1.2fr .9fr .8fr .6fr 1fr",
+                gap: 7,
+                marginBottom: 7,
+              }}
+            >
+              <input
+                value={reservationName}
+                onChange={(event) =>
+                  setReservationName(event.target.value)
+                }
+                placeholder="Guest name"
+                style={{ padding: 9 }}
+              />
+              <input
+                type="date"
+                value={reservationDate}
+                onChange={(event) =>
+                  setReservationDate(event.target.value)
+                }
+                style={{ padding: 9 }}
+              />
+              <input
+                type="time"
+                value={reservationTime}
+                onChange={(event) =>
+                  setReservationTime(event.target.value)
+                }
+                style={{ padding: 9 }}
+              />
+              <input
+                type="number"
+                min="1"
+                value={reservationGuests}
+                onChange={(event) =>
+                  setReservationGuests(event.target.value)
+                }
+                placeholder="Guests"
+                style={{ padding: 9 }}
+              />
+              <input
+                value={reservationPhone}
+                onChange={(event) =>
+                  setReservationPhone(event.target.value)
+                }
+                placeholder="Phone"
+                style={{ padding: 9 }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 7 }}>
+              <input
+                value={reservationNotes}
+                onChange={(event) =>
+                  setReservationNotes(event.target.value)
+                }
+                placeholder="Special request / notes"
+                style={{ flex: 1, padding: 9 }}
+              />
+              <button
+                onClick={addReservation}
+                style={{
+                  background: "#2563eb",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "9px 16px",
+                  fontWeight: "bold",
+                }}
+              >
+                Add Reservation
+              </button>
+            </div>
+
+            {reservationDate &&
+              reservationTime &&
+              reservations.filter(
+                (reservation) =>
+                  reservation.date === reservationDate &&
+                  reservation.time === reservationTime &&
+                  reservation.status !== "Cancelled"
+              ).length >= 5 && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    background: "#fee2e2",
+                    border: "2px solid #dc2626",
+                    borderRadius: 8,
+                    padding: 8,
+                    fontWeight: "bold",
+                    color: "#991b1b",
+                  }}
+                >
+                  ⚠ This 15-minute slot already has 5 reservations.
+                </div>
+              )}
+          </div>
+        </section>
+      ) : (
+      <>
+
       <div
 
         style={{
@@ -2974,6 +3444,18 @@ async function undoLastSeat() {
 
           {floorLocked ? "Floor Locked" : "Floor Unlocked"}
 
+        </button>
+
+        <button
+          onClick={toggleReservationBookMode}
+          style={{
+            background: reservationBookMode ? "#7c3aed" : undefined,
+            color: reservationBookMode ? "white" : undefined,
+          }}
+        >
+          {reservationBookMode
+            ? "Exit Reservation Book"
+            : "📖 Reservation Book Mode"}
         </button>
 
         <button
