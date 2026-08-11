@@ -774,6 +774,9 @@ async function undoLastSeat() {
   const [isSyncingOfflineQueue, setIsSyncingOfflineQueue] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
 
+  const [showRecoveryCenter, setShowRecoveryCenter] = useState(false);
+  const [recoveryMessage, setRecoveryMessage] = useState("");
+
   function readOfflineQueue(): OfflineOperation[] {
     if (typeof window === "undefined") return [];
 
@@ -939,6 +942,150 @@ async function undoLastSeat() {
     }
 
     setIsSyncingOfflineQueue(false);
+  }
+
+  function createManualLocalBackup() {
+    if (typeof window === "undefined") return;
+
+    const savedAt = Date.now();
+
+    const backup: LocalBackup = {
+      savedAt,
+      tables,
+      servers,
+      waitlist,
+      rotation,
+      lastSeated,
+      shiftHistory,
+    };
+
+    try {
+      window.localStorage.setItem(
+        LOCAL_BACKUP_KEY,
+        JSON.stringify(backup)
+      );
+      setLastLocalBackupAt(savedAt);
+      setRecoveryMessage("Manual backup saved on this iPad.");
+    } catch (error) {
+      console.error("Could not create manual backup:", error);
+      setRecoveryMessage("Could not create the manual backup.");
+    }
+  }
+
+  async function restoreFromLocalBackup() {
+    if (typeof window === "undefined") return;
+
+    const rawBackup = window.localStorage.getItem(LOCAL_BACKUP_KEY);
+
+    if (!rawBackup) {
+      alert("No local backup was found on this iPad.");
+      return;
+    }
+
+    const okay = confirm(
+      "Restore the latest local backup on this iPad? This will replace the current visible floor, servers, waitlist, rotation, and shift history with the saved local copy."
+    );
+
+    if (!okay) return;
+
+    try {
+      const backup = JSON.parse(rawBackup) as LocalBackup;
+
+      if (!backup.tables?.length) {
+        alert("The local backup does not contain a valid floor map.");
+        return;
+      }
+
+      setTables(backup.tables);
+      setServers(backup.servers || []);
+      setWaitlist(backup.waitlist || []);
+      setRotation(backup.rotation || []);
+      setLastSeated(backup.lastSeated || {});
+      setShiftHistory(backup.shiftHistory || []);
+      setLastLocalBackupAt(backup.savedAt || Date.now());
+      setRestoredFromLocal(true);
+
+      // Protect the restored floor and server state in the cloud/queue.
+      await syncOrQueue({
+        type: "host_tables_upsert",
+        payload: {
+          id: "main",
+          data: {
+            tables: backup.tables,
+            updatedAt: Date.now(),
+          },
+        },
+      });
+
+      if ((backup.servers || []).length > 0) {
+        await syncOrQueue({
+          type: "host_servers_upsert",
+          payload: {
+            rows: backup.servers.map((server) => ({
+              id: server.id,
+              data: server,
+            })),
+          },
+        });
+      }
+
+      setRecoveryMessage(
+        "Local backup restored. Floor and server state are protected and will sync when available."
+      );
+    } catch (error) {
+      console.error("Could not restore local backup:", error);
+      alert("The local backup could not be restored.");
+    }
+  }
+
+  function exportRecoveryBackup() {
+    if (typeof window === "undefined") return;
+
+    const rawBackup = window.localStorage.getItem(LOCAL_BACKUP_KEY);
+
+    if (!rawBackup) {
+      alert("No local backup was found to export.");
+      return;
+    }
+
+    const blob = new Blob([rawBackup], {
+      type: "application/json",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `enriques-os-backup-${new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")}.json`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+
+    setRecoveryMessage("Recovery backup exported.");
+  }
+
+  function clearOfflineQueueSafely() {
+    if (typeof window === "undefined") return;
+
+    const queue = readOfflineQueue();
+
+    if (queue.length === 0) {
+      alert("There are no pending offline changes.");
+      return;
+    }
+
+    const okay = confirm(
+      `There are ${queue.length} pending offline changes. Clear them without syncing? Only do this if you are sure those changes should be discarded.`
+    );
+
+    if (!okay) return;
+
+    writeOfflineQueue([]);
+    setRecoveryMessage("Pending offline queue cleared.");
   }
 
   const openCount = tables.filter((t) => t.status === "Open").length;
@@ -1692,6 +1839,13 @@ async function undoLastSeat() {
           {showShiftHistory ? "Hide Shift History" : "📊 Shift History"}
         </button>
 
+        <button
+          onClick={() => setShowRecoveryCenter((current) => !current)}
+          disabled={!managerUnlocked}
+        >
+          {showRecoveryCenter ? "Hide Recovery Center" : "🛟 Recovery Center"}
+        </button>
+
         <span
           style={{
             fontSize: 12,
@@ -1731,6 +1885,135 @@ async function undoLastSeat() {
         )}
 
       </div>
+
+      {showRecoveryCenter && managerUnlocked && (
+        <section
+          style={{
+            border: "3px solid #111827",
+            borderRadius: 10,
+            padding: 12,
+            background: "white",
+            marginBottom: 12,
+            maxWidth: 760,
+          }}
+        >
+          <h2 style={{ marginTop: 0, marginBottom: 6 }}>
+            🛟 Recovery Center
+          </h2>
+
+          <div style={{ fontSize: 13, color: "#475569", marginBottom: 12 }}>
+            Protect, restore, and export this iPad's Enrique's OS backup.
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                border: "2px solid #cbd5e1",
+                borderRadius: 8,
+                padding: 10,
+                background: "#f8fafc",
+              }}
+            >
+              <strong>Local Backup</strong>
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                {lastLocalBackupAt
+                  ? new Date(lastLocalBackupAt).toLocaleString()
+                  : "No local backup yet"}
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "2px solid #cbd5e1",
+                borderRadius: 8,
+                padding: 10,
+                background: "#f8fafc",
+              }}
+            >
+              <strong>Cloud Sync</strong>
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                {isOnline
+                  ? pendingSyncCount > 0
+                    ? `${pendingSyncCount} pending`
+                    : "Up to date"
+                  : `${pendingSyncCount} pending • offline`}
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <button onClick={createManualLocalBackup}>
+              💾 Backup Now
+            </button>
+
+            <button onClick={restoreFromLocalBackup}>
+              ↩ Restore Local Backup
+            </button>
+
+            <button onClick={exportRecoveryBackup}>
+              ⬇ Export Backup
+            </button>
+
+            <button
+              onClick={flushOfflineQueue}
+              disabled={!isOnline || isSyncingOfflineQueue || pendingSyncCount === 0}
+            >
+              {isSyncingOfflineQueue
+                ? "Syncing..."
+                : `🔄 Retry Sync (${pendingSyncCount})`}
+            </button>
+
+            <button
+              onClick={clearOfflineQueueSafely}
+              disabled={pendingSyncCount === 0}
+              style={{
+                background: pendingSyncCount === 0 ? "#e2e8f0" : "#fee2e2",
+              }}
+            >
+              Clear Pending Queue
+            </button>
+          </div>
+
+          {recoveryMessage && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 8,
+                background: "#ecfdf5",
+                border: "1px solid #16a34a",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+            >
+              {recoveryMessage}
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 11,
+              color: "#64748b",
+            }}
+          >
+            Restore is manager-only and should be used only when the current
+            board is incorrect or after a device/browser recovery.
+          </div>
+        </section>
+      )}
 
       {showShiftHistory && managerUnlocked && (
         <section
