@@ -64,6 +64,7 @@ const OFFLINE_QUEUE_KEY = "enriques-os-offline-queue-v1";
 const RECOVERY_SNAPSHOTS_KEY = "enriques-os-recovery-snapshots-v1";
 const MAX_RECOVERY_SNAPSHOTS = 8;
 const AUTO_SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000;
+const DEVICE_ID_KEY = "enriques-os-device-id-v1";
 
 type RecoverySnapshot = LocalBackup & {
   id: string;
@@ -788,6 +789,38 @@ async function undoLastSeat() {
 
   const [recoverySnapshots, setRecoverySnapshots] = useState<RecoverySnapshot[]>([]);
 
+  const deviceIdRef = useRef("");
+  const [lastRemoteUpdateAt, setLastRemoteUpdateAt] = useState<number | null>(null);
+  const [lastRemoteUpdateLabel, setLastRemoteUpdateLabel] = useState("");
+  const [syncConflictNotice, setSyncConflictNotice] = useState("");
+
+  function getOrCreateDeviceId() {
+    if (typeof window === "undefined") return "server";
+
+    let deviceId = window.localStorage.getItem(DEVICE_ID_KEY);
+
+    if (!deviceId) {
+      deviceId = `ipad-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 7)}`;
+      window.localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    }
+
+    deviceIdRef.current = deviceId;
+    return deviceId;
+  }
+
+  function queueHasTypePrefix(prefix: string) {
+    return readOfflineQueue().some((operation) =>
+      operation.type.startsWith(prefix)
+    );
+  }
+
+  function markRemoteUpdate(label: string) {
+    setLastRemoteUpdateAt(Date.now());
+    setLastRemoteUpdateLabel(label);
+  }
+
   function readOfflineQueue(): OfflineOperation[] {
     if (typeof window === "undefined") return [];
 
@@ -825,7 +858,70 @@ async function undoLastSeat() {
       createdAt: Date.now(),
     } as OfflineOperation;
 
-    const queue = readOfflineQueue();
+    let queue = readOfflineQueue();
+
+    // Keep only the newest full-floor write so an old offline floor
+    // cannot replay after a newer floor state.
+    if (queuedOperation.type === "host_tables_upsert") {
+      queue = queue.filter(
+        (item) => item.type !== "host_tables_upsert"
+      );
+    }
+
+    // For the same server row, keep the newest queued server state.
+    if (queuedOperation.type === "host_servers_upsert") {
+      const queuedIds = new Set(
+        queuedOperation.payload.rows.map((row) => row.id)
+      );
+
+      queue = queue
+        .map((item) => {
+          if (item.type !== "host_servers_upsert") return item;
+
+          const remainingRows = item.payload.rows.filter(
+            (row) => !queuedIds.has(row.id)
+          );
+
+          return remainingRows.length
+            ? {
+                ...item,
+                payload: { rows: remainingRows },
+              }
+            : null;
+        })
+        .filter(Boolean) as OfflineOperation[];
+    }
+
+    if (queuedOperation.type === "host_waitlist_update") {
+      queue = queue.filter(
+        (item) =>
+          !(
+            item.type === "host_waitlist_update" &&
+            item.payload.id === queuedOperation.payload.id
+          )
+      );
+    }
+
+    if (queuedOperation.type === "host_waitlist_delete") {
+      queue = queue.filter((item) => {
+        if (
+          item.type === "host_waitlist_update" &&
+          item.payload.id === queuedOperation.payload.id
+        ) {
+          return false;
+        }
+
+        if (
+          item.type === "host_waitlist_insert" &&
+          item.payload.id === queuedOperation.payload.id
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+    }
+
     writeOfflineQueue([...queue, queuedOperation]);
   }
 
@@ -833,7 +929,14 @@ async function undoLastSeat() {
     if (operation.type === "host_tables_upsert") {
       const { error } = await supabase
         .from("host_tables")
-        .upsert(operation.payload);
+        .upsert({
+          ...operation.payload,
+          data: {
+            ...operation.payload.data,
+            syncDeviceId: deviceIdRef.current || getOrCreateDeviceId(),
+            syncUpdatedAt: operation.createdAt,
+          },
+        });
       if (error) throw error;
       return;
     }
@@ -841,7 +944,16 @@ async function undoLastSeat() {
     if (operation.type === "host_servers_upsert") {
       const { error } = await supabase
         .from("host_servers")
-        .upsert(operation.payload.rows);
+        .upsert(
+          operation.payload.rows.map((row) => ({
+            ...row,
+            data: {
+              ...row.data,
+              syncDeviceId: deviceIdRef.current || getOrCreateDeviceId(),
+              syncUpdatedAt: operation.createdAt,
+            },
+          }))
+        );
       if (error) throw error;
       return;
     }
@@ -858,7 +970,14 @@ async function undoLastSeat() {
     if (operation.type === "host_waitlist_insert") {
       const { error } = await supabase
         .from("host_waitlist")
-        .insert(operation.payload);
+        .insert({
+          ...operation.payload,
+          data: {
+            ...operation.payload.data,
+            syncDeviceId: deviceIdRef.current || getOrCreateDeviceId(),
+            syncUpdatedAt: operation.createdAt,
+          },
+        });
       if (error) throw error;
       return;
     }
@@ -866,7 +985,13 @@ async function undoLastSeat() {
     if (operation.type === "host_waitlist_update") {
       const { error } = await supabase
         .from("host_waitlist")
-        .update({ data: operation.payload.data })
+        .update({
+          data: {
+            ...operation.payload.data,
+            syncDeviceId: deviceIdRef.current || getOrCreateDeviceId(),
+            syncUpdatedAt: operation.createdAt,
+          },
+        })
         .eq("id", operation.payload.id);
       if (error) throw error;
       return;
@@ -950,6 +1075,48 @@ async function undoLastSeat() {
 
     if (remaining.length === 0) {
       setLastSyncAt(Date.now());
+      setSyncConflictNotice("");
+
+      // Pull fresh cloud state after replay so every iPad converges.
+      const [{ data: tableData }, { data: serverData }, { data: waitData }] =
+        await Promise.all([
+          supabase
+            .from("host_tables")
+            .select("data")
+            .eq("id", "main")
+            .maybeSingle(),
+          supabase.from("host_servers").select("id, data"),
+          supabase
+            .from("host_waitlist")
+            .select("data")
+            .order("id", { ascending: true }),
+        ]);
+
+      if (tableData?.data?.tables) {
+        const cloudUpdatedAt =
+          tableData.data.syncUpdatedAt ||
+          tableData.data.updatedAt ||
+          0;
+        lastLocalSaveRef.current = Math.max(
+          lastLocalSaveRef.current,
+          cloudUpdatedAt
+        );
+        setTables(tableData.data.tables);
+      }
+
+      if (serverData) {
+        setServers(
+          serverData
+            .map((row) => row.data as ServerInfo)
+            .filter(Boolean)
+        );
+      }
+
+      if (waitData) {
+        setWaitlist(
+          waitData.map((row) => row.data as WaitParty)
+        );
+      }
     }
 
     setIsSyncingOfflineQueue(false);
@@ -1272,6 +1439,7 @@ async function undoLastSeat() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    getOrCreateDeviceId();
     setIsOnline(window.navigator.onLine);
     setPendingSyncCount(readOfflineQueue().length);
     setRecoverySnapshots(readRecoverySnapshots());
@@ -1457,15 +1625,33 @@ async function undoLastSeat() {
           .maybeSingle();
 
         if (data?.data?.tables) {
+          const cloudUpdatedAt =
+            data.data.syncUpdatedAt ||
+            data.data.updatedAt ||
+            0;
 
-          const cloudUpdatedAt = data.data.updatedAt || 0;
+          const cloudDeviceId = data.data.syncDeviceId || "";
 
-          if (cloudUpdatedAt >= lastLocalSaveRef.current) {
-
-          setTables(data.data.tables);
-
+          if (
+            cloudDeviceId &&
+            cloudDeviceId === deviceIdRef.current
+          ) {
+            return;
           }
 
+          if (queueHasTypePrefix("host_tables")) {
+            setSyncConflictNotice(
+              "Another iPad updated the floor while this iPad has unsynced floor changes. Your local floor is being protected until sync finishes."
+            );
+            return;
+          }
+
+          if (cloudUpdatedAt > lastLocalSaveRef.current) {
+            lastLocalSaveRef.current = cloudUpdatedAt;
+            setTables(data.data.tables);
+            setSyncConflictNotice("");
+            markRemoteUpdate("Floor updated by another iPad");
+          }
         }
 
       }
@@ -1489,13 +1675,46 @@ async function undoLastSeat() {
           .order("id", { ascending: true });
 
         if (data) {
+          if (queueHasTypePrefix("host_waitlist")) {
+            setSyncConflictNotice(
+              "Another iPad updated the waitlist while this iPad has unsynced waitlist changes. Local changes are protected until sync finishes."
+            );
+            return;
+          }
 
           setWaitlist(data.map((row) => row.data as WaitParty));
-
+          markRemoteUpdate("Waitlist updated by another iPad");
         }
 
       }
 
+    )
+
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "host_servers" },
+      async () => {
+        if (queueHasTypePrefix("host_servers")) {
+          setSyncConflictNotice(
+            "Another iPad updated server information while this iPad has unsynced server changes. Local changes are protected until sync finishes."
+          );
+          return;
+        }
+
+        const { data } = await supabase
+          .from("host_servers")
+          .select("id, data");
+
+        if (data) {
+          setServers(
+            data
+              .map((row) => row.data as ServerInfo)
+              .filter(Boolean)
+          );
+          setSyncConflictNotice("");
+          markRemoteUpdate("Server board updated by another iPad");
+        }
+      }
     )
 
     .subscribe();
@@ -1943,6 +2162,37 @@ async function undoLastSeat() {
         </div>
       )}
 
+      {syncConflictNotice && (
+        <div
+          style={{
+            background: "#fff7ed",
+            border: "3px solid #ea580c",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 12,
+            fontWeight: "bold",
+          }}
+        >
+          ⚠ Multi-iPad Sync Protection: {syncConflictNotice}
+        </div>
+      )}
+
+      {lastRemoteUpdateAt && (
+        <div
+          style={{
+            fontSize: 11,
+            color: "#475569",
+            marginBottom: 8,
+          }}
+        >
+          📱 {lastRemoteUpdateLabel} •{" "}
+          {new Date(lastRemoteUpdateAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })}
+        </div>
+      )}
+
       <div
 
         style={{
@@ -2144,6 +2394,9 @@ async function undoLastSeat() {
               }}
             >
               <strong>Cloud Sync</strong>
+              <div style={{ fontSize: 10, color: "#64748b", marginTop: 3 }}>
+                Device: {deviceIdRef.current || "initializing"}
+              </div>
               <div style={{ fontSize: 12, marginTop: 4 }}>
                 {isOnline
                   ? pendingSyncCount > 0
