@@ -58,6 +58,7 @@ type LocalBackup = {
   rotation: string[];
   lastSeated: Record<string, number>;
   shiftHistory: any[];
+  partyCounts?: Record<string, number>;
 };
 
 const OFFLINE_QUEUE_KEY = "enriques-os-offline-queue-v1";
@@ -136,9 +137,16 @@ export default function Home() {
 
   const [selectedServer, setSelectedServer] = useState<string | null>(null);
 
+  const [selectedPartyTables, setSelectedPartyTables] = useState<string[]>([]);
+  const [partyServerId, setPartyServerId] = useState<string | null>(null);
+  const [partyGuestCount, setPartyGuestCount] = useState("");
+  const [partySeatingMode, setPartySeatingMode] = useState(false);
+
   const [rotation, setRotation] = useState<string[]>([]);
 
   const [lastSeated, setLastSeated] = useState<Record<string, number>>({});
+
+  const [partyCounts, setPartyCounts] = useState<Record<string, number>>({});
 
   const [seatingServerName, setSeatingServerName] =
   
@@ -821,6 +829,103 @@ async function undoLastSeat() {
     setLastRemoteUpdateLabel(label);
   }
 
+  function togglePartyTable(tableId: string) {
+    const table = tables.find((item) => item.id === tableId);
+    if (!table || table.status !== "Open") return;
+
+    setSelectedPartyTables((current) =>
+      current.includes(tableId)
+        ? current.filter((id) => id !== tableId)
+        : [...current, tableId]
+    );
+  }
+
+  function cancelPartySeating() {
+    setPartySeatingMode(false);
+    setSelectedPartyTables([]);
+    setPartyServerId(null);
+    setPartyGuestCount("");
+  }
+
+  async function completePartySeating() {
+    if (selectedPartyTables.length === 0) {
+      alert("Select at least one open table.");
+      return;
+    }
+
+    const receivingServer = servers.find(
+      (server) => server.id === partyServerId
+    );
+
+    if (!receivingServer) {
+      alert("Choose the server receiving this party.");
+      return;
+    }
+
+    const parsedGuests = Number.parseInt(partyGuestCount, 10);
+
+    if (!Number.isFinite(parsedGuests) || parsedGuests <= 0) {
+      alert("Enter the guest count.");
+      return;
+    }
+
+    const now = Date.now();
+
+    const nextTables = tables.map((table) =>
+      selectedPartyTables.includes(table.id)
+        ? {
+            ...table,
+            status: "Seated" as TableStatus,
+            seatedAt: now,
+            partySize: String(parsedGuests),
+          }
+        : table
+    );
+
+    const previousRotation = [...rotation];
+
+    // The selected server gets ONE party credit, even if multiple tables are used.
+    setPartyCounts((current) => ({
+      ...current,
+      [receivingServer.name]: (current[receivingServer.name] || 0) + 1,
+    }));
+
+    setLastSeated((current) => ({
+      ...current,
+      [receivingServer.name]: now,
+    }));
+
+    // If a different server is seated out of order, the true NEXT server stays next.
+    // The receiving server is removed from their old spot and placed at the back.
+    setRotation((current) => {
+      if (!current.includes(receivingServer.name)) return current;
+
+      return [
+        ...current.filter((name) => name !== receivingServer.name),
+        receivingServer.name,
+      ];
+    });
+
+    setTables(nextTables);
+
+    // Keep permanent section ownership untouched: table.server is NOT changed.
+    await saveTablesNow(nextTables);
+
+    setLastSeatAction(null);
+    setPartySeatingMode(false);
+    setSelectedPartyTables([]);
+    setPartyServerId(null);
+    setPartyGuestCount("");
+
+    const wasNext = previousRotation[0] === receivingServer.name;
+
+    alert(
+      wasNext
+        ? `${receivingServer.name} seated. Party Queue advanced.`
+        : `${receivingServer.name} seated out of order. ${previousRotation[0] || "The next server"} remains NEXT.`
+    );
+  }
+
   function readOfflineQueue(): OfflineOperation[] {
     if (typeof window === "undefined") return [];
 
@@ -1172,6 +1277,7 @@ async function undoLastSeat() {
       rotation,
       lastSeated,
       shiftHistory,
+      partyCounts,
     };
 
     const current = readRecoverySnapshots();
@@ -1186,6 +1292,7 @@ async function undoLastSeat() {
       rotation,
       lastSeated,
       shiftHistory,
+      partyCounts,
     };
 
     window.localStorage.setItem(
@@ -1226,6 +1333,7 @@ async function undoLastSeat() {
     setRotation(snapshot.rotation || []);
     setLastSeated(snapshot.lastSeated || {});
     setShiftHistory(snapshot.shiftHistory || []);
+    setPartyCounts(snapshot.partyCounts || {});
     setLastLocalBackupAt(snapshot.savedAt);
     setRestoredFromLocal(true);
 
@@ -1288,6 +1396,7 @@ async function undoLastSeat() {
       rotation,
       lastSeated,
       shiftHistory,
+      partyCounts,
     };
 
     try {
@@ -1342,6 +1451,7 @@ async function undoLastSeat() {
       setRotation(backup.rotation || []);
       setLastSeated(backup.lastSeated || {});
       setShiftHistory(backup.shiftHistory || []);
+      setPartyCounts(backup.partyCounts || {});
       setLastLocalBackupAt(backup.savedAt || Date.now());
       setRestoredFromLocal(true);
 
@@ -1456,6 +1566,7 @@ async function undoLastSeat() {
         if (backup.rotation) setRotation(backup.rotation);
         if (backup.lastSeated) setLastSeated(backup.lastSeated);
         if (backup.shiftHistory) setShiftHistory(backup.shiftHistory);
+        if (backup.partyCounts) setPartyCounts(backup.partyCounts);
 
         if (backup.savedAt) {
           setLastLocalBackupAt(backup.savedAt);
@@ -1492,6 +1603,7 @@ async function undoLastSeat() {
       rotation,
       lastSeated,
       shiftHistory,
+      partyCounts,
     };
 
     try {
@@ -1511,6 +1623,7 @@ async function undoLastSeat() {
     rotation,
     lastSeated,
     shiftHistory,
+    partyCounts,
   ]);
 
   useEffect(() => {
@@ -1540,6 +1653,7 @@ async function undoLastSeat() {
     rotation,
     lastSeated,
     shiftHistory,
+    partyCounts,
   ]);
 
   useEffect(() => {
@@ -1997,9 +2111,14 @@ async function undoLastSeat() {
     setServers(nextServers);
     setRotation([]);
     setLastSeated({});
+    setPartyCounts({});
     setLastSeatAction(null);
     setSeatingServerName(null);
     setSelectedServer(null);
+    setPartySeatingMode(false);
+    setSelectedPartyTables([]);
+    setPartyServerId(null);
+    setPartyGuestCount("");
     setDraggingId(null);
     setEditMode(false);
     setFloorLocked(true);
@@ -2285,6 +2404,23 @@ async function undoLastSeat() {
 
           {floorLocked ? "Floor Locked" : "Floor Unlocked"}
 
+        </button>
+
+        <button
+          onClick={() => {
+            if (editMode) {
+              alert("Turn off Editing Mode before seating a party.");
+              return;
+            }
+            setSelectedServer(null);
+            setSeatingServerName(null);
+            setPartySeatingMode((current) => !current);
+            if (partySeatingMode) {
+              cancelPartySeating();
+            }
+          }}
+        >
+          {partySeatingMode ? "Cancel Party Seating" : "🍽️ Seat Party"}
         </button>
 
         <button onClick={endShift}>🌙 End Shift</button>
@@ -2898,6 +3034,142 @@ async function undoLastSeat() {
   )}
 
 </div>
+
+      {partySeatingMode && (
+        <section
+          style={{
+            border: "3px solid #111827",
+            borderRadius: 10,
+            padding: 12,
+            background: "#fff",
+            marginBottom: 12,
+            maxWidth: 760,
+          }}
+        >
+          <h2 style={{ marginTop: 0, marginBottom: 8 }}>
+            🍽️ Party Seating
+          </h2>
+
+          <div style={{ fontSize: 13, color: "#475569", marginBottom: 10 }}>
+            Tap one or more open tables on the floor, choose the server actually
+            receiving the party, enter the guest count, then press Seat Party.
+            Section names on the tables will not change.
+          </div>
+
+          <div
+            style={{
+              border: "2px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 10,
+              marginBottom: 10,
+              background: "#f8fafc",
+            }}
+          >
+            <strong>
+              {selectedPartyTables.length} Table
+              {selectedPartyTables.length === 1 ? "" : "s"} Selected
+            </strong>
+            <div style={{ fontSize: 13, marginTop: 4 }}>
+              {selectedPartyTables.length
+                ? selectedPartyTables.join(" • ")
+                : "Tap open tables on the floor."}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              marginBottom: 10,
+            }}
+          >
+            <input
+              type="number"
+              min="1"
+              value={partyGuestCount}
+              onChange={(event) => setPartyGuestCount(event.target.value)}
+              placeholder="Guest count"
+              style={{
+                padding: 9,
+                border: "2px solid #111827",
+                borderRadius: 8,
+                width: 130,
+              }}
+            />
+          </div>
+
+          <div style={{ fontWeight: "bold", marginBottom: 6 }}>
+            Server Receiving Party
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              marginBottom: 12,
+            }}
+          >
+            {servers
+              .filter((server) => server.status === "Checked In")
+              .map((server) => (
+                <button
+                  key={server.id}
+                  onClick={() => setPartyServerId(server.id)}
+                  style={{
+                    border:
+                      partyServerId === server.id
+                        ? `4px solid ${server.color || "#2563eb"}`
+                        : "2px solid #cbd5e1",
+                    borderRadius: 8,
+                    padding: "8px 10px",
+                    background:
+                      rotation[0] === server.name ? "#dcfce7" : "white",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {rotation[0] === server.name ? "⭐ " : ""}
+                  {server.name}
+                  <div style={{ fontSize: 10, fontWeight: "normal" }}>
+                    {partyCounts[server.name] || 0} parties sat
+                  </div>
+                </button>
+              ))}
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={completePartySeating}
+              disabled={
+                selectedPartyTables.length === 0 ||
+                !partyServerId ||
+                !partyGuestCount
+              }
+              style={{
+                flex: 1,
+                padding: 10,
+                background:
+                  selectedPartyTables.length > 0 &&
+                  partyServerId &&
+                  partyGuestCount
+                    ? "#16a34a"
+                    : "#cbd5e1",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontWeight: "bold",
+              }}
+            >
+              Seat Party
+            </button>
+
+            <button onClick={cancelPartySeating}>
+              Cancel
+            </button>
+          </div>
+        </section>
+      )}
 
       <div
 
@@ -3708,6 +3980,22 @@ async function undoLastSeat() {
             >
               
 <div>{table.id}</div>
+
+{partySeatingMode && selectedPartyTables.includes(table.id) && (
+  <div
+    style={{
+      fontSize: 10,
+      fontWeight: "bold",
+      color: "#1d4ed8",
+      background: "white",
+      borderRadius: 10,
+      padding: "1px 5px",
+      marginTop: 2,
+    }}
+  >
+    ✓ SELECTED
+  </div>
+)}
 
 {table.server && (
 
