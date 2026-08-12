@@ -67,9 +67,19 @@ type ReservationRecord = {
   date: string;
   time: string;
   name: string;
+
+  // Display-friendly guest mix, for example: 9a+2k+1hc
   guests: string;
+
+  adults?: number;
+  kids?: number;
+  highchairs?: number;
+  wheelchairs?: number;
+
   phone: string;
   notes: string;
+  specialRequests?: string[];
+
   status: "Booked" | "Arrived" | "Seated" | "No Show" | "Cancelled";
   tableIds: string[];
   createdAt: number;
@@ -188,8 +198,16 @@ export default function Home() {
   );
   const [reservationTime, setReservationTime] = useState("");
   const [reservationGuests, setReservationGuests] = useState("");
+
+  const [reservationAdults, setReservationAdults] = useState("0");
+  const [reservationKids, setReservationKids] = useState("0");
+  const [reservationHighchairs, setReservationHighchairs] = useState("0");
+  const [reservationWheelchairs, setReservationWheelchairs] = useState("0");
+
   const [reservationPhone, setReservationPhone] = useState("");
   const [reservationNotes, setReservationNotes] = useState("");
+  const [reservationSpecialRequests, setReservationSpecialRequests] =
+    useState<string[]>([]);
 
   const [reservationBookMode, setReservationBookMode] = useState(false);
   const [reservationBookDate, setReservationBookDate] = useState(
@@ -1121,14 +1139,81 @@ async function undoLastSeat() {
     });
   }
 
+  function reservationGuestMix() {
+    const adults = Math.max(0, Number.parseInt(reservationAdults || "0", 10) || 0);
+    const kids = Math.max(0, Number.parseInt(reservationKids || "0", 10) || 0);
+    const highchairs = Math.max(
+      0,
+      Number.parseInt(reservationHighchairs || "0", 10) || 0
+    );
+    const wheelchairs = Math.max(
+      0,
+      Number.parseInt(reservationWheelchairs || "0", 10) || 0
+    );
+
+    const parts: string[] = [];
+
+    if (adults > 0) parts.push(`${adults}a`);
+    if (kids > 0) parts.push(`${kids}k`);
+    if (highchairs > 0) parts.push(`${highchairs}hc`);
+    if (wheelchairs > 0) parts.push(`${wheelchairs}w`);
+
+    return {
+      adults,
+      kids,
+      highchairs,
+      wheelchairs,
+      totalPeople: adults + kids,
+      display: parts.join("+"),
+    };
+  }
+
+  function formatReservationPhone(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 10);
+
+    if (digits.length === 0) return "";
+    if (digits.length <= 3) return `(${digits}`;
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    }
+
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  function reservationPhoneIsComplete(value: string) {
+    return value.replace(/\D/g, "").length === 10;
+  }
+
+  function toggleReservationSpecialRequest(request: string) {
+    setReservationSpecialRequests((current) =>
+      current.includes(request)
+        ? current.filter((item) => item !== request)
+        : [...current, request]
+    );
+  }
+
   async function addReservation() {
     const name = reservationName.trim();
     const date = reservationDate.trim();
     const time = reservationTime.trim();
-    const guests = reservationGuests.trim();
+    const guestMix = reservationGuestMix();
+
+    // Older/simple reservation forms can still use the original Guests field.
+    const fallbackGuests = reservationGuests.trim();
+    const guests = guestMix.display || fallbackGuests;
 
     if (!name || !date || !time || !guests) {
       alert("Enter reservation name, date, time, and guest count.");
+      return;
+    }
+
+    if (guestMix.display && guestMix.totalPeople <= 0) {
+      alert("Enter at least one adult or kid.");
+      return;
+    }
+
+    if (!reservationPhoneIsComplete(reservationPhone)) {
+      alert("Enter a complete 10-digit phone number, including area code.");
       return;
     }
 
@@ -1153,8 +1238,13 @@ async function undoLastSeat() {
       time,
       name,
       guests,
+      adults: guestMix.display ? guestMix.adults : undefined,
+      kids: guestMix.display ? guestMix.kids : undefined,
+      highchairs: guestMix.display ? guestMix.highchairs : undefined,
+      wheelchairs: guestMix.display ? guestMix.wheelchairs : undefined,
       phone: reservationPhone.trim(),
       notes: reservationNotes.trim(),
+      specialRequests: [...reservationSpecialRequests],
       status: "Booked",
       tableIds: [],
       createdAt: Date.now(),
@@ -1169,8 +1259,13 @@ async function undoLastSeat() {
     setReservationName("");
     setReservationTime("");
     setReservationGuests("");
+    setReservationAdults("0");
+    setReservationKids("0");
+    setReservationHighchairs("0");
+    setReservationWheelchairs("0");
     setReservationPhone("");
     setReservationNotes("");
+    setReservationSpecialRequests([]);
 
     await syncOrQueue({
       type: "host_reservations_insert",
@@ -3201,13 +3296,22 @@ async function undoLastSeat() {
                                 <strong>
                                   {reservation.name} • {reservation.guests}
                                 </strong>
-                                {Number(reservation.guests) >= 10 && (
+                                {(
+                                  reservation.adults !== undefined ||
+                                  reservation.kids !== undefined
+                                    ? (reservation.adults || 0) +
+                                      (reservation.kids || 0)
+                                    : Number.parseInt(reservation.guests, 10) || 0
+                                ) >= 10 && (
                                   <span style={{ color: "#b91c1c" }}>
                                     {" "}⚠ 10+
                                   </span>
                                 )}
                                 <div style={{ color: "#64748b", marginTop: 1 }}>
                                   {reservation.status}
+                                  {reservation.specialRequests?.length
+                                    ? ` • ${reservation.specialRequests.join(" • ")}`
+                                    : ""}
                                   {reservation.notes
                                     ? ` • ${reservation.notes}`
                                     : ""}
@@ -3252,7 +3356,7 @@ async function undoLastSeat() {
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "1.2fr .9fr .8fr .6fr 1fr",
+                  "1.1fr .9fr .8fr 1.6fr 1.15fr",
                 gap: 7,
                 marginBottom: 7,
               }}
@@ -3281,24 +3385,160 @@ async function undoLastSeat() {
                 }
                 style={{ padding: 9 }}
               />
-              <input
-                type="number"
-                min="1"
-                value={reservationGuests}
-                onChange={(event) =>
-                  setReservationGuests(event.target.value)
-                }
-                placeholder="Guests"
-                style={{ padding: 9 }}
-              />
-              <input
-                value={reservationPhone}
-                onChange={(event) =>
-                  setReservationPhone(event.target.value)
-                }
-                placeholder="Phone"
-                style={{ padding: 9 }}
-              />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, minmax(58px, 1fr))",
+                  gap: 4,
+                }}
+              >
+                {[
+                  ["A", "Adults", reservationAdults, setReservationAdults],
+                  ["K", "Kids", reservationKids, setReservationKids],
+                  [
+                    "HC",
+                    "Highchair",
+                    reservationHighchairs,
+                    setReservationHighchairs,
+                  ],
+                  [
+                    "W",
+                    "Wheelchair",
+                    reservationWheelchairs,
+                    setReservationWheelchairs,
+                  ],
+                ].map(([shortLabel, fullLabel, value, setter]) => (
+                  <label
+                    key={shortLabel as string}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                      fontSize: 9,
+                      fontWeight: "bold",
+                      textAlign: "center",
+                    }}
+                    title={fullLabel as string}
+                  >
+                    {shortLabel as string}
+                    <select
+                      value={value as string}
+                      onChange={(event) =>
+                        (setter as (value: string) => void)(event.target.value)
+                      }
+                      style={{
+                        padding: 7,
+                        border: "2px solid #94a3b8",
+                        borderRadius: 7,
+                        background: "white",
+                      }}
+                    >
+                      {Array.from({ length: 21 }).map((_, index) => (
+                        <option key={index} value={String(index)}>
+                          {index}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ))}
+              </div>
+
+              <div>
+                <input
+                  value={reservationPhone}
+                  onChange={(event) =>
+                    setReservationPhone(
+                      formatReservationPhone(event.target.value)
+                    )
+                  }
+                  placeholder="(208) 555-1234"
+                  inputMode="tel"
+                  maxLength={14}
+                  style={{
+                    padding: 9,
+                    width: "100%",
+                    boxSizing: "border-box",
+                    border:
+                      reservationPhone.length > 0 &&
+                      !reservationPhoneIsComplete(reservationPhone)
+                        ? "2px solid #dc2626"
+                        : "2px solid #94a3b8",
+                    borderRadius: 7,
+                  }}
+                />
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: reservationPhoneIsComplete(reservationPhone)
+                      ? "#166534"
+                      : "#64748b",
+                    marginTop: 2,
+                  }}
+                >
+                  {reservationPhoneIsComplete(reservationPhone)
+                    ? "✓ Complete 10-digit number"
+                    : "Area code + 7-digit number"}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                flexWrap: "wrap",
+                marginBottom: 8,
+              }}
+            >
+              <div
+                style={{
+                  border: "2px solid #111827",
+                  borderRadius: 8,
+                  padding: "7px 10px",
+                  minWidth: 160,
+                  background: "#f8fafc",
+                }}
+              >
+                <div style={{ fontSize: 9, color: "#64748b" }}>
+                  Guest Mix
+                </div>
+                <strong>
+                  {reservationGuestMix().display || "Select A / K / HC / W"}
+                </strong>
+              </div>
+
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {[
+                  ["🎂", "Birthday"],
+                  ["💍", "Anniversary"],
+                  ["🎓", "Graduation"],
+                ].map(([icon, request]) => {
+                  const selected =
+                    reservationSpecialRequests.includes(request);
+
+                  return (
+                    <button
+                      key={request}
+                      type="button"
+                      onClick={() =>
+                        toggleReservationSpecialRequest(request)
+                      }
+                      style={{
+                        padding: "7px 10px",
+                        borderRadius: 8,
+                        border: selected
+                          ? "3px solid #2563eb"
+                          : "2px solid #cbd5e1",
+                        background: selected ? "#dbeafe" : "white",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {icon} {request}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div style={{ display: "flex", gap: 7 }}>
