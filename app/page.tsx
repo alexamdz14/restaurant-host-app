@@ -10,6 +10,17 @@ import { STATUS_COLORS, TableItem, TableStatus,WaitParty,ServerInfo,} from "./ty
 
 const STATUS_ORDER: TableStatus[] = ["Open", "Seated", "Boxed", "Dirty"];
 
+type EnriquesWaitParty = WaitParty & {
+  adults?: number;
+  kids?: number;
+  highchairs?: number;
+  wheelchairs?: number;
+  pager?: string;
+  vip?: boolean;
+  noShowAt?: number;
+  pagedAt?: number;
+};
+
 const SERVER_COLORS = [
 
   "#2563eb", // blue
@@ -859,17 +870,22 @@ async function undoLastSeat() {
     });
   }
 
-  const [waitlist, setWaitlist] = useState<WaitParty[]>([]);
+  const [waitlist, setWaitlist] = useState<EnriquesWaitParty[]>([]);
 
   const [guestName, setGuestName] = useState("");
 
   const [guestSize, setGuestSize] = useState("");
 
+  const [waitAdults, setWaitAdults] = useState("0");
+  const [waitKids, setWaitKids] = useState("0");
+  const [waitHighchairs, setWaitHighchairs] = useState("0");
+  const [waitWheelchairs, setWaitWheelchairs] = useState("0");
+
   const [guestPhone, setGuestPhone] = useState("");
-
+  const [guestPager, setGuestPager] = useState("");
   const [guestNotes, setGuestNotes] = useState("");
-
-  const [quotedWait, setQuotedWait] = useState("");
+  const [quotedWait, setQuotedWait] = useState("15-20");
+  const [waitVip, setWaitVip] = useState(false);
 
   const [shiftHistory, setShiftHistory] = useState<any[]>([]);
   const [showShiftHistory, setShowShiftHistory] = useState(false);
@@ -2357,6 +2373,70 @@ async function undoLastSeat() {
     setRecoveryMessage("Pending offline queue cleared.");
   }
 
+  function waitGuestMix() {
+    const adults = Math.max(
+      0,
+      Number.parseInt(waitAdults || "0", 10) || 0
+    );
+    const kids = Math.max(
+      0,
+      Number.parseInt(waitKids || "0", 10) || 0
+    );
+    const highchairs = Math.max(
+      0,
+      Number.parseInt(waitHighchairs || "0", 10) || 0
+    );
+    const wheelchairs = Math.max(
+      0,
+      Number.parseInt(waitWheelchairs || "0", 10) || 0
+    );
+
+    const parts: string[] = [];
+    if (adults > 0) parts.push(`${adults}a`);
+    if (kids > 0) parts.push(`${kids}k`);
+    if (highchairs > 0) parts.push(`${highchairs}hc`);
+    if (wheelchairs > 0) parts.push(`${wheelchairs}w`);
+
+    return {
+      adults,
+      kids,
+      highchairs,
+      wheelchairs,
+      totalPeople: adults + kids,
+      display: parts.join("+"),
+    };
+  }
+
+  function formatWaitPhone(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 10);
+
+    if (digits.length === 0) return "";
+    if (digits.length <= 3) return `(${digits}`;
+    if (digits.length <= 6) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    }
+
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+
+  function waitMinutes(party: EnriquesWaitParty) {
+    return Math.max(
+      0,
+      Math.floor((timerNow - party.createdAt) / 60000)
+    );
+  }
+
+  function waitStatusBackground(party: EnriquesWaitParty) {
+    if (party.status === "Paged") return "#fef3c7";
+    if (party.status === "NoShow") return "#fee2e2";
+    if (party.status === "Seated") return "#dcfce7";
+
+    const minutes = waitMinutes(party);
+
+    if (minutes >= 30) return "#fff7ed";
+    return "#f8fafc";
+  }
+
   const openCount = tables.filter((t) => t.status === "Open").length;
 
   const seatedCount = tables.filter((t) => t.status === "Seated").length;
@@ -2549,7 +2629,9 @@ async function undoLastSeat() {
 
     if (waitData) {
 
-      setWaitlist(waitData.map((row) => row.data as WaitParty));
+      setWaitlist(
+        waitData.map((row) => row.data as EnriquesWaitParty)
+      );
 
     }
 
@@ -2666,7 +2748,9 @@ async function undoLastSeat() {
             return;
           }
 
-          setWaitlist(data.map((row) => row.data as WaitParty));
+          setWaitlist(
+            data.map((row) => row.data as EnriquesWaitParty)
+          );
           markRemoteUpdate("Waitlist updated by another iPad");
         }
 
@@ -6416,193 +6500,493 @@ async function undoLastSeat() {
       </p>
 
 <section
-
   style={{
-
     marginTop: 16,
-
     background: "white",
-
     border: "3px solid #111827",
-
     borderRadius: 10,
-
     padding: 12,
-
   }}
-
 >
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      gap: 10,
+      alignItems: "center",
+      flexWrap: "wrap",
+      marginBottom: 10,
+    }}
+  >
+    <div>
+      <h2 style={{ margin: 0 }}>Waitlist</h2>
+      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
+        {waitlist.filter((party) => party.status === "Waiting").length} waiting •{" "}
+        {waitlist.filter((party) => party.status === "Paged").length} paged
+      </div>
+    </div>
 
-  <h2 style={{ marginTop: 0 }}>Waitlist</h2>
-
-  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-
-    <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Guest name" />
-
-    <input value={guestSize} onChange={(e) => setGuestSize(e.target.value)} placeholder="Party size" />
-
-    <input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} placeholder="Phone" />
-
-    <input value={quotedWait} onChange={(e) => setQuotedWait(e.target.value)} placeholder="Quoted wait" />
-
-    <input value={guestNotes} onChange={(e) => setGuestNotes(e.target.value)} placeholder="Notes" />
-
-    <button
-
-      onClick={async () => {
-
-        if (!guestName.trim() || !guestSize.trim()) return;
-
-        const party: WaitParty = {
-
-          id: Date.now(),
-
-          name: guestName.trim(),
-
-          size: guestSize.trim(),
-
-          phone: guestPhone.trim(),
-
-          notes: guestNotes.trim(),
-
-          quotedWait: quotedWait.trim() || "15-20",
-
-          status: "Waiting",
-
-          createdAt: Date.now(),
-
-        };
-
-        setWaitlist((current) => [...current, party]);
-
-        await syncOrQueue({
-          type: "host_waitlist_insert",
-          payload: {
-            id: party.id,
-            data: party,
-          },
-        });
-
-        setGuestName("");
-
-        setGuestSize("");
-
-        setGuestPhone("");
-
-        setGuestNotes("");
-
-        setQuotedWait("");
-
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: "bold",
+        border: "2px solid #111827",
+        borderRadius: 20,
+        padding: "5px 9px",
+        background: "#f8fafc",
       }}
-
     >
-
-      Add Wait
-
-    </button>
-
+      Longest wait:{" "}
+      {waitlist.filter((party) => party.status === "Waiting").length
+        ? `${Math.max(
+            ...waitlist
+              .filter((party) => party.status === "Waiting")
+              .map((party) => waitMinutes(party))
+          )}m`
+        : "—"}
+    </div>
   </div>
 
-  <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-
-    {waitlist.map((party) => (
-
-      <div
-
-        key={party.id}
-
-        style={{
-
-          border: "2px solid #111827",
-
-          borderRadius: 8,
-
-          padding: 10,
-
-          background: party.status === "Paged" ? "#fde68a" : "#f8fafc",
-
-          minWidth: 220,
-
-        }}
-
-      >
-
-        <b>{party.name}</b> — {party.size}
-
-        <br />
-
-        Phone: {party.phone || "N/A"}
-
-        <br />
-
-        Wait: {party.quotedWait}
-
-        <br />
-
-        Status: {party.status}
-
-        <br />
-
-        {party.notes && <>Notes: {party.notes}<br /></>}
-
-        <button
-
-          onClick={async () => {
-
-            const updatedParty: WaitParty = {
-              ...party,
-              status: "Paged",
-            };
-
-            setWaitlist((current) =>
-              current.map((item) =>
-                item.id === party.id ? updatedParty : item
-              )
-            );
-
-            await syncOrQueue({
-              type: "host_waitlist_update",
-              payload: {
-                id: party.id,
-                data: updatedParty,
-              },
-            });
-
+  <div
+    style={{
+      border: "2px solid #cbd5e1",
+      borderRadius: 10,
+      padding: 10,
+      background: "#f8fafc",
+      marginBottom: 12,
+    }}
+  >
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1.2fr 1.5fr 1.1fr .7fr 1fr",
+        gap: 7,
+        alignItems: "end",
+      }}
+    >
+      <label style={{ fontSize: 11, fontWeight: "bold" }}>
+        Guest Name
+        <input
+          value={guestName}
+          onChange={(e) => setGuestName(e.target.value)}
+          placeholder="Guest name"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: 8,
+            marginTop: 3,
           }}
+        />
+      </label>
 
-        >
-
-          Page
-
-        </button>{" "}
-
-        <button
-
-          onClick={async () => {
-
-            setWaitlist((current) =>
-              current.filter((item) => item.id !== party.id)
-            );
-
-            await syncOrQueue({
-              type: "host_waitlist_delete",
-              payload: { id: party.id },
-            });
-
+      <div>
+        <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 3 }}>
+          Guest Mix
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(55px, 1fr))",
+            gap: 4,
           }}
-
         >
-
-          Remove
-
-        </button>
-
+          {[
+            ["A", waitAdults, setWaitAdults],
+            ["K", waitKids, setWaitKids],
+            ["HC", waitHighchairs, setWaitHighchairs],
+            ["W", waitWheelchairs, setWaitWheelchairs],
+          ].map(([label, value, setter]) => (
+            <label
+              key={label as string}
+              style={{
+                fontSize: 9,
+                fontWeight: "bold",
+                textAlign: "center",
+              }}
+            >
+              {label as string}
+              <select
+                value={value as string}
+                onChange={(event) =>
+                  (setter as (value: string) => void)(event.target.value)
+                }
+                style={{
+                  width: "100%",
+                  padding: 7,
+                  borderRadius: 7,
+                  border: "1px solid #94a3b8",
+                  background: "white",
+                }}
+              >
+                {Array.from({ length: 21 }).map((_, index) => (
+                  <option key={index} value={String(index)}>
+                    {index}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
       </div>
 
-    ))}
+      <label style={{ fontSize: 11, fontWeight: "bold" }}>
+        Phone
+        <input
+          value={guestPhone}
+          onChange={(e) =>
+            setGuestPhone(formatWaitPhone(e.target.value))
+          }
+          placeholder="(208) 555-1234"
+          inputMode="tel"
+          maxLength={14}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: 8,
+            marginTop: 3,
+          }}
+        />
+      </label>
 
+      <label style={{ fontSize: 11, fontWeight: "bold" }}>
+        Pager
+        <input
+          value={guestPager}
+          onChange={(e) => setGuestPager(e.target.value)}
+          placeholder="#"
+          inputMode="numeric"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: 8,
+            marginTop: 3,
+          }}
+        />
+      </label>
+
+      <label style={{ fontSize: 11, fontWeight: "bold" }}>
+        Quoted Wait
+        <select
+          value={quotedWait}
+          onChange={(e) => setQuotedWait(e.target.value)}
+          style={{
+            width: "100%",
+            padding: 8,
+            marginTop: 3,
+          }}
+        >
+          {[
+            "5-10",
+            "10-15",
+            "15-20",
+            "20-25",
+            "25-30",
+            "30-40",
+            "40-50",
+            "50-60",
+            "60+",
+          ].map((wait) => (
+            <option key={wait} value={wait}>
+              {wait} min
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+
+    <div
+      style={{
+        display: "flex",
+        gap: 7,
+        marginTop: 8,
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
+      <input
+        value={guestNotes}
+        onChange={(e) => setGuestNotes(e.target.value)}
+        placeholder="Notes / seating request"
+        style={{ flex: 1, minWidth: 250, padding: 8 }}
+      />
+
+      <button
+        type="button"
+        onClick={() => setWaitVip((current) => !current)}
+        style={{
+          background: waitVip ? "#fef3c7" : "white",
+          border: waitVip
+            ? "3px solid #d97706"
+            : "2px solid #cbd5e1",
+          borderRadius: 8,
+          padding: "7px 10px",
+          fontWeight: "bold",
+        }}
+      >
+        ⭐ VIP
+      </button>
+
+      <div
+        style={{
+          border: "2px solid #111827",
+          borderRadius: 8,
+          padding: "7px 10px",
+          background: "white",
+          minWidth: 115,
+          textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: 9, color: "#64748b" }}>Party</div>
+        <strong>{waitGuestMix().display || "—"}</strong>
+      </div>
+
+      <button
+        onClick={async () => {
+          const mix = waitGuestMix();
+
+          if (!guestName.trim() || mix.totalPeople <= 0) {
+            alert("Enter the guest name and at least one adult or kid.");
+            return;
+          }
+
+          const party: EnriquesWaitParty = {
+            id: Date.now(),
+            name: guestName.trim(),
+            size: mix.display,
+            adults: mix.adults,
+            kids: mix.kids,
+            highchairs: mix.highchairs,
+            wheelchairs: mix.wheelchairs,
+            phone: guestPhone.trim(),
+            pager: guestPager.trim(),
+            notes: guestNotes.trim(),
+            quotedWait: quotedWait.trim() || "15-20",
+            vip: waitVip,
+            status: "Waiting",
+            createdAt: Date.now(),
+          };
+
+          setWaitlist((current) => [...current, party]);
+
+          await syncOrQueue({
+            type: "host_waitlist_insert",
+            payload: {
+              id: party.id,
+              data: party,
+            },
+          });
+
+          setGuestName("");
+          setGuestSize("");
+          setWaitAdults("0");
+          setWaitKids("0");
+          setWaitHighchairs("0");
+          setWaitWheelchairs("0");
+          setGuestPhone("");
+          setGuestPager("");
+          setGuestNotes("");
+          setQuotedWait("15-20");
+          setWaitVip(false);
+        }}
+        style={{
+          background: "#2563eb",
+          color: "white",
+          border: "none",
+          borderRadius: 8,
+          padding: "9px 14px",
+          fontWeight: "bold",
+        }}
+      >
+        + Add to Waitlist
+      </button>
+    </div>
   </div>
 
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+      gap: 8,
+    }}
+  >
+    {waitlist.length === 0 ? (
+      <div style={{ color: "#64748b" }}>No parties on the waitlist.</div>
+    ) : (
+      waitlist.map((party, index) => (
+        <div
+          key={party.id}
+          style={{
+            border: party.vip
+              ? "3px solid #d97706"
+              : "2px solid #111827",
+            borderRadius: 10,
+            padding: 10,
+            background: waitStatusBackground(party),
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 8,
+              alignItems: "flex-start",
+            }}
+          >
+            <div>
+              <strong style={{ fontSize: 16 }}>
+                #{index + 1} {party.vip ? "⭐ " : ""}
+                {party.name}
+              </strong>
+              <div style={{ fontSize: 12, marginTop: 2 }}>
+                {party.size} • Waiting {waitMinutes(party)}m
+              </div>
+            </div>
+
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: "bold",
+                border: "1px solid #64748b",
+                borderRadius: 20,
+                padding: "3px 7px",
+                background: "white",
+              }}
+            >
+              {party.status}
+            </span>
+          </div>
+
+          <div style={{ fontSize: 11, marginTop: 7, lineHeight: 1.5 }}>
+            <div>Quoted: {party.quotedWait} min</div>
+            <div>Phone: {party.phone || "—"}</div>
+            <div>Pager: {party.pager || "—"}</div>
+            {party.notes && <div>Notes: {party.notes}</div>}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 5,
+              flexWrap: "wrap",
+              marginTop: 8,
+            }}
+          >
+            {party.status === "Waiting" && (
+              <button
+                onClick={async () => {
+                  const updatedParty: EnriquesWaitParty = {
+                    ...party,
+                    status: "Paged",
+                    pagedAt: Date.now(),
+                  };
+
+                  setWaitlist((current) =>
+                    current.map((item) =>
+                      item.id === party.id ? updatedParty : item
+                    )
+                  );
+
+                  await syncOrQueue({
+                    type: "host_waitlist_update",
+                    payload: {
+                      id: party.id,
+                      data: updatedParty,
+                    },
+                  });
+                }}
+              >
+                Page
+              </button>
+            )}
+
+            {(party.status === "Waiting" || party.status === "Paged") && (
+              <button
+                onClick={async () => {
+                  const updatedParty: EnriquesWaitParty = {
+                    ...party,
+                    status: "Seated",
+                  };
+
+                  setWaitlist((current) =>
+                    current.map((item) =>
+                      item.id === party.id ? updatedParty : item
+                    )
+                  );
+
+                  await syncOrQueue({
+                    type: "host_waitlist_update",
+                    payload: {
+                      id: party.id,
+                      data: updatedParty,
+                    },
+                  });
+                }}
+                style={{
+                  background: "#16a34a",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "5px 8px",
+                }}
+              >
+                Seated
+              </button>
+            )}
+
+            {(party.status === "Waiting" || party.status === "Paged") && (
+              <button
+                onClick={async () => {
+                  const updatedParty: EnriquesWaitParty = {
+                    ...party,
+                    status: "NoShow",
+                    noShowAt: Date.now(),
+                  };
+
+                  setWaitlist((current) =>
+                    current.map((item) =>
+                      item.id === party.id ? updatedParty : item
+                    )
+                  );
+
+                  await syncOrQueue({
+                    type: "host_waitlist_update",
+                    payload: {
+                      id: party.id,
+                      data: updatedParty,
+                    },
+                  });
+                }}
+              >
+                No Show
+              </button>
+            )}
+
+            <button
+              onClick={async () => {
+                const okay = confirm(
+                  `Remove ${party.name} from the waitlist?`
+                );
+
+                if (!okay) return;
+
+                setWaitlist((current) =>
+                  current.filter((item) => item.id !== party.id)
+                );
+
+                await syncOrQueue({
+                  type: "host_waitlist_delete",
+                  payload: { id: party.id },
+                });
+              }}
+              style={{ background: "#fee2e2" }}
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      ))
+    )}
+  </div>
 </section>
 
       </>
