@@ -220,6 +220,11 @@ export default function Home() {
   const [reservationBookSelectedSlot, setReservationBookSelectedSlot] =
     useState<string | null>(null);
 
+  const [reservationBookManagerOpen, setReservationBookManagerOpen] =
+    useState(false);
+  const [reservationSlotCapacity, setReservationSlotCapacity] =
+    useState(5);
+
   const [plannerSelectedReservationId, setPlannerSelectedReservationId] =
     useState<string | null>(null);
 
@@ -1016,6 +1021,57 @@ async function undoLastSeat() {
     return "enriques-os-reservation-book-mode-v1";
   }
 
+  function reservationSlotCapacityStorageKey() {
+    return "enriques-os-reservation-slot-capacity-v1";
+  }
+
+  function isQuarterHourTime(time: string) {
+    if (!time) return false;
+
+    const parts = time.split(":");
+    if (parts.length !== 2) return false;
+
+    const minutes = Number.parseInt(parts[1], 10);
+
+    return [0, 15, 30, 45].includes(minutes);
+  }
+
+  function snapTimeToQuarterHour(time: string) {
+    if (!time) return "";
+
+    const [hourText, minuteText] = time.split(":");
+    const hour = Number.parseInt(hourText, 10);
+    const minute = Number.parseInt(minuteText, 10);
+
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+      return time;
+    }
+
+    const totalMinutes = hour * 60 + minute;
+    const snappedTotal = Math.round(totalMinutes / 15) * 15;
+    const normalized = ((snappedTotal % (24 * 60)) + 24 * 60) % (24 * 60);
+
+    const snappedHour = Math.floor(normalized / 60);
+    const snappedMinute = normalized % 60;
+
+    return `${String(snappedHour).padStart(2, "0")}:${String(
+      snappedMinute
+    ).padStart(2, "0")}`;
+  }
+
+  function updateReservationSlotCapacity(nextCapacity: number) {
+    const safeCapacity = Math.min(20, Math.max(1, nextCapacity));
+
+    setReservationSlotCapacity(safeCapacity);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        reservationSlotCapacityStorageKey(),
+        String(safeCapacity)
+      );
+    }
+  }
+
   function toggleReservationBookMode() {
     const next = !reservationBookMode;
     setReservationBookMode(next);
@@ -1207,6 +1263,14 @@ async function undoLastSeat() {
       return;
     }
 
+    if (!isQuarterHourTime(time)) {
+      alert(
+        "Reservation times must be in 15-minute increments (:00, :15, :30, or :45)."
+      );
+      setReservationTime(snapTimeToQuarterHour(time));
+      return;
+    }
+
     if (guestMix.display && guestMix.totalPeople <= 0) {
       alert("Enter at least one adult or kid.");
       return;
@@ -1224,9 +1288,9 @@ async function undoLastSeat() {
         reservation.status !== "Cancelled"
     ).length;
 
-    if (bookedInSlot >= 5) {
+    if (bookedInSlot >= reservationSlotCapacity) {
       const okay = confirm(
-        "This 15-minute slot already has 5 reservations. Add another reservation anyway?"
+        `This 15-minute slot already has ${reservationSlotCapacity} reservations. Add another reservation anyway?`
       );
 
       if (!okay) return;
@@ -2312,6 +2376,21 @@ async function undoLastSeat() {
       setReservationBookMode(true);
     }
 
+    const savedSlotCapacity = Number.parseInt(
+      window.localStorage.getItem(
+        reservationSlotCapacityStorageKey()
+      ) || "5",
+      10
+    );
+
+    if (
+      Number.isFinite(savedSlotCapacity) &&
+      savedSlotCapacity >= 1 &&
+      savedSlotCapacity <= 20
+    ) {
+      setReservationSlotCapacity(savedSlotCapacity);
+    }
+
     setIsOnline(window.navigator.onLine);
     setPendingSyncCount(readOfflineQueue().length);
     setRecoverySnapshots(readRecoverySnapshots());
@@ -3165,6 +3244,33 @@ async function undoLastSeat() {
             </div>
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {!managerUnlocked ? (
+                <>
+                  <input
+                    type="password"
+                    value={pin}
+                    onChange={(event) => setPin(event.target.value)}
+                    placeholder="Manager PIN"
+                    style={{
+                      width: 110,
+                      padding: 7,
+                      border: "2px solid #111827",
+                      borderRadius: 7,
+                    }}
+                  />
+                  <button onClick={unlockManager}>Unlock Manager</button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setManagerUnlocked(false);
+                    setReservationBookManagerOpen(false);
+                  }}
+                >
+                  Manager Unlocked
+                </button>
+              )}
+
               <button onClick={() => setReservationBookWeekOffset((v) => v - 1)}>
                 ← Previous Week
               </button>
@@ -3174,11 +3280,124 @@ async function undoLastSeat() {
               <button onClick={() => setReservationBookWeekOffset((v) => v + 1)}>
                 Next Week →
               </button>
+
+              <button
+                onClick={() => {
+                  if (!managerUnlocked) {
+                    alert("Manager must unlock first.");
+                    return;
+                  }
+
+                  setReservationBookManagerOpen((current) => !current);
+                }}
+              >
+                ⚙️ Manager Settings
+              </button>
+
               <button onClick={toggleReservationBookMode}>
                 Exit Reservation Book
               </button>
             </div>
           </div>
+
+          {reservationBookManagerOpen && managerUnlocked && (
+            <div
+              style={{
+                border: "3px solid #111827",
+                borderRadius: 10,
+                background: "white",
+                padding: 12,
+                marginBottom: 12,
+              }}
+            >
+              <h2 style={{ marginTop: 0, marginBottom: 6 }}>
+                ⚙️ Reservation Book Manager Settings
+              </h2>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: "bold" }}>
+                    Reservations allowed per 15-minute slot
+                  </div>
+                  <div style={{ fontSize: 11, color: "#64748b" }}>
+                    Change this when you need more or fewer reservation spaces.
+                  </div>
+                </div>
+
+                <button
+                  onClick={() =>
+                    updateReservationSlotCapacity(
+                      reservationSlotCapacity - 1
+                    )
+                  }
+                  disabled={reservationSlotCapacity <= 1}
+                  style={{
+                    width: 42,
+                    height: 38,
+                    fontSize: 20,
+                    fontWeight: "bold",
+                  }}
+                >
+                  −
+                </button>
+
+                <div
+                  style={{
+                    minWidth: 70,
+                    textAlign: "center",
+                    border: "3px solid #111827",
+                    borderRadius: 8,
+                    padding: "7px 12px",
+                    fontSize: 22,
+                    fontWeight: "bold",
+                  }}
+                >
+                  {reservationSlotCapacity}
+                </div>
+
+                <button
+                  onClick={() =>
+                    updateReservationSlotCapacity(
+                      reservationSlotCapacity + 1
+                    )
+                  }
+                  disabled={reservationSlotCapacity >= 20}
+                  style={{
+                    width: 42,
+                    height: 38,
+                    fontSize: 20,
+                    fontWeight: "bold",
+                  }}
+                >
+                  +
+                </button>
+
+                <span style={{ fontSize: 12, color: "#475569" }}>
+                  Current limit: {reservationSlotCapacity} per time slot
+                </span>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 8,
+                  borderRadius: 8,
+                  background: "#eff6ff",
+                  fontSize: 11,
+                }}
+              >
+                Reservation times are locked to 15-minute increments:
+                :00, :15, :30, and :45.
+              </div>
+            </div>
+          )}
 
           <div
             style={{
@@ -3227,7 +3446,7 @@ async function undoLastSeat() {
                         dateString,
                         displayTime
                       );
-                      const isFull = slotReservations.length >= 5;
+                      const isFull = slotReservations.length >= reservationSlotCapacity;
 
                       return (
                         <div
@@ -3270,7 +3489,7 @@ async function undoLastSeat() {
                                 color: isFull ? "#991b1b" : "#475569",
                               }}
                             >
-                              {slotReservations.length}/5
+                              {slotReservations.length}/{reservationSlotCapacity}
                             </span>
                           </div>
 
@@ -3293,9 +3512,39 @@ async function undoLastSeat() {
                                   fontSize: 10,
                                 }}
                               >
-                                <strong>
-                                  {reservation.name} • {reservation.guests}
-                                </strong>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    gap: 6,
+                                    alignItems: "flex-start",
+                                  }}
+                                >
+                                  <strong>
+                                    {reservation.name} • {reservation.guests}
+                                  </strong>
+
+                                  <button
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      deleteReservation(reservation.id);
+                                    }}
+                                    title="Delete reservation"
+                                    style={{
+                                      border: "none",
+                                      background: "#fee2e2",
+                                      color: "#991b1b",
+                                      borderRadius: 5,
+                                      padding: "2px 5px",
+                                      fontSize: 10,
+                                      fontWeight: "bold",
+                                      cursor: "pointer",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                                 {(
                                   reservation.adults !== undefined ||
                                   reservation.kids !== undefined
@@ -3379,9 +3628,12 @@ async function undoLastSeat() {
               />
               <input
                 type="time"
+                step={900}
                 value={reservationTime}
                 onChange={(event) =>
-                  setReservationTime(event.target.value)
+                  setReservationTime(
+                    snapTimeToQuarterHour(event.target.value)
+                  )
                 }
                 style={{ padding: 9 }}
               />
@@ -3572,7 +3824,7 @@ async function undoLastSeat() {
                   reservation.date === reservationDate &&
                   reservation.time === reservationTime &&
                   reservation.status !== "Cancelled"
-              ).length >= 5 && (
+              ).length >= reservationSlotCapacity && (
                 <div
                   style={{
                     marginTop: 8,
@@ -3584,7 +3836,8 @@ async function undoLastSeat() {
                     color: "#991b1b",
                   }}
                 >
-                  ⚠ This 15-minute slot already has 5 reservations.
+                  ⚠ This 15-minute slot is at the manager-set limit of{" "}
+                  {reservationSlotCapacity} reservations.
                 </div>
               )}
           </div>
@@ -4487,8 +4740,13 @@ async function undoLastSeat() {
             />
             <input
               type="time"
+              step={900}
               value={reservationTime}
-              onChange={(event) => setReservationTime(event.target.value)}
+              onChange={(event) =>
+                setReservationTime(
+                  snapTimeToQuarterHour(event.target.value)
+                )
+              }
               style={{ padding: 8 }}
             />
             <input
@@ -4688,11 +4946,14 @@ async function undoLastSeat() {
                   style={{ padding: 7 }}
                 />
                 <input
+                  type="time"
+                  step={900}
                   value={reservationTime}
                   onChange={(event) =>
-                    setReservationTime(event.target.value)
+                    setReservationTime(
+                      snapTimeToQuarterHour(event.target.value)
+                    )
                   }
-                  placeholder="Time"
                   style={{ padding: 7 }}
                 />
                 <input
