@@ -19,6 +19,9 @@ type EnriquesWaitParty = WaitParty & {
   vip?: boolean;
   noShowAt?: number;
   pagedAt?: number;
+  entryType?: "Walk In" | "Call Ahead";
+  checkedInAt?: number;
+  originalCallAheadAt?: number;
 };
 
 const SERVER_COLORS = [
@@ -886,6 +889,12 @@ async function undoLastSeat() {
   const [guestNotes, setGuestNotes] = useState("");
   const [quotedWait, setQuotedWait] = useState("15-20");
   const [waitVip, setWaitVip] = useState(false);
+
+  const [waitEntryType, setWaitEntryType] =
+    useState<"Walk In" | "Call Ahead">("Walk In");
+  const [editingWaitId, setEditingWaitId] = useState<number | null>(null);
+  const [checkInPagerId, setCheckInPagerId] = useState<number | null>(null);
+  const [checkInPagerValue, setCheckInPagerValue] = useState("");
 
   const [shiftHistory, setShiftHistory] = useState<any[]>([]);
   const [showShiftHistory, setShowShiftHistory] = useState(false);
@@ -2371,6 +2380,37 @@ async function undoLastSeat() {
 
     writeOfflineQueue([]);
     setRecoveryMessage("Pending offline queue cleared.");
+  }
+
+  function loadWaitPartyForEdit(party: EnriquesWaitParty) {
+    setEditingWaitId(party.id);
+    setGuestName(party.name);
+    setWaitAdults(String(party.adults || 0));
+    setWaitKids(String(party.kids || 0));
+    setWaitHighchairs(String(party.highchairs || 0));
+    setWaitWheelchairs(String(party.wheelchairs || 0));
+    setGuestPhone(party.phone || "");
+    setGuestPager(party.pager || "");
+    setGuestNotes(party.notes || "");
+    setQuotedWait(party.quotedWait || "15-20");
+    setWaitVip(Boolean(party.vip));
+    setWaitEntryType(party.entryType || "Walk In");
+  }
+
+  function clearWaitForm() {
+    setEditingWaitId(null);
+    setGuestName("");
+    setGuestSize("");
+    setWaitAdults("0");
+    setWaitKids("0");
+    setWaitHighchairs("0");
+    setWaitWheelchairs("0");
+    setGuestPhone("");
+    setGuestPager("");
+    setGuestNotes("");
+    setQuotedWait("15-20");
+    setWaitVip(false);
+    setWaitEntryType("Walk In");
   }
 
   function waitGuestMix() {
@@ -6510,60 +6550,81 @@ async function undoLastSeat() {
 >
   <div
     style={{
-      display: "flex",
-      justifyContent: "space-between",
-      gap: 10,
-      alignItems: "center",
-      flexWrap: "wrap",
-      marginBottom: 10,
+      display: "grid",
+      gridTemplateColumns: "360px minmax(0, 1fr)",
+      gap: 12,
+      alignItems: "start",
     }}
   >
-    <div>
-      <h2 style={{ margin: 0 }}>Waitlist</h2>
-      <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-        {waitlist.filter((party) => party.status === "Waiting").length} waiting •{" "}
-        {waitlist.filter((party) => party.status === "Paged").length} paged
-      </div>
-    </div>
-
     <div
       style={{
-        fontSize: 12,
-        fontWeight: "bold",
-        border: "2px solid #111827",
-        borderRadius: 20,
-        padding: "5px 9px",
+        border: "2px solid #cbd5e1",
+        borderRadius: 10,
+        padding: 10,
         background: "#f8fafc",
+        position: "sticky",
+        top: 12,
       }}
     >
-      Longest wait:{" "}
-      {waitlist.filter((party) => party.status === "Waiting").length
-        ? `${Math.max(
-            ...waitlist
-              .filter((party) => party.status === "Waiting")
-              .map((party) => waitMinutes(party))
-          )}m`
-        : "—"}
-    </div>
-  </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>Waitlist</h2>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+            Add walk-ins or call-aheads
+          </div>
+        </div>
+        {editingWaitId && (
+          <span
+            style={{
+              background: "#dbeafe",
+              border: "2px solid #2563eb",
+              borderRadius: 20,
+              padding: "4px 8px",
+              fontSize: 10,
+              fontWeight: "bold",
+            }}
+          >
+            Editing
+          </span>
+        )}
+      </div>
 
-  <div
-    style={{
-      border: "2px solid #cbd5e1",
-      borderRadius: 10,
-      padding: 10,
-      background: "#f8fafc",
-      marginBottom: 12,
-    }}
-  >
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1.2fr 1.5fr 1.1fr .7fr 1fr",
-        gap: 7,
-        alignItems: "end",
-      }}
-    >
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {(["Walk In", "Call Ahead"] as const).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => setWaitEntryType(type)}
+            style={{
+              flex: 1,
+              background:
+                waitEntryType === type
+                  ? type === "Call Ahead"
+                    ? "#fef3c7"
+                    : "#dbeafe"
+                  : "white",
+              border:
+                waitEntryType === type
+                  ? "3px solid #111827"
+                  : "2px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 7,
+              fontWeight: "bold",
+            }}
+          >
+            {type === "Call Ahead" ? "☎ Call Ahead" : "🚶 Walk In"}
+          </button>
+        ))}
+      </div>
+
       <label style={{ fontSize: 11, fontWeight: "bold" }}>
         Guest Name
         <input
@@ -6575,58 +6636,59 @@ async function undoLastSeat() {
             boxSizing: "border-box",
             padding: 8,
             marginTop: 3,
+            marginBottom: 8,
           }}
         />
       </label>
 
-      <div>
-        <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 3 }}>
-          Guest Mix
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(55px, 1fr))",
-            gap: 4,
-          }}
-        >
-          {[
-            ["A", waitAdults, setWaitAdults],
-            ["K", waitKids, setWaitKids],
-            ["HC", waitHighchairs, setWaitHighchairs],
-            ["W", waitWheelchairs, setWaitWheelchairs],
-          ].map(([label, value, setter]) => (
-            <label
-              key={label as string}
+      <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 3 }}>
+        Guest Mix
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 4,
+          marginBottom: 8,
+        }}
+      >
+        {[
+          ["A", waitAdults, setWaitAdults],
+          ["K", waitKids, setWaitKids],
+          ["HC", waitHighchairs, setWaitHighchairs],
+          ["W", waitWheelchairs, setWaitWheelchairs],
+        ].map(([label, value, setter]) => (
+          <label
+            key={label as string}
+            style={{
+              fontSize: 9,
+              fontWeight: "bold",
+              textAlign: "center",
+            }}
+          >
+            {label as string}
+            <select
+              value={value as string}
+              onChange={(event) =>
+                (setter as (value: string) => void)(event.target.value)
+              }
               style={{
-                fontSize: 9,
-                fontWeight: "bold",
-                textAlign: "center",
+                width: "100%",
+                padding: 6,
+                borderRadius: 7,
+                border: "1px solid #94a3b8",
+                background: "white",
               }}
             >
-              {label as string}
-              <select
-                value={value as string}
-                onChange={(event) =>
-                  (setter as (value: string) => void)(event.target.value)
-                }
-                style={{
-                  width: "100%",
-                  padding: 7,
-                  borderRadius: 7,
-                  border: "1px solid #94a3b8",
-                  background: "white",
-                }}
-              >
-                {Array.from({ length: 21 }).map((_, index) => (
-                  <option key={index} value={String(index)}>
-                    {index}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
+              {Array.from({ length: 21 }).map((_, index) => (
+                <option key={index} value={String(index)}>
+                  {index}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
       </div>
 
       <label style={{ fontSize: 11, fontWeight: "bold" }}>
@@ -6644,25 +6706,29 @@ async function undoLastSeat() {
             boxSizing: "border-box",
             padding: 8,
             marginTop: 3,
+            marginBottom: 8,
           }}
         />
       </label>
 
-      <label style={{ fontSize: 11, fontWeight: "bold" }}>
-        Pager
-        <input
-          value={guestPager}
-          onChange={(e) => setGuestPager(e.target.value)}
-          placeholder="#"
-          inputMode="numeric"
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: 8,
-            marginTop: 3,
-          }}
-        />
-      </label>
+      {waitEntryType === "Walk In" && (
+        <label style={{ fontSize: 11, fontWeight: "bold" }}>
+          Pager
+          <input
+            value={guestPager}
+            onChange={(e) => setGuestPager(e.target.value)}
+            placeholder="Pager #"
+            inputMode="numeric"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: 8,
+              marginTop: 3,
+              marginBottom: 8,
+            }}
+          />
+        </label>
+      )}
 
       <label style={{ fontSize: 11, fontWeight: "bold" }}>
         Quoted Wait
@@ -6673,6 +6739,7 @@ async function undoLastSeat() {
             width: "100%",
             padding: 8,
             marginTop: 3,
+            marginBottom: 8,
           }}
         >
           {[
@@ -6692,300 +6759,507 @@ async function undoLastSeat() {
           ))}
         </select>
       </label>
-    </div>
 
-    <div
-      style={{
-        display: "flex",
-        gap: 7,
-        marginTop: 8,
-        alignItems: "center",
-        flexWrap: "wrap",
-      }}
-    >
       <input
         value={guestNotes}
         onChange={(e) => setGuestNotes(e.target.value)}
         placeholder="Notes / seating request"
-        style={{ flex: 1, minWidth: 250, padding: 8 }}
-      />
-
-      <button
-        type="button"
-        onClick={() => setWaitVip((current) => !current)}
         style={{
-          background: waitVip ? "#fef3c7" : "white",
-          border: waitVip
-            ? "3px solid #d97706"
-            : "2px solid #cbd5e1",
-          borderRadius: 8,
-          padding: "7px 10px",
-          fontWeight: "bold",
+          width: "100%",
+          boxSizing: "border-box",
+          padding: 8,
+          marginBottom: 8,
         }}
-      >
-        ⭐ VIP
-      </button>
+      />
 
       <div
         style={{
-          border: "2px solid #111827",
-          borderRadius: 8,
-          padding: "7px 10px",
-          background: "white",
-          minWidth: 115,
-          textAlign: "center",
+          display: "flex",
+          gap: 6,
+          alignItems: "center",
+          marginBottom: 8,
         }}
       >
-        <div style={{ fontSize: 9, color: "#64748b" }}>Party</div>
-        <strong>{waitGuestMix().display || "—"}</strong>
-      </div>
-
-      <button
-        onClick={async () => {
-          const mix = waitGuestMix();
-
-          if (!guestName.trim() || mix.totalPeople <= 0) {
-            alert("Enter the guest name and at least one adult or kid.");
-            return;
-          }
-
-          const party: EnriquesWaitParty = {
-            id: Date.now(),
-            name: guestName.trim(),
-            size: mix.display,
-            adults: mix.adults,
-            kids: mix.kids,
-            highchairs: mix.highchairs,
-            wheelchairs: mix.wheelchairs,
-            phone: guestPhone.trim(),
-            pager: guestPager.trim(),
-            notes: guestNotes.trim(),
-            quotedWait: quotedWait.trim() || "15-20",
-            vip: waitVip,
-            status: "Waiting",
-            createdAt: Date.now(),
-          };
-
-          setWaitlist((current) => [...current, party]);
-
-          await syncOrQueue({
-            type: "host_waitlist_insert",
-            payload: {
-              id: party.id,
-              data: party,
-            },
-          });
-
-          setGuestName("");
-          setGuestSize("");
-          setWaitAdults("0");
-          setWaitKids("0");
-          setWaitHighchairs("0");
-          setWaitWheelchairs("0");
-          setGuestPhone("");
-          setGuestPager("");
-          setGuestNotes("");
-          setQuotedWait("15-20");
-          setWaitVip(false);
-        }}
-        style={{
-          background: "#2563eb",
-          color: "white",
-          border: "none",
-          borderRadius: 8,
-          padding: "9px 14px",
-          fontWeight: "bold",
-        }}
-      >
-        + Add to Waitlist
-      </button>
-    </div>
-  </div>
-
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-      gap: 8,
-    }}
-  >
-    {waitlist.length === 0 ? (
-      <div style={{ color: "#64748b" }}>No parties on the waitlist.</div>
-    ) : (
-      waitlist.map((party, index) => (
-        <div
-          key={party.id}
+        <button
+          type="button"
+          onClick={() => setWaitVip((current) => !current)}
           style={{
-            border: party.vip
+            background: waitVip ? "#fef3c7" : "white",
+            border: waitVip
               ? "3px solid #d97706"
-              : "2px solid #111827",
-            borderRadius: 10,
-            padding: 10,
-            background: waitStatusBackground(party),
+              : "2px solid #cbd5e1",
+            borderRadius: 8,
+            padding: "7px 10px",
+            fontWeight: "bold",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 8,
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <strong style={{ fontSize: 16 }}>
-                #{index + 1} {party.vip ? "⭐ " : ""}
-                {party.name}
-              </strong>
-              <div style={{ fontSize: 12, marginTop: 2 }}>
-                {party.size} • Waiting {waitMinutes(party)}m
-              </div>
-            </div>
+          ⭐ VIP
+        </button>
 
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: "bold",
-                border: "1px solid #64748b",
-                borderRadius: 20,
-                padding: "3px 7px",
-                background: "white",
-              }}
-            >
-              {party.status}
-            </span>
-          </div>
+        <div
+          style={{
+            border: "2px solid #111827",
+            borderRadius: 8,
+            padding: "7px 10px",
+            background: "white",
+            flex: 1,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 9, color: "#64748b" }}>Party</div>
+          <strong>{waitGuestMix().display || "—"}</strong>
+        </div>
+      </div>
 
-          <div style={{ fontSize: 11, marginTop: 7, lineHeight: 1.5 }}>
-            <div>Quoted: {party.quotedWait} min</div>
-            <div>Phone: {party.phone || "—"}</div>
-            <div>Pager: {party.pager || "—"}</div>
-            {party.notes && <div>Notes: {party.notes}</div>}
-          </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button
+          onClick={async () => {
+            const mix = waitGuestMix();
 
-          <div
-            style={{
-              display: "flex",
-              gap: 5,
-              flexWrap: "wrap",
-              marginTop: 8,
-            }}
-          >
-            {party.status === "Waiting" && (
-              <button
-                onClick={async () => {
-                  const updatedParty: EnriquesWaitParty = {
-                    ...party,
-                    status: "Paged",
-                    pagedAt: Date.now(),
-                  };
+            if (!guestName.trim() || mix.totalPeople <= 0) {
+              alert("Enter the guest name and at least one adult or kid.");
+              return;
+            }
 
-                  setWaitlist((current) =>
-                    current.map((item) =>
-                      item.id === party.id ? updatedParty : item
-                    )
-                  );
+            if (editingWaitId) {
+              const currentParty = waitlist.find(
+                (party) => party.id === editingWaitId
+              );
 
-                  await syncOrQueue({
-                    type: "host_waitlist_update",
-                    payload: {
-                      id: party.id,
-                      data: updatedParty,
-                    },
-                  });
-                }}
-              >
-                Page
-              </button>
-            )}
+              if (!currentParty) return;
 
-            {(party.status === "Waiting" || party.status === "Paged") && (
-              <button
-                onClick={async () => {
-                  const updatedParty: EnriquesWaitParty = {
-                    ...party,
-                    status: "Seated",
-                  };
+              const updatedParty: EnriquesWaitParty = {
+                ...currentParty,
+                name: guestName.trim(),
+                size: mix.display,
+                adults: mix.adults,
+                kids: mix.kids,
+                highchairs: mix.highchairs,
+                wheelchairs: mix.wheelchairs,
+                phone: guestPhone.trim(),
+                pager: guestPager.trim(),
+                notes: guestNotes.trim(),
+                quotedWait: quotedWait.trim() || "15-20",
+                vip: waitVip,
+                entryType: waitEntryType,
+              };
 
-                  setWaitlist((current) =>
-                    current.map((item) =>
-                      item.id === party.id ? updatedParty : item
-                    )
-                  );
+              setWaitlist((current) =>
+                current.map((party) =>
+                  party.id === editingWaitId ? updatedParty : party
+                )
+              );
 
-                  await syncOrQueue({
-                    type: "host_waitlist_update",
-                    payload: {
-                      id: party.id,
-                      data: updatedParty,
-                    },
-                  });
-                }}
-                style={{
-                  background: "#16a34a",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6,
-                  padding: "5px 8px",
-                }}
-              >
-                Seated
-              </button>
-            )}
+              await syncOrQueue({
+                type: "host_waitlist_update",
+                payload: {
+                  id: updatedParty.id,
+                  data: updatedParty,
+                },
+              });
 
-            {(party.status === "Waiting" || party.status === "Paged") && (
-              <button
-                onClick={async () => {
-                  const updatedParty: EnriquesWaitParty = {
-                    ...party,
-                    status: "NoShow",
-                    noShowAt: Date.now(),
-                  };
+              clearWaitForm();
+              return;
+            }
 
-                  setWaitlist((current) =>
-                    current.map((item) =>
-                      item.id === party.id ? updatedParty : item
-                    )
-                  );
+            const party: EnriquesWaitParty = {
+              id: Date.now(),
+              name: guestName.trim(),
+              size: mix.display,
+              adults: mix.adults,
+              kids: mix.kids,
+              highchairs: mix.highchairs,
+              wheelchairs: mix.wheelchairs,
+              phone: guestPhone.trim(),
+              pager: waitEntryType === "Walk In" ? guestPager.trim() : "",
+              notes: guestNotes.trim(),
+              quotedWait: quotedWait.trim() || "15-20",
+              vip: waitVip,
+              entryType: waitEntryType,
+              originalCallAheadAt:
+                waitEntryType === "Call Ahead" ? Date.now() : undefined,
+              status: "Waiting",
+              createdAt: Date.now(),
+            };
 
-                  await syncOrQueue({
-                    type: "host_waitlist_update",
-                    payload: {
-                      id: party.id,
-                      data: updatedParty,
-                    },
-                  });
-                }}
-              >
-                No Show
-              </button>
-            )}
+            setWaitlist((current) => [...current, party]);
 
-            <button
-              onClick={async () => {
-                const okay = confirm(
-                  `Remove ${party.name} from the waitlist?`
-                );
+            await syncOrQueue({
+              type: "host_waitlist_insert",
+              payload: {
+                id: party.id,
+                data: party,
+              },
+            });
 
-                if (!okay) return;
+            clearWaitForm();
+          }}
+          style={{
+            flex: 1,
+            background: editingWaitId ? "#2563eb" : "#16a34a",
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            padding: "9px 12px",
+            fontWeight: "bold",
+          }}
+        >
+          {editingWaitId
+            ? "Save Changes"
+            : waitEntryType === "Call Ahead"
+              ? "+ Add Call Ahead"
+              : "+ Add Walk In"}
+        </button>
 
-                setWaitlist((current) =>
-                  current.filter((item) => item.id !== party.id)
-                );
+        {editingWaitId && (
+          <button onClick={clearWaitForm}>Cancel</button>
+        )}
+      </div>
+    </div>
 
-                await syncOrQueue({
-                  type: "host_waitlist_delete",
-                  payload: { id: party.id },
-                });
-              }}
-              style={{ background: "#fee2e2" }}
-            >
-              Remove
-            </button>
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 10,
+          alignItems: "center",
+          flexWrap: "wrap",
+          marginBottom: 8,
+        }}
+      >
+        <div>
+          <h3 style={{ margin: 0 }}>Live Waitlist</h3>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+            Vertical service view
           </div>
         </div>
-      ))
-    )}
+
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            fontSize: 11,
+          }}
+        >
+          <span
+            style={{
+              border: "1px solid #94a3b8",
+              borderRadius: 20,
+              padding: "4px 7px",
+              background: "#f8fafc",
+            }}
+          >
+            {waitlist.filter((party) => party.status === "Waiting").length} Waiting
+          </span>
+          <span
+            style={{
+              border: "1px solid #94a3b8",
+              borderRadius: 20,
+              padding: "4px 7px",
+              background: "#fef3c7",
+            }}
+          >
+            {waitlist.filter((party) => party.status === "Paged").length} Paged
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        {waitlist.length === 0 ? (
+          <div
+            style={{
+              border: "2px dashed #cbd5e1",
+              borderRadius: 10,
+              padding: 20,
+              color: "#64748b",
+              textAlign: "center",
+            }}
+          >
+            No parties on the waitlist.
+          </div>
+        ) : (
+          waitlist.map((party, index) => (
+            <div
+              key={party.id}
+              style={{
+                border: party.vip
+                  ? "3px solid #d97706"
+                  : "2px solid #111827",
+                borderRadius: 10,
+                padding: 10,
+                background: waitStatusBackground(party),
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "48px minmax(180px, 1.3fr) .8fr .8fr .8fr auto",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: "bold",
+                    textAlign: "center",
+                  }}
+                >
+                  #{index + 1}
+                </div>
+
+                <div>
+                  <strong style={{ fontSize: 16 }}>
+                    {party.vip ? "⭐ " : ""}
+                    {party.name}
+                  </strong>
+                  <div style={{ fontSize: 11, marginTop: 2 }}>
+                    {party.size} • {party.entryType || "Walk In"}
+                  </div>
+                  {party.notes && (
+                    <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>
+                      {party.notes}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ fontSize: 11 }}>
+                  <strong>{waitMinutes(party)}m</strong>
+                  <div style={{ color: "#64748b" }}>
+                    Quoted {party.quotedWait}m
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 11 }}>
+                  <div>{party.phone || "No phone"}</div>
+                  <div style={{ color: "#64748b" }}>
+                    Pager {party.pager || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "bold",
+                      border: "1px solid #64748b",
+                      borderRadius: 20,
+                      padding: "4px 7px",
+                      background: "white",
+                    }}
+                  >
+                    {party.status}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 4,
+                    flexWrap: "wrap",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button onClick={() => loadWaitPartyForEdit(party)}>
+                    Edit
+                  </button>
+
+                  {(party.entryType === "Call Ahead" &&
+                    !party.checkedInAt) && (
+                    <button
+                      onClick={() => {
+                        setCheckInPagerId(party.id);
+                        setCheckInPagerValue(party.pager || "");
+                      }}
+                      style={{
+                        background: "#dbeafe",
+                        border: "2px solid #2563eb",
+                        borderRadius: 6,
+                        padding: "5px 8px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Check In
+                    </button>
+                  )}
+
+                  {party.status === "Waiting" && (
+                    <button
+                      onClick={async () => {
+                        const updatedParty: EnriquesWaitParty = {
+                          ...party,
+                          status: "Paged",
+                          pagedAt: Date.now(),
+                        };
+
+                        setWaitlist((current) =>
+                          current.map((item) =>
+                            item.id === party.id ? updatedParty : item
+                          )
+                        );
+
+                        await syncOrQueue({
+                          type: "host_waitlist_update",
+                          payload: {
+                            id: party.id,
+                            data: updatedParty,
+                          },
+                        });
+                      }}
+                    >
+                      Page
+                    </button>
+                  )}
+
+                  {(party.status === "Waiting" || party.status === "Paged") && (
+                    <button
+                      onClick={async () => {
+                        const updatedParty: EnriquesWaitParty = {
+                          ...party,
+                          status: "Seated",
+                        };
+
+                        setWaitlist((current) =>
+                          current.map((item) =>
+                            item.id === party.id ? updatedParty : item
+                          )
+                        );
+
+                        await syncOrQueue({
+                          type: "host_waitlist_update",
+                          payload: {
+                            id: party.id,
+                            data: updatedParty,
+                          },
+                        });
+                      }}
+                      style={{
+                        background: "#16a34a",
+                        color: "white",
+                        border: "none",
+                        borderRadius: 6,
+                        padding: "5px 8px",
+                      }}
+                    >
+                      Seated
+                    </button>
+                  )}
+
+                  <button
+                    onClick={async () => {
+                      const okay = confirm(
+                        `Remove ${party.name} from the waitlist?`
+                      );
+
+                      if (!okay) return;
+
+                      setWaitlist((current) =>
+                        current.filter((item) => item.id !== party.id)
+                      );
+
+                      await syncOrQueue({
+                        type: "host_waitlist_delete",
+                        payload: { id: party.id },
+                      });
+                    }}
+                    style={{ background: "#fee2e2" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+
+              {checkInPagerId === party.id && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: "1px solid #cbd5e1",
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                  }}
+                >
+                  <strong style={{ fontSize: 11 }}>
+                    Call Ahead Check-In
+                  </strong>
+
+                  <input
+                    value={checkInPagerValue}
+                    onChange={(event) =>
+                      setCheckInPagerValue(event.target.value)
+                    }
+                    placeholder="Add pager #"
+                    inputMode="numeric"
+                    style={{
+                      width: 120,
+                      padding: 7,
+                    }}
+                  />
+
+                  <button
+                    onClick={async () => {
+                      const updatedParty: EnriquesWaitParty = {
+                        ...party,
+                        pager: checkInPagerValue.trim(),
+                        checkedInAt: Date.now(),
+                        createdAt: Date.now(),
+                        status: "Waiting",
+                      };
+
+                      setWaitlist((current) =>
+                        current.map((item) =>
+                          item.id === party.id ? updatedParty : item
+                        )
+                      );
+
+                      await syncOrQueue({
+                        type: "host_waitlist_update",
+                        payload: {
+                          id: party.id,
+                          data: updatedParty,
+                        },
+                      });
+
+                      setCheckInPagerId(null);
+                      setCheckInPagerValue("");
+                    }}
+                    style={{
+                      background: "#2563eb",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "6px 9px",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Complete Check-In
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setCheckInPagerId(null);
+                      setCheckInPagerValue("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   </div>
 </section>
 
