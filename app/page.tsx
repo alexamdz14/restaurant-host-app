@@ -252,6 +252,10 @@ export default function Home() {
 
   const [partyCounts, setPartyCounts] = useState<Record<string, number>>({});
 
+  const [draggingRotationServer, setDraggingRotationServer] =
+    useState<string | null>(null);
+  const rotationHoldTimerRef = useRef<number | null>(null);
+
   const [seatingServerName, setSeatingServerName] =
   
     useState<string | null>(null);
@@ -292,11 +296,12 @@ export default function Home() {
       )
     );
 
-    setRotation((current) =>
-      current.includes(updatedServer.name)
-        ? current
-        : [...current, updatedServer.name]
-    );
+    const nextRotation = rotation.includes(updatedServer.name)
+      ? rotation
+      : [...rotation, updatedServer.name];
+
+    setRotation(nextRotation);
+    await saveRotationNow(nextRotation, partyCounts, lastSeated);
 
     await syncOrQueue({
       type: "host_servers_upsert",
@@ -346,6 +351,136 @@ export default function Home() {
     });
   }
 
+function moveServerToBackOfRotation(
+  serverName: string,
+  countsOverride?: Record<string, number>,
+  seatedOverride?: Record<string, number>
+) {
+  if (!rotation.includes(serverName)) return;
+
+  const nextRotation = [
+    ...rotation.filter((name) => name !== serverName),
+    serverName,
+  ];
+
+  setRotation(nextRotation);
+
+  void saveRotationNow(
+    nextRotation,
+    countsOverride || partyCounts,
+    seatedOverride || lastSeated
+  );
+}
+
+function recordTablesSat(serverName: string, count = 1) {
+  const nextCounts = {
+    ...partyCounts,
+    [serverName]: (partyCounts[serverName] || 0) + count,
+  };
+
+  const nextLastSeated = {
+    ...lastSeated,
+    [serverName]: Date.now(),
+  };
+
+  setPartyCounts(nextCounts);
+  setLastSeated(nextLastSeated);
+
+  return {
+    counts: nextCounts,
+    seated: nextLastSeated,
+  };
+}
+
+function decrementTablesSat(serverName: string, count = 1) {
+  const nextCounts = {
+    ...partyCounts,
+    [serverName]: Math.max(
+      0,
+      (partyCounts[serverName] || 0) - count
+    ),
+  };
+
+  setPartyCounts(nextCounts);
+  return nextCounts;
+}
+
+function reorderRotationServer(
+  sourceName: string,
+  targetName: string
+) {
+  if (!sourceName || !targetName || sourceName === targetName) {
+    return;
+  }
+
+  const sourceIndex = rotation.indexOf(sourceName);
+  const targetIndex = rotation.indexOf(targetName);
+
+  if (sourceIndex < 0 || targetIndex < 0) return;
+
+  const next = [...rotation];
+  next.splice(sourceIndex, 1);
+  next.splice(targetIndex, 0, sourceName);
+
+  setRotation(next);
+  void saveRotationNow(next, partyCounts, lastSeated);
+}
+
+function startRotationHold(
+  serverName: string,
+  event: React.PointerEvent<HTMLDivElement>
+) {
+  if (rotationHoldTimerRef.current) {
+    window.clearTimeout(rotationHoldTimerRef.current);
+  }
+
+  const pointerId = event.pointerId;
+  const element = event.currentTarget;
+
+  rotationHoldTimerRef.current = window.setTimeout(() => {
+    setDraggingRotationServer(serverName);
+
+    try {
+      element.setPointerCapture(pointerId);
+    } catch {
+      // Best-effort for iPad Safari.
+    }
+  }, 350);
+}
+
+function moveRotationDrag(
+  event: React.PointerEvent<HTMLDivElement>
+) {
+  if (!draggingRotationServer) return;
+
+  const target = document.elementFromPoint(
+    event.clientX,
+    event.clientY
+  ) as HTMLElement | null;
+
+  const card = target?.closest(
+    "[data-rotation-server]"
+  ) as HTMLElement | null;
+
+  const targetName = card?.dataset.rotationServer;
+
+  if (targetName) {
+    reorderRotationServer(
+      draggingRotationServer,
+      targetName
+    );
+  }
+}
+
+function stopRotationDrag() {
+  if (rotationHoldTimerRef.current) {
+    window.clearTimeout(rotationHoldTimerRef.current);
+    rotationHoldTimerRef.current = null;
+  }
+
+  setDraggingRotationServer(null);
+}
+
 const seatNextServer = () => {
   
   if (rotation.length === 0) return;
@@ -355,15 +490,15 @@ const seatNextServer = () => {
 }; 
 
 const skipNextServer = () => {
+  if (rotation.length === 0) return;
 
-  setRotation((current) => {
+  const nextRotation = [
+    ...rotation.slice(1),
+    rotation[0],
+  ];
 
-    if (current.length === 0) return current;
-
-    return [...current.slice(1), current[0]];
-
-  });
-
+  setRotation(nextRotation);
+  void saveRotationNow(nextRotation, partyCounts, lastSeated);
 };
 
  async function seatRotationServerAtTable(tableId: string) {
@@ -873,6 +1008,25 @@ async function undoLastSeat() {
     });
   }
 
+  async function saveRotationNow(
+    nextRotation: string[],
+    nextCounts: Record<string, number>,
+    nextLastSeated: Record<string, number>
+  ) {
+    await syncOrQueue({
+      type: "host_tables_upsert",
+      payload: {
+        id: "rotation",
+        data: {
+          rotation: nextRotation,
+          tableCounts: nextCounts,
+          lastSeated: nextLastSeated,
+          updatedAt: Date.now(),
+        },
+      },
+    });
+  }
+
   const [waitlist, setWaitlist] = useState<EnriquesWaitParty[]>([]);
 
   const [guestName, setGuestName] = useState("");
@@ -1000,27 +1154,17 @@ async function undoLastSeat() {
 
     const previousRotation = [...rotation];
 
-    // The selected server gets ONE party credit, even if multiple tables are used.
-    setPartyCounts((current) => ({
-      ...current,
-      [receivingServer.name]: (current[receivingServer.name] || 0) + 1,
-    }));
+    // Count actual TABLES seated for this server.
+    const recordedSeat = recordTablesSat(
+      receivingServer.name,
+      selectedPartyTables.length
+    );
 
-    setLastSeated((current) => ({
-      ...current,
-      [receivingServer.name]: now,
-    }));
-
-    // If a different server is seated out of order, the true NEXT server stays next.
-    // The receiving server is removed from their old spot and placed at the back.
-    setRotation((current) => {
-      if (!current.includes(receivingServer.name)) return current;
-
-      return [
-        ...current.filter((name) => name !== receivingServer.name),
-        receivingServer.name,
-      ];
-    });
+    moveServerToBackOfRotation(
+      receivingServer.name,
+      recordedSeat.counts,
+      recordedSeat.seated
+    );
 
     setTables(nextTables);
 
@@ -1356,13 +1500,25 @@ async function undoLastSeat() {
     setReservationNotes("");
     setReservationSpecialRequests([]);
 
-    await syncOrQueue({
+    const reservationSave = await syncOrQueue({
       type: "host_reservations_insert",
       payload: {
         id: reservation.id,
         data: reservation,
       },
     });
+
+    if (reservationSave.queued) {
+      console.log(
+        "Reservation saved locally and queued for cloud sync:",
+        reservation.id
+      );
+    } else {
+      console.log(
+        "Reservation recorded in Supabase:",
+        reservation.id
+      );
+    }
   }
 
   async function updateReservation(
@@ -1633,6 +1789,28 @@ async function undoLastSeat() {
     });
 
     setTables(nextTables);
+
+    if (
+      table.status === "Seated" &&
+      nextStatus === "Open" &&
+      table.server
+    ) {
+      const nextCounts = decrementTablesSat(table.server, 1);
+
+      const restoredRotation = [
+        table.server,
+        ...rotation.filter((name) => name !== table.server),
+      ];
+
+      setRotation(restoredRotation);
+
+      await saveRotationNow(
+        restoredRotation,
+        nextCounts,
+        lastSeated
+      );
+    }
+
     await saveTablesNow(nextTables);
   }
 
@@ -2659,6 +2837,26 @@ async function undoLastSeat() {
 
     }
 
+    const { data: rotationData } = await supabase
+      .from("host_tables")
+      .select("data")
+      .eq("id", "rotation")
+      .maybeSingle();
+
+    if (rotationData?.data) {
+      if (Array.isArray(rotationData.data.rotation)) {
+        setRotation(rotationData.data.rotation);
+      }
+
+      if (rotationData.data.tableCounts) {
+        setPartyCounts(rotationData.data.tableCounts);
+      }
+
+      if (rotationData.data.lastSeated) {
+        setLastSeated(rotationData.data.lastSeated);
+      }
+    }
+
     const { data: waitData } = await supabase
 
       .from("host_waitlist")
@@ -2757,6 +2955,36 @@ async function undoLastSeat() {
             setTables(data.data.tables);
             setSyncConflictNotice("");
             markRemoteUpdate("Floor updated by another iPad");
+          }
+        }
+
+        const { data: rotationData } = await supabase
+          .from("host_tables")
+          .select("data")
+          .eq("id", "rotation")
+          .maybeSingle();
+
+        if (rotationData?.data) {
+          const rotationDeviceId =
+            rotationData.data.syncDeviceId || "";
+
+          if (
+            !rotationDeviceId ||
+            rotationDeviceId !== deviceIdRef.current
+          ) {
+            if (Array.isArray(rotationData.data.rotation)) {
+              setRotation(rotationData.data.rotation);
+            }
+
+            if (rotationData.data.tableCounts) {
+              setPartyCounts(rotationData.data.tableCounts);
+            }
+
+            if (rotationData.data.lastSeated) {
+              setLastSeated(rotationData.data.lastSeated);
+            }
+
+            markRemoteUpdate("Rotation updated by another iPad");
           }
         }
 
@@ -2983,67 +3211,75 @@ async function undoLastSeat() {
   }
 
   async function cycleTable(id: string) {
-  
     if (editMode) return;
 
-  const nextTables = tables.map((table) => {
-    
-    if (table.id !== id) return table;
+    const currentTable = tables.find(
+      (table) => table.id === id
+    );
 
-    const currentIndex = STATUS_ORDER.indexOf(table.status);
+    if (!currentTable) return;
+
+    const currentIndex =
+      STATUS_ORDER.indexOf(currentTable.status);
 
     const nextStatus =
-     
       STATUS_ORDER[
-        
-      (currentIndex + 1) % STATUS_ORDER.length
-      
+        (currentIndex + 1) % STATUS_ORDER.length
       ];
 
-    return {
-      
-      ...table,
-     
-      status: nextStatus,
-      
-      seatedAt:
-       
-        nextStatus === "Seated"
-         
-        ? Date.now()
-         
-        : table.seatedAt,
-      
-      guest:
-        
-        nextStatus === "Open"
-          
-        ? undefined
-         
-        : table.guest,
-      
-      partySize:
-        
-        nextStatus === "Open"
-         
-        ? undefined
-         
-        : table.partySize,
+    const now = Date.now();
 
-      // Leave the assigned server exactly as it is.
-      
-      server: table.server,
-   
-    };
- 
-  });
+    const nextTables = tables.map((table) => {
+      if (table.id !== id) return table;
 
-  setTables(nextTables);
-  
+      return {
+        ...table,
+        status: nextStatus,
+        seatedAt:
+          nextStatus === "Seated"
+            ? now
+            : nextStatus === "Open"
+              ? undefined
+              : table.seatedAt,
+        statusStartedAt:
+          nextStatus === "Open"
+            ? undefined
+            : now,
+        guest:
+          nextStatus === "Open"
+            ? undefined
+            : table.guest,
+        partySize:
+          nextStatus === "Open"
+            ? undefined
+            : table.partySize,
+        server: table.server,
+      };
+    });
+
+    setTables(nextTables);
+
+    // When a table is pressed into Seated, its assigned server drives rotation.
+    if (
+      currentTable.status !== "Seated" &&
+      nextStatus === "Seated" &&
+      currentTable.server
+    ) {
+      const recordedSeat = recordTablesSat(
+        currentTable.server,
+        1
+      );
+
+      moveServerToBackOfRotation(
+        currentTable.server,
+        recordedSeat.counts,
+        recordedSeat.seated
+      );
+    }
+
     await saveTablesNow(nextTables);
-
   }
- 
+
   async function endShift() {
     if (!managerUnlocked) {
       alert("Manager must unlock first.");
@@ -3123,21 +3359,19 @@ async function undoLastSeat() {
       server: undefined,
     }));
 
-    const nextServers: ServerInfo[] = servers.map((server) => ({
-      ...server,
-      status: "Off",
-      checkedInAt: undefined,
-      cutTime: undefined,
-      tables: [],
-    }));
+    const serverIdsToDelete = servers.map(
+      (server) => server.id
+    );
 
     lastLocalSaveRef.current = updatedAt;
 
     setTables(nextTables);
-    setServers(nextServers);
+    setServers([]);
     setRotation([]);
     setLastSeated({});
     setPartyCounts({});
+
+    await saveRotationNow([], {}, {});
     setLastSeatAction(null);
     setSeatingServerName(null);
     setSelectedServer(null);
@@ -3159,22 +3393,17 @@ async function undoLastSeat() {
       },
     });
 
-    if (nextServers.length > 0) {
+    for (const serverId of serverIdsToDelete) {
       await syncOrQueue({
-        type: "host_servers_upsert",
-        payload: {
-          rows: nextServers.map((server) => ({
-            id: server.id,
-            data: server,
-          })),
-        },
+        type: "host_servers_delete",
+        payload: { id: serverId },
       });
     }
 
     alert(
       typeof window !== "undefined" && !window.navigator.onLine
-        ? "Shift ended and protected on this iPad. It will sync automatically when internet returns."
-        : "Shift archived and ended successfully."
+        ? "Shift ended and protected on this iPad. Server deletions will sync when internet returns."
+        : "Shift archived, servers deleted, and board reset successfully."
     );
   }
 
@@ -3320,7 +3549,7 @@ async function undoLastSeat() {
             fontWeight: "bold",
           }}
         >
-          ⚠ Multi-iPad Sync Protection: {syncConflictNotice}
+          ⚠ Live Sync Protection: {syncConflictNotice}
         </div>
       )}
 
@@ -4073,60 +4302,6 @@ async function undoLastSeat() {
           {reservationBookMode
             ? "Exit Reservation Book"
             : "📖 Reservation Book Mode"}
-        </button>
-
-        <button
-          onClick={() => {
-            setFloorCheckMode((current) => !current);
-            setFloorCheckStatus(null);
-            setPartySeatingMode(false);
-            setSelectedPartyTables([]);
-            setPlannerSelectedReservationId(null);
-            setSeatingServerName(null);
-            setSelectedServer(null);
-          }}
-          style={{
-            background: floorCheckMode ? "#111827" : undefined,
-            color: floorCheckMode ? "white" : undefined,
-          }}
-        >
-          {floorCheckMode ? "Close Floor Check" : "🧹 Floor Check"}
-        </button>
-
-        <button
-          onClick={() => setReservationBookOpen((current) => !current)}
-        >
-          {reservationBookOpen ? "Close Reservations" : "📅 Reservations"}
-        </button>
-
-        <button
-          onClick={() => {
-            setHeadHostMode((current) => !current);
-            setPlannerSelectedReservationId(null);
-            setPartySeatingMode(false);
-            setSelectedPartyTables([]);
-            setPartyServerId(null);
-            setPartyGuestCount("");
-          }}
-        >
-          {headHostMode ? "Close Head Host" : "👑 Head Host"}
-        </button>
-
-        <button
-          onClick={() => {
-            if (editMode) {
-              alert("Turn off Editing Mode before seating a party.");
-              return;
-            }
-            setSelectedServer(null);
-            setSeatingServerName(null);
-            setPartySeatingMode((current) => !current);
-            if (partySeatingMode) {
-              cancelPartySeating();
-            }
-          }}
-        >
-          {partySeatingMode ? "Cancel Party Seating" : "🍽️ Seat Party"}
         </button>
 
         <button onClick={endShift}>🌙 End Shift</button>
@@ -5803,6 +5978,16 @@ async function undoLastSeat() {
               </strong>
 
     
+              <div
+                style={{
+                  fontSize: 9,
+                  color: "#64748b",
+                  marginLeft: 6,
+                }}
+              >
+                Hold + drag to reorder
+              </div>
+
               <span
      
                 style={{
