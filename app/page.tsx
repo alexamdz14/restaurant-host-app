@@ -1514,10 +1514,38 @@ async function undoLastSeat() {
         reservation.id
       );
     } else {
-      console.log(
-        "Reservation recorded in Supabase:",
-        reservation.id
-      );
+      const { data: verifiedReservation, error: verifyError } =
+        await supabase
+          .from("host_reservations")
+          .select("id, data")
+          .eq("id", reservation.id)
+          .maybeSingle();
+
+      if (verifyError || !verifiedReservation?.id) {
+        console.error(
+          "Reservation could not be verified after save:",
+          verifyError
+        );
+
+        queueOfflineOperation({
+          type: "host_reservations_insert",
+          payload: {
+            id: reservation.id,
+            data: reservation,
+          },
+        });
+
+        alert(
+          "Reservation is saved on this iPad and queued to retry cloud sync."
+        );
+      } else {
+        console.log(
+          "Reservation verified in Supabase:",
+          reservation.id
+        );
+
+        await pullSharedStateFromCloud(false);
+      }
     }
   }
 
@@ -1898,7 +1926,11 @@ async function undoLastSeat() {
     // cannot replay after a newer floor state.
     if (queuedOperation.type === "host_tables_upsert") {
       queue = queue.filter(
-        (item) => item.type !== "host_tables_upsert"
+        (item) =>
+          !(
+            item.type === "host_tables_upsert" &&
+            item.payload.id === queuedOperation.payload.id
+          )
       );
     }
 
@@ -2071,17 +2103,30 @@ async function undoLastSeat() {
     }
 
     if (operation.type === "host_reservations_insert") {
-      const { error } = await supabase
+      const row = {
+        ...operation.payload,
+        data: {
+          ...operation.payload.data,
+          syncDeviceId:
+            deviceIdRef.current || getOrCreateDeviceId(),
+          syncUpdatedAt: operation.createdAt,
+        },
+      };
+
+      const { data, error } = await supabase
         .from("host_reservations")
-        .insert({
-          ...operation.payload,
-          data: {
-            ...operation.payload.data,
-            syncDeviceId: deviceIdRef.current || getOrCreateDeviceId(),
-            syncUpdatedAt: operation.createdAt,
-          },
-        });
+        .upsert(row, { onConflict: "id" })
+        .select("id, data")
+        .single();
+
       if (error) throw error;
+
+      if (!data?.id) {
+        throw new Error(
+          "Reservation save completed without returning a saved row."
+        );
+      }
+
       return;
     }
 
@@ -2144,6 +2189,117 @@ async function undoLastSeat() {
       console.error("Cloud save failed; queued for retry:", error);
       queueOfflineOperation(operation);
       return { queued: true };
+    }
+  }
+
+  async function pullSharedStateFromCloud(
+    showRemoteNotice = false
+  ) {
+    if (
+      typeof window !== "undefined" &&
+      !window.navigator.onLine
+    ) {
+      return;
+    }
+
+    try {
+      const [
+        { data: floorData },
+        { data: rotationData },
+        { data: serverData },
+        { data: waitData },
+        { data: reservationData },
+      ] = await Promise.all([
+        supabase
+          .from("host_tables")
+          .select("data")
+          .eq("id", "main")
+          .maybeSingle(),
+        supabase
+          .from("host_tables")
+          .select("data")
+          .eq("id", "rotation")
+          .maybeSingle(),
+        supabase.from("host_servers").select("id, data"),
+        supabase
+          .from("host_waitlist")
+          .select("id, data")
+          .order("id", { ascending: true }),
+        supabase
+          .from("host_reservations")
+          .select("id, data")
+          .order("created_at", { ascending: true }),
+      ]);
+
+      // Never overwrite a local category while that category
+      // still has an unsynced offline operation.
+      if (
+        floorData?.data?.tables &&
+        !queueHasTypePrefix("host_tables")
+      ) {
+        setTables(floorData.data.tables);
+      }
+
+      if (
+        rotationData?.data &&
+        !queueHasTypePrefix("host_tables")
+      ) {
+        if (Array.isArray(rotationData.data.rotation)) {
+          setRotation(rotationData.data.rotation);
+        }
+
+        if (rotationData.data.tableCounts) {
+          setPartyCounts(rotationData.data.tableCounts);
+        }
+
+        if (rotationData.data.lastSeated) {
+          setLastSeated(rotationData.data.lastSeated);
+        }
+      }
+
+      if (
+        serverData &&
+        !queueHasTypePrefix("host_servers")
+      ) {
+        setServers(
+          serverData
+            .map((row) => row.data as ServerInfo)
+            .filter(Boolean)
+        );
+      }
+
+      if (
+        waitData &&
+        !queueHasTypePrefix("host_waitlist")
+      ) {
+        setWaitlist(
+          waitData
+            .map((row) => row.data as EnriquesWaitParty)
+            .filter(Boolean)
+        );
+      }
+
+      if (
+        reservationData &&
+        !queueHasTypePrefix("host_reservations")
+      ) {
+        setReservations(
+          reservationData
+            .map((row) => row.data as ReservationRecord)
+            .filter(Boolean)
+            .sort((a, b) =>
+              `${a.date} ${a.time}`.localeCompare(
+                `${b.date} ${b.time}`
+              )
+            )
+        );
+      }
+
+      if (showRemoteNotice) {
+        markRemoteUpdate("All iPads refreshed from shared cloud state");
+      }
+    } catch (error) {
+      console.error("Shared-state refresh failed:", error);
     }
   }
 
@@ -2907,188 +3063,54 @@ async function undoLastSeat() {
   loadData();
 
   const channel = supabase
-
-    .channel("host-v2-sync")
-
+    .channel(
+      `host-v3-live-${deviceIdRef.current || getOrCreateDeviceId()}`
+    )
     .on(
-
       "postgres_changes",
-
       { event: "*", schema: "public", table: "host_tables" },
-
       async () => {
-
-        const { data } = await supabase
-
-          .from("host_tables")
-
-          .select("data")
-
-          .eq("id", "main")
-
-          .maybeSingle();
-
-        if (data?.data?.tables) {
-          const cloudUpdatedAt =
-            data.data.syncUpdatedAt ||
-            data.data.updatedAt ||
-            0;
-
-          const cloudDeviceId = data.data.syncDeviceId || "";
-
-          if (
-            cloudDeviceId &&
-            cloudDeviceId === deviceIdRef.current
-          ) {
-            return;
-          }
-
-          if (queueHasTypePrefix("host_tables")) {
-            setSyncConflictNotice(
-              "Another iPad updated the floor while this iPad has unsynced floor changes. Your local floor is being protected until sync finishes."
-            );
-            return;
-          }
-
-          if (cloudUpdatedAt > lastLocalSaveRef.current) {
-            lastLocalSaveRef.current = cloudUpdatedAt;
-            setTables(data.data.tables);
-            setSyncConflictNotice("");
-            markRemoteUpdate("Floor updated by another iPad");
-          }
-        }
-
-        const { data: rotationData } = await supabase
-          .from("host_tables")
-          .select("data")
-          .eq("id", "rotation")
-          .maybeSingle();
-
-        if (rotationData?.data) {
-          const rotationDeviceId =
-            rotationData.data.syncDeviceId || "";
-
-          if (
-            !rotationDeviceId ||
-            rotationDeviceId !== deviceIdRef.current
-          ) {
-            if (Array.isArray(rotationData.data.rotation)) {
-              setRotation(rotationData.data.rotation);
-            }
-
-            if (rotationData.data.tableCounts) {
-              setPartyCounts(rotationData.data.tableCounts);
-            }
-
-            if (rotationData.data.lastSeated) {
-              setLastSeated(rotationData.data.lastSeated);
-            }
-
-            markRemoteUpdate("Rotation updated by another iPad");
-          }
-        }
-
+        await pullSharedStateFromCloud(true);
       }
-
     )
-
     .on(
-
       "postgres_changes",
-
       { event: "*", schema: "public", table: "host_waitlist" },
-
       async () => {
-
-        const { data } = await supabase
-
-          .from("host_waitlist")
-
-          .select("data")
-
-          .order("id", { ascending: true });
-
-        if (data) {
-          if (queueHasTypePrefix("host_waitlist")) {
-            setSyncConflictNotice(
-              "Another iPad updated the waitlist while this iPad has unsynced waitlist changes. Local changes are protected until sync finishes."
-            );
-            return;
-          }
-
-          setWaitlist(
-            data.map((row) => row.data as EnriquesWaitParty)
-          );
-          markRemoteUpdate("Waitlist updated by another iPad");
-        }
-
+        await pullSharedStateFromCloud(true);
       }
-
     )
-
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_reservations" },
       async () => {
-        if (queueHasTypePrefix("host_reservations")) {
-          setSyncConflictNotice(
-            "Another iPad updated reservations while this iPad has unsynced reservation changes. Local changes are protected until sync finishes."
-          );
-          return;
-        }
-
-        const { data } = await supabase
-          .from("host_reservations")
-          .select("id, data")
-          .order("created_at", { ascending: true });
-
-        if (data) {
-          setReservations(
-            data
-              .map((row) => row.data as ReservationRecord)
-              .filter(Boolean)
-              .sort((a, b) =>
-                `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
-              )
-          );
-          markRemoteUpdate("Reservations updated by another iPad");
-        }
+        await pullSharedStateFromCloud(true);
       }
     )
-
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_servers" },
       async () => {
-        if (queueHasTypePrefix("host_servers")) {
-          setSyncConflictNotice(
-            "Another iPad updated server information while this iPad has unsynced server changes. Local changes are protected until sync finishes."
-          );
-          return;
-        }
-
-        const { data } = await supabase
-          .from("host_servers")
-          .select("id, data");
-
-        if (data) {
-          setServers(
-            data
-              .map((row) => row.data as ServerInfo)
-              .filter(Boolean)
-          );
-          setSyncConflictNotice("");
-          markRemoteUpdate("Server board updated by another iPad");
-        }
+        await pullSharedStateFromCloud(true);
       }
     )
+    .subscribe((status) => {
+      console.log("Supabase realtime status:", status);
 
-    .subscribe();
+      if (status === "SUBSCRIBED") {
+        void pullSharedStateFromCloud(false);
+      }
+    });
+
+  // Safety net for iPad/PWA realtime interruptions:
+  // every iPad re-checks shared state every 1.5 seconds.
+  const liveMatchTimer = window.setInterval(() => {
+    void pullSharedStateFromCloud(false);
+  }, 1500);
 
   return () => {
-
+    window.clearInterval(liveMatchTimer);
     supabase.removeChannel(channel);
-
   };
 
 }, []);
