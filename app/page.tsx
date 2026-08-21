@@ -192,6 +192,7 @@ export default function Home() {
   const [editMode, setEditMode] = useState(false);
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [pressedTableId, setPressedTableId] = useState<string | null>(null);
 
   const [servers, setServers] = useState<ServerInfo[]>([]);
 
@@ -991,10 +992,13 @@ async function undoLastSeat() {
 }
   
   const lastLocalSaveRef = useRef(0);
+  const localFloorInteractionUntilRef = useRef(0);
+  const lastTableTapRef = useRef<{ id: string; at: number } | null>(null);
 
   async function saveTablesNow(nextTables: TableItem[]) {
     const updatedAt = Date.now();
     lastLocalSaveRef.current = updatedAt;
+    localFloorInteractionUntilRef.current = updatedAt + 4000;
 
     await syncOrQueue({
       type: "host_tables_upsert",
@@ -2237,7 +2241,17 @@ async function undoLastSeat() {
         floorData?.data?.tables &&
         !queueHasTypePrefix("host_tables")
       ) {
-        setTables(floorData.data.tables);
+        const cloudUpdatedAt =
+          floorData.data.syncUpdatedAt ||
+          floorData.data.updatedAt ||
+          0;
+
+        if (
+          Date.now() >= localFloorInteractionUntilRef.current &&
+          cloudUpdatedAt >= lastLocalSaveRef.current
+        ) {
+          setTables(floorData.data.tables);
+        }
       }
 
       if (
@@ -3106,7 +3120,7 @@ async function undoLastSeat() {
   // every iPad re-checks shared state every 1.5 seconds.
   const liveMatchTimer = window.setInterval(() => {
     void pullSharedStateFromCloud(false);
-  }, 1500);
+  }, 5000);
 
   return () => {
     window.clearInterval(liveMatchTimer);
@@ -3427,6 +3441,56 @@ async function undoLastSeat() {
         ? "Shift ended and protected on this iPad. Server deletions will sync when internet returns."
         : "Shift archived, servers deleted, and board reset successfully."
     );
+  }
+
+  async function handleTableServiceTap(tableId: string) {
+    if (editMode) return;
+
+    const now = Date.now();
+    const lastTap = lastTableTapRef.current;
+
+    if (
+      lastTap &&
+      lastTap.id === tableId &&
+      now - lastTap.at < 300
+    ) {
+      return;
+    }
+
+    lastTableTapRef.current = {
+      id: tableId,
+      at: now,
+    };
+
+    // Protect the optimistic local floor state immediately,
+    // before any async Supabase work starts.
+    localFloorInteractionUntilRef.current = now + 4000;
+
+    if (floorCheckMode) {
+      await applyFloorCheckStatus(tableId);
+      return;
+    }
+
+    if (headHostMode && plannerSelectedReservationId) {
+      await togglePlannerReservationTableFromFloor(tableId);
+      return;
+    }
+
+    if (partySeatingMode) {
+      togglePartyTable(tableId);
+      return;
+    }
+
+    if (seatingServerName) {
+      await seatRotationServerAtTable(tableId);
+      return;
+    }
+
+    const assigned = await assignSelectedServerToTable(tableId);
+
+    if (!assigned) {
+      await cycleTable(tableId);
+    }
   }
 
   function startDrag(id: string) {
@@ -6462,29 +6526,33 @@ async function undoLastSeat() {
 
               key={table.id}
 
-              onPointerDown={() => startDrag(table.id)}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                setPressedTableId(table.id);
 
-            onClick={async () => {
-  
-              if (seatingServerName) {
-   
-                await seatRotationServerAtTable(table.id);
-   
-                return;
- 
-              }
+                if (editMode) {
+                  startDrag(table.id);
+                  return;
+                }
 
-  const assigned =
-    
-    await assignSelectedServerToTable(table.id);
+                // On iPad, pointer-down is the most reliable moment to
+                // register a table tap. Pointer-up can be cancelled by
+                // tiny finger movement/scrolling.
+                void handleTableServiceTap(table.id);
+              }}
 
-  if (!assigned) {
-    
-    cycleTable(table.id);
-  
-  }
+              onPointerCancel={() => {
+                setPressedTableId(null);
+                stopDrag();
+              }}
 
-   }}
+              onPointerUp={() => {
+                setPressedTableId(null);
+
+                if (editMode) {
+                  stopDrag();
+                }
+              }}
 
               style={{
 
@@ -6583,6 +6651,17 @@ async function undoLastSeat() {
                 fontWeight: "bold",
 
                 cursor: editMode && !floorLocked ? "grab" : "pointer",
+                touchAction:
+                  editMode && !floorLocked
+                    ? "none"
+                    : "manipulation",
+                WebkitTapHighlightColor: "transparent",
+
+                transform:
+                  pressedTableId === table.id && !editMode
+                    ? "scale(0.96)"
+                    : "scale(1)",
+                transition: "transform 70ms ease",
 
                 userSelect: "none",
 
