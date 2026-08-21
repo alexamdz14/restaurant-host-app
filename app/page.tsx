@@ -224,6 +224,11 @@ export default function Home() {
   const [reservationSpecialRequests, setReservationSpecialRequests] =
     useState<string[]>([]);
 
+  const [reservationSaveStatus, setReservationSaveStatus] = useState<
+    "idle" | "saving" | "saved" | "queued" | "error"
+  >("idle");
+  const [reservationSaveMessage, setReservationSaveMessage] = useState("");
+
   const [reservationBookMode, setReservationBookMode] = useState(false);
   const [reservationBookDate, setReservationBookDate] = useState(
     new Date().toISOString().slice(0, 10)
@@ -1500,72 +1505,104 @@ async function undoLastSeat() {
       createdAt: Date.now(),
     };
 
+    setReservationSaveStatus("saving");
+    setReservationSaveMessage("Saving reservation...");
+
+    // Show immediately in the book so the user gets instant feedback.
     setReservations((current) =>
-      [...current, reservation].sort((a, b) =>
-        `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
-      )
+      [...current.filter((item) => item.id !== reservation.id), reservation]
+        .sort((a, b) =>
+          `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+        )
     );
 
-    setReservationName("");
-    setReservationTime("");
-    setReservationGuests("");
-    setReservationAdults("0");
-    setReservationKids("0");
-    setReservationHighchairs("0");
-    setReservationWheelchairs("0");
-    setReservationPhone("");
-    setReservationNotes("");
-    setReservationSpecialRequests([]);
-
     localReservationInteractionUntilRef.current =
-      Date.now() + 7000;
+      Date.now() + 10000;
 
-    const reservationSave = await syncOrQueue({
-      type: "host_reservations_insert",
-      payload: {
-        id: reservation.id,
-        data: reservation,
+    const cloudRow = {
+      id: reservation.id,
+      data: {
+        ...reservation,
+        syncDeviceId:
+          deviceIdRef.current || getOrCreateDeviceId(),
+        syncUpdatedAt: Date.now(),
       },
-    });
+    };
 
-    if (reservationSave.queued) {
-      console.log(
-        "Reservation saved locally and queued for cloud sync:",
-        reservation.id
-      );
-    } else {
-      const { data: verifiedReservation, error: verifyError } =
+    try {
+      if (
+        typeof window !== "undefined" &&
+        !window.navigator.onLine
+      ) {
+        throw new Error("OFFLINE");
+      }
+
+      const { error: saveError } = await supabase
+        .from("host_reservations")
+        .upsert(cloudRow, { onConflict: "id" });
+
+      if (saveError) {
+        throw saveError;
+      }
+
+      const { data: verifyData, error: verifyError } =
         await supabase
           .from("host_reservations")
           .select("id, data")
           .eq("id", reservation.id)
           .maybeSingle();
 
-      if (verifyError || !verifiedReservation?.id) {
-        console.error(
-          "Reservation could not be verified after save:",
-          verifyError
-        );
-
-        queueOfflineOperation({
-          type: "host_reservations_insert",
-          payload: {
-            id: reservation.id,
-            data: reservation,
-          },
-        });
-
-        alert(
-          "Reservation is saved on this iPad and queued to retry cloud sync."
-        );
-      } else {
-        console.log(
-          "Reservation verified in Supabase:",
-          reservation.id
-        );
-
-        await pullSharedStateFromCloud(false);
+      if (verifyError) {
+        throw verifyError;
       }
+
+      if (!verifyData?.id) {
+        throw new Error(
+          "Reservation write completed but could not be verified."
+        );
+      }
+
+      setReservationSaveStatus("saved");
+      setReservationSaveMessage(
+        `Saved: ${reservation.name} • ${reservation.date} • ${reservation.time}`
+      );
+
+      // Clear the form only after the cloud save is confirmed.
+      setReservationName("");
+      setReservationTime("");
+      setReservationGuests("");
+      setReservationAdults("0");
+      setReservationKids("0");
+      setReservationHighchairs("0");
+      setReservationWheelchairs("0");
+      setReservationPhone("");
+      setReservationNotes("");
+      setReservationSpecialRequests([]);
+
+      window.setTimeout(() => {
+        void pullSharedStateFromCloud(false);
+      }, 1200);
+    } catch (error: any) {
+      console.error("Reservation direct save failed:", error);
+
+      queueOfflineOperation({
+        type: "host_reservations_insert",
+        payload: {
+          id: reservation.id,
+          data: reservation,
+        },
+      });
+
+      setReservationSaveStatus("queued");
+
+      const message =
+        error?.message && error.message !== "OFFLINE"
+          ? `Saved on this iPad; cloud retry queued. ${error.message}`
+          : "Saved on this iPad; cloud retry queued.";
+
+      setReservationSaveMessage(message);
+
+      alert(message);
     }
   }
 
@@ -1596,13 +1633,20 @@ async function undoLastSeat() {
         )
     );
 
-    await syncOrQueue({
+    const updateResult = await syncOrQueue({
       type: "host_reservations_update",
       payload: {
         id: updatedReservation.id,
         data: updatedReservation,
       },
     });
+
+    if (updateResult.queued) {
+      setReservationSaveStatus("queued");
+      setReservationSaveMessage(
+        `Update queued for ${updatedReservation.name}.`
+      );
+    }
   }
 
   async function toggleReservationTable(
@@ -1641,10 +1685,17 @@ async function undoLastSeat() {
       current.filter((item) => item.id !== reservationId)
     );
 
-    await syncOrQueue({
+    const deleteResult = await syncOrQueue({
       type: "host_reservations_delete",
       payload: { id: reservationId },
     });
+
+    if (deleteResult.queued) {
+      setReservationSaveStatus("queued");
+      setReservationSaveMessage(
+        `Delete queued for ${reservation.name}.`
+      );
+    }
   }
 
   function getTableTimerStart(table: TableItem) {
@@ -4264,6 +4315,40 @@ async function undoLastSeat() {
                 Add Reservation
               </button>
             </div>
+
+            {reservationSaveStatus !== "idle" && (
+              <div
+                style={{
+                  marginTop: 8,
+                  padding: 8,
+                  borderRadius: 8,
+                  border:
+                    reservationSaveStatus === "saved"
+                      ? "2px solid #16a34a"
+                      : reservationSaveStatus === "error"
+                        ? "2px solid #dc2626"
+                        : reservationSaveStatus === "queued"
+                          ? "2px solid #d97706"
+                          : "2px solid #2563eb",
+                  background:
+                    reservationSaveStatus === "saved"
+                      ? "#ecfdf5"
+                      : reservationSaveStatus === "error"
+                        ? "#fef2f2"
+                        : reservationSaveStatus === "queued"
+                          ? "#fffbeb"
+                          : "#eff6ff",
+                  fontSize: 12,
+                  fontWeight: "bold",
+                }}
+              >
+                {reservationSaveStatus === "saving" && "⏳ "}
+                {reservationSaveStatus === "saved" && "✅ "}
+                {reservationSaveStatus === "queued" && "🟡 "}
+                {reservationSaveStatus === "error" && "⚠️ "}
+                {reservationSaveMessage}
+              </div>
+            )}
 
             {reservationDate &&
               reservationTime &&
