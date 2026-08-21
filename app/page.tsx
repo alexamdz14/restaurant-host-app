@@ -387,6 +387,8 @@ function recordTablesSat(serverName: string, count = 1) {
   setPartyCounts(nextCounts);
   setLastSeated(nextLastSeated);
 
+  void saveRotationNow(rotation, nextCounts, nextLastSeated);
+
   return {
     counts: nextCounts,
     seated: nextLastSeated,
@@ -403,6 +405,8 @@ function decrementTablesSat(serverName: string, count = 1) {
   };
 
   setPartyCounts(nextCounts);
+  void saveRotationNow(rotation, nextCounts, lastSeated);
+
   return nextCounts;
 }
 
@@ -410,33 +414,40 @@ function reorderRotationServer(
   sourceName: string,
   targetName: string
 ) {
-  if (!sourceName || !targetName || sourceName === targetName) {
-    return;
-  }
+  if (!sourceName || !targetName || sourceName === targetName) return;
 
-  const sourceIndex = rotation.indexOf(sourceName);
-  const targetIndex = rotation.indexOf(targetName);
+  setRotation((current) => {
+    const sourceIndex = current.indexOf(sourceName);
+    const targetIndex = current.indexOf(targetName);
 
-  if (sourceIndex < 0 || targetIndex < 0) return;
+    if (sourceIndex < 0 || targetIndex < 0) return current;
 
-  const next = [...rotation];
-  next.splice(sourceIndex, 1);
-  next.splice(targetIndex, 0, sourceName);
+    const next = [...current];
+    next.splice(sourceIndex, 1);
 
-  setRotation(next);
-  void saveRotationNow(next, partyCounts, lastSeated);
+    const insertIndex =
+      sourceIndex < targetIndex ? Math.max(0, targetIndex - 1) : targetIndex;
+
+    next.splice(insertIndex, 0, sourceName);
+
+    void saveRotationNow(next, partyCounts, lastSeated);
+
+    return next;
+  });
 }
 
 function startRotationHold(
   serverName: string,
   event: React.PointerEvent<HTMLDivElement>
 ) {
+  event.stopPropagation();
+
   if (rotationHoldTimerRef.current) {
     window.clearTimeout(rotationHoldTimerRef.current);
   }
 
-  const pointerId = event.pointerId;
   const element = event.currentTarget;
+  const pointerId = event.pointerId;
 
   rotationHoldTimerRef.current = window.setTimeout(() => {
     setDraggingRotationServer(serverName);
@@ -444,15 +455,18 @@ function startRotationHold(
     try {
       element.setPointerCapture(pointerId);
     } catch {
-      // Best-effort for iPad Safari.
+      // Best effort on iPad Safari.
     }
-  }, 350);
+  }, 220);
 }
 
 function moveRotationDrag(
   event: React.PointerEvent<HTMLDivElement>
 ) {
   if (!draggingRotationServer) return;
+
+  event.preventDefault();
+  event.stopPropagation();
 
   const target = document.elementFromPoint(
     event.clientX,
@@ -465,11 +479,8 @@ function moveRotationDrag(
 
   const targetName = card?.dataset.rotationServer;
 
-  if (targetName) {
-    reorderRotationServer(
-      draggingRotationServer,
-      targetName
-    );
+  if (targetName && targetName !== draggingRotationServer) {
+    reorderRotationServer(draggingRotationServer, targetName);
   }
 }
 
@@ -481,6 +492,7 @@ function stopRotationDrag() {
 
   setDraggingRotationServer(null);
 }
+
 
 const seatNextServer = () => {
   
@@ -993,6 +1005,7 @@ async function undoLastSeat() {
   
   const lastLocalSaveRef = useRef(0);
   const localFloorInteractionUntilRef = useRef(0);
+  const localReservationInteractionUntilRef = useRef(0);
   const lastTableTapRef = useRef<{ id: string; at: number } | null>(null);
 
   async function saveTablesNow(nextTables: TableItem[]) {
@@ -1503,6 +1516,9 @@ async function undoLastSeat() {
     setReservationPhone("");
     setReservationNotes("");
     setReservationSpecialRequests([]);
+
+    localReservationInteractionUntilRef.current =
+      Date.now() + 7000;
 
     const reservationSave = await syncOrQueue({
       type: "host_reservations_insert",
@@ -2117,19 +2133,11 @@ async function undoLastSeat() {
         },
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("host_reservations")
-        .upsert(row, { onConflict: "id" })
-        .select("id, data")
-        .single();
+        .upsert(row, { onConflict: "id" });
 
       if (error) throw error;
-
-      if (!data?.id) {
-        throw new Error(
-          "Reservation save completed without returning a saved row."
-        );
-      }
 
       return;
     }
@@ -2295,7 +2303,8 @@ async function undoLastSeat() {
 
       if (
         reservationData &&
-        !queueHasTypePrefix("host_reservations")
+        !queueHasTypePrefix("host_reservations") &&
+        Date.now() >= localReservationInteractionUntilRef.current
       ) {
         setReservations(
           reservationData
@@ -5680,7 +5689,7 @@ async function undoLastSeat() {
                   {rotation[0] === server.name ? "⭐ " : ""}
                   {server.name}
                   <div style={{ fontSize: 10, fontWeight: "normal" }}>
-                    {partyCounts[server.name] || 0} parties sat
+                    {partyCounts[server.name] || 0} tables sat
                   </div>
                 </button>
               ))}
@@ -6180,6 +6189,11 @@ async function undoLastSeat() {
             
             key={`${name}-${index}`}
             
+            data-rotation-server={name}
+            onPointerDown={(event) => startRotationHold(name, event)}
+            onPointerMove={moveRotationDrag}
+            onPointerUp={stopRotationDrag}
+            onPointerCancel={stopRotationDrag}
             style={{
               
               minWidth: 72,
@@ -6199,6 +6213,19 @@ async function undoLastSeat() {
               boxSizing: "border-box",
               
               textAlign: "center",
+              touchAction: "none",
+              userSelect: "none",
+              cursor:
+                draggingRotationServer === name ? "grabbing" : "grab",
+              transform:
+                draggingRotationServer === name ? "scale(1.08)" : "scale(1)",
+              opacity:
+                draggingRotationServer === name ? 0.82 : 1,
+              boxShadow:
+                draggingRotationServer === name
+                  ? "0 8px 18px rgba(15, 23, 42, .28)"
+                  : "none",
+              transition: "transform 90ms ease, opacity 90ms ease",
              
               background:
                
@@ -6293,13 +6320,11 @@ async function undoLastSeat() {
            
               >
              
-              {server?.tables.length || 0}{" "}
-             
-              {(server?.tables.length || 0) === 1
-               
-                ? "Table"
-                
-              : "Tables"}
+              {partyCounts[name] || 0}{" "}
+
+              {(partyCounts[name] || 0) === 1
+                ? "Table Sat"
+                : "Tables Sat"}
            
             </div>
 
