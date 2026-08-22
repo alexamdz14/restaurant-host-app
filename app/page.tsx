@@ -290,10 +290,12 @@ export default function Home() {
     const server = servers.find((item) => item.id === serverId);
     if (!server) return;
 
+    const checkedInAt = Date.now();
+
     const updatedServer: ServerInfo = {
       ...server,
       status: "Checked In",
-      checkedInAt: Date.now(),
+      checkedInAt,
     };
 
     setServers((current) =>
@@ -306,8 +308,23 @@ export default function Home() {
       ? rotation
       : [...rotation, updatedServer.name];
 
+    const nextCounts = {
+      ...partyCounts,
+      [updatedServer.name]: 0,
+    };
+
+    const nextLastSeated = { ...lastSeated };
+    delete nextLastSeated[updatedServer.name];
+
     setRotation(nextRotation);
-    await saveRotationNow(nextRotation, partyCounts, lastSeated);
+    setPartyCounts(nextCounts);
+    setLastSeated(nextLastSeated);
+
+    await saveRotationNow(
+      nextRotation,
+      nextCounts,
+      nextLastSeated
+    );
 
     await syncOrQueue({
       type: "host_servers_upsert",
@@ -316,7 +333,6 @@ export default function Home() {
       },
     });
   }
-
   async function updateServerStatus(
     serverId: string,
     status: "Off" | "Break" | "Cut"
@@ -520,91 +536,74 @@ const skipNextServer = () => {
 };
 
  async function seatRotationServerAtTable(tableId: string) {
-  
-   if (!seatingServerName) return;
+  if (!seatingServerName) return;
 
   const currentTable = tables.find(
-    
     (table) => table.id === tableId
- 
   );
 
   if (!currentTable) return;
 
   if (currentTable.status !== "Open") {
-   
     alert("Please select an open table.");
-   
     return;
- 
   }
 
   const serverName = seatingServerName;
-  
-   const previousRotation = [...rotation];
-  
-   const previousLastSeated = lastSeated[serverName];
-  
-   const seatedAt = Date.now();
+  const previousRotation = [...rotation];
+  const previousLastSeated = lastSeated[serverName];
+  const seatedAt = Date.now();
 
   const nextTables = tables.map((table) =>
-    
     table.id === tableId
-     
-    ? {
-          
-      ...table,
-         
-      status: "Seated" as TableStatus,
-         
-      seatedAt,
-      
-    }
-    
-    : table
-  
-    );
+      ? {
+          ...table,
+          status: "Seated" as TableStatus,
+          seatedAt,
+          statusStartedAt: seatedAt,
+          countedServer: serverName,
+          seatWasCounted: true,
+        }
+      : table
+  );
 
   const nextRotation = [
-    
     ...rotation.filter((name) => name !== serverName),
-    
     serverName,
- 
   ];
 
+  const nextCounts = {
+    ...partyCounts,
+    [serverName]: (partyCounts[serverName] || 0) + 1,
+  };
+
+  const nextLastSeated = {
+    ...lastSeated,
+    [serverName]: seatedAt,
+  };
+
   setLastSeatAction({
-    
     tableId,
-   
     serverName,
-    
     previousTable: { ...currentTable },
-    
     previousRotation,
-    
     previousLastSeated,
-    
     createdAt: Date.now(),
- 
   });
 
   setTables(nextTables);
-  
-   setRotation(nextRotation);
-
-  setLastSeated((previous) => ({
-   
-    ...previous,
-   
-    [serverName]: seatedAt,
- 
-  }));
-
+  setRotation(nextRotation);
+  setPartyCounts(nextCounts);
+  setLastSeated(nextLastSeated);
   setSeatingServerName(null);
 
-  await saveTablesNow(nextTables);
+  await saveRotationNow(
+    nextRotation,
+    nextCounts,
+    nextLastSeated
+  );
 
+  await saveTablesNow(nextTables);
  }
 
 function cancelSeatingMode() {
@@ -614,57 +613,50 @@ function cancelSeatingMode() {
 }
 
 async function undoLastSeat() {
-  
   if (!lastSeatAction) return;
 
   const {
-    
     tableId,
-   
     serverName,
-    
     previousTable,
-    
     previousRotation,
-   
     previousLastSeated,
- 
   } = lastSeatAction;
 
   const nextTables = tables.map((table) =>
-   
     table.id === tableId ? previousTable : table
-  
-                               );
+  );
+
+  const nextCounts = {
+    ...partyCounts,
+    [serverName]: Math.max(
+      0,
+      (partyCounts[serverName] || 0) - 1
+    ),
+  };
+
+  const nextLastSeated = { ...lastSeated };
+
+  if (previousLastSeated === undefined) {
+    delete nextLastSeated[serverName];
+  } else {
+    nextLastSeated[serverName] = previousLastSeated;
+  }
 
   setTables(nextTables);
-  
   setRotation(previousRotation);
-
-  setLastSeated((previous) => {
-   
-    const next = { ...previous };
-
-    if (previousLastSeated === undefined) {
-     
-      delete next[serverName];
-    
-    } else {
-    
-      next[serverName] = previousLastSeated;
-   
-    }
-
-    return next;
-  
-  });
-
+  setPartyCounts(nextCounts);
+  setLastSeated(nextLastSeated);
   setLastSeatAction(null);
-  
   setSeatingServerName(null);
 
-  await saveTablesNow(nextTables);
+  await saveRotationNow(
+    previousRotation,
+    nextCounts,
+    nextLastSeated
+  );
 
+  await saveTablesNow(nextTables);
 }
 
   async function assignSelectedServerToTable(tableId: string) {
@@ -1012,11 +1004,18 @@ async function undoLastSeat() {
   const localFloorInteractionUntilRef = useRef(0);
   const localReservationInteractionUntilRef = useRef(0);
   const lastTableTapRef = useRef<{ id: string; at: number } | null>(null);
+  const tableTouchRef = useRef<{
+    id: string;
+    x: number;
+    y: number;
+    startedAt: number;
+    moved: boolean;
+  } | null>(null);
 
   async function saveTablesNow(nextTables: TableItem[]) {
     const updatedAt = Date.now();
     lastLocalSaveRef.current = updatedAt;
-    localFloorInteractionUntilRef.current = updatedAt + 4000;
+    localFloorInteractionUntilRef.current = updatedAt + 1200;
 
     await syncOrQueue({
       type: "host_tables_upsert",
@@ -1112,6 +1111,14 @@ async function undoLastSeat() {
   function queueHasTypePrefix(prefix: string) {
     return readOfflineQueue().some((operation) =>
       operation.type.startsWith(prefix)
+    );
+  }
+
+  function queueHasHostTableId(id: string) {
+    return readOfflineQueue().some(
+      (operation) =>
+        operation.type === "host_tables_upsert" &&
+        operation.payload.id === id
     );
   }
 
@@ -1597,7 +1604,7 @@ async function undoLastSeat() {
 
       const message =
         error?.message && error.message !== "OFFLINE"
-          ? `Saved on this iPad; cloud retry queued. ${error.message}`
+          ? `Reservation cloud error: ${error.message}. Saved on this iPad and queued to retry.`
           : "Saved on this iPad; cloud retry queued.";
 
       setReservationSaveMessage(message);
@@ -1851,6 +1858,8 @@ async function undoLastSeat() {
 
       const timedItem = item as TableItem & {
         statusStartedAt?: number;
+        countedServer?: string;
+        seatWasCounted?: boolean;
       };
 
       if (nextStatus === "Open") {
@@ -1861,6 +1870,8 @@ async function undoLastSeat() {
           partySize: undefined,
           seatedAt: undefined,
           statusStartedAt: undefined,
+          countedServer: undefined,
+          seatWasCounted: undefined,
         };
       }
 
@@ -1873,6 +1884,11 @@ async function undoLastSeat() {
             item.status === "Seated"
               ? timedItem.statusStartedAt || item.seatedAt || now
               : now,
+          countedServer:
+            timedItem.countedServer || item.server,
+          seatWasCounted:
+            timedItem.seatWasCounted ??
+            Boolean(item.server),
         };
       }
 
@@ -1884,30 +1900,54 @@ async function undoLastSeat() {
           item.status === nextStatus
             ? timedItem.statusStartedAt || now
             : now,
+        countedServer: timedItem.countedServer,
+        seatWasCounted: timedItem.seatWasCounted,
       };
     });
 
     setTables(nextTables);
 
+    // A direct Seated -> Open in Floor Check is treated as an UNSEAT correction.
     if (
       table.status === "Seated" &&
-      nextStatus === "Open" &&
-      table.server
+      nextStatus === "Open"
     ) {
-      const nextCounts = decrementTablesSat(table.server, 1);
+      const countedTable = table as TableItem & {
+        countedServer?: string;
+        seatWasCounted?: boolean;
+      };
 
-      const restoredRotation = [
-        table.server,
-        ...rotation.filter((name) => name !== table.server),
-      ];
+      const countedServer =
+        countedTable.countedServer || table.server;
 
-      setRotation(restoredRotation);
+      if (
+        countedServer &&
+        countedTable.seatWasCounted !== false
+      ) {
+        const nextCounts = {
+          ...partyCounts,
+          [countedServer]: Math.max(
+            0,
+            (partyCounts[countedServer] || 0) - 1
+          ),
+        };
 
-      await saveRotationNow(
-        restoredRotation,
-        nextCounts,
-        lastSeated
-      );
+        const restoredRotation = [
+          countedServer,
+          ...rotation.filter(
+            (name) => name !== countedServer
+          ),
+        ];
+
+        setPartyCounts(nextCounts);
+        setRotation(restoredRotation);
+
+        await saveRotationNow(
+          restoredRotation,
+          nextCounts,
+          lastSeated
+        );
+      }
     }
 
     await saveTablesNow(nextTables);
@@ -2298,7 +2338,7 @@ async function undoLastSeat() {
       // still has an unsynced offline operation.
       if (
         floorData?.data?.tables &&
-        !queueHasTypePrefix("host_tables")
+        !queueHasHostTableId("main")
       ) {
         const cloudUpdatedAt =
           floorData.data.syncUpdatedAt ||
@@ -2315,7 +2355,7 @@ async function undoLastSeat() {
 
       if (
         rotationData?.data &&
-        !queueHasTypePrefix("host_tables")
+        !queueHasHostTableId("rotation")
       ) {
         if (Array.isArray(rotationData.data.rotation)) {
           setRotation(rotationData.data.rotation);
@@ -3180,7 +3220,7 @@ async function undoLastSeat() {
   // every iPad re-checks shared state every 1.5 seconds.
   const liveMatchTimer = window.setInterval(() => {
     void pullSharedStateFromCloud(false);
-  }, 5000);
+  }, 4000);
 
   return () => {
     window.clearInterval(liveMatchTimer);
@@ -3328,6 +3368,11 @@ async function undoLastSeat() {
     const nextTables = tables.map((table) => {
       if (table.id !== id) return table;
 
+      const counted = table as TableItem & {
+        countedServer?: string;
+        seatWasCounted?: boolean;
+      };
+
       return {
         ...table,
         status: nextStatus,
@@ -3350,26 +3395,54 @@ async function undoLastSeat() {
             ? undefined
             : table.partySize,
         server: table.server,
+        countedServer:
+          nextStatus === "Seated"
+            ? table.server
+            : nextStatus === "Open"
+              ? undefined
+              : counted.countedServer,
+        seatWasCounted:
+          nextStatus === "Seated"
+            ? Boolean(table.server)
+            : nextStatus === "Open"
+              ? undefined
+              : counted.seatWasCounted,
       };
     });
 
     setTables(nextTables);
 
-    // When a table is pressed into Seated, its assigned server drives rotation.
     if (
       currentTable.status !== "Seated" &&
       nextStatus === "Seated" &&
       currentTable.server
     ) {
-      const recordedSeat = recordTablesSat(
-        currentTable.server,
-        1
-      );
+      const nextCounts = {
+        ...partyCounts,
+        [currentTable.server]:
+          (partyCounts[currentTable.server] || 0) + 1,
+      };
 
-      moveServerToBackOfRotation(
+      const nextLastSeated = {
+        ...lastSeated,
+        [currentTable.server]: now,
+      };
+
+      const nextRotation = [
+        ...rotation.filter(
+          (name) => name !== currentTable.server
+        ),
         currentTable.server,
-        recordedSeat.counts,
-        recordedSeat.seated
+      ];
+
+      setPartyCounts(nextCounts);
+      setLastSeated(nextLastSeated);
+      setRotation(nextRotation);
+
+      await saveRotationNow(
+        nextRotation,
+        nextCounts,
+        nextLastSeated
       );
     }
 
@@ -3524,7 +3597,7 @@ async function undoLastSeat() {
 
     // Protect the optimistic local floor state immediately,
     // before any async Supabase work starts.
-    localFloorInteractionUntilRef.current = now + 4000;
+    localFloorInteractionUntilRef.current = now + 1200;
 
     if (floorCheckMode) {
       await applyFloorCheckStatus(tableId);
@@ -6640,28 +6713,62 @@ async function undoLastSeat() {
                 event.stopPropagation();
                 setPressedTableId(table.id);
 
+                tableTouchRef.current = {
+                  id: table.id,
+                  x: event.clientX,
+                  y: event.clientY,
+                  startedAt: Date.now(),
+                  moved: false,
+                };
+
                 if (editMode) {
                   startDrag(table.id);
-                  return;
                 }
+              }}
 
-                // On iPad, pointer-down is the most reliable moment to
-                // register a table tap. Pointer-up can be cancelled by
-                // tiny finger movement/scrolling.
-                void handleTableServiceTap(table.id);
+              onPointerMove={(event) => {
+                const touch = tableTouchRef.current;
+
+                if (!touch || touch.id !== table.id) return;
+
+                const distance = Math.hypot(
+                  event.clientX - touch.x,
+                  event.clientY - touch.y
+                );
+
+                if (distance > 18) {
+                  touch.moved = true;
+                  setPressedTableId(null);
+                }
               }}
 
               onPointerCancel={() => {
                 setPressedTableId(null);
+                tableTouchRef.current = null;
                 stopDrag();
               }}
 
-              onPointerUp={() => {
+              onPointerUp={async (event) => {
+                event.stopPropagation();
                 setPressedTableId(null);
+
+                const touch = tableTouchRef.current;
+                tableTouchRef.current = null;
 
                 if (editMode) {
                   stopDrag();
+                  return;
                 }
+
+                if (
+                  !touch ||
+                  touch.id !== table.id ||
+                  touch.moved
+                ) {
+                  return;
+                }
+
+                await handleTableServiceTap(table.id);
               }}
 
               style={{
@@ -6764,7 +6871,7 @@ async function undoLastSeat() {
                 touchAction:
                   editMode && !floorLocked
                     ? "none"
-                    : "manipulation",
+                    : "pan-x pan-y",
                 WebkitTapHighlightColor: "transparent",
 
                 transform:
