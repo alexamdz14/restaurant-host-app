@@ -4870,6 +4870,16 @@ async function undoLastSeat() {
     Server Center
 
   </h2>
+          <div
+            style={{
+              fontSize: 11,
+              color: "#64748b",
+              marginTop: 2,
+              marginBottom: 8,
+            }}
+          >
+            Full server management preserved
+          </div>
 
   <div
 
@@ -5980,7 +5990,24 @@ async function undoLastSeat() {
         );
       })()}
 
-      <div style={{ width: "100%", overflowX: "auto" }}>
+      <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1.85fr) minmax(360px, .95fr)",
+        gap: 12,
+        alignItems: "start",
+        width: "100%",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div
+        style={{
+          width: "100%",
+          overflowX: "auto",
+          overflowY: "hidden",
+          paddingBottom: 4,
+        }}
+      >
 
         <div
 
@@ -5997,6 +6024,10 @@ async function undoLastSeat() {
             width: 1500,
 
             height: 1040,
+
+            transform: "scale(0.78)",
+            transformOrigin: "top left",
+            marginBottom: -225,
 
             background: "#fbfaf5",
 
@@ -7041,8 +7072,83 @@ async function undoLastSeat() {
         tables.
 
       </p>
+      </div>
 
-<section
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          minWidth: 0,
+          alignSelf: "start",
+        }}
+      >
+        <section
+          style={{
+            background: "white",
+            border: "3px solid #111827",
+            borderRadius: 10,
+            padding: 12,
+            minHeight: 265,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 10,
+            }}
+          >
+            <div>
+              <h2 style={{ margin: 0 }}>📅 Reservation Timeline</h2>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#64748b",
+                  marginTop: 2,
+                }}
+              >
+                Upcoming reservations for the podium
+              </div>
+            </div>
+
+            <button
+              onClick={() => setReservationBookOpen(true)}
+              style={{
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                padding: "7px 10px",
+                fontWeight: "bold",
+              }}
+            >
+              Open Book
+            </button>
+          </div>
+
+          <div
+            style={{
+              border: "2px dashed #cbd5e1",
+              borderRadius: 8,
+              background: "#f8fafc",
+              padding: 18,
+              textAlign: "center",
+              color: "#64748b",
+              fontSize: 12,
+              lineHeight: 1.5,
+            }}
+          >
+            Phase 1 layout preview area.
+            <br />
+            Phase 2 will populate this with the live reservation timeline and
+            reserved-table highlighting.
+          </div>
+        </section>
+
+        <section
   style={{
     marginTop: 16,
     background: "white",
@@ -7765,6 +7871,8 @@ async function undoLastSeat() {
     </div>
   </div>
 </section>
+      </div>
+    </div>
 
       </>
       )}
