@@ -7165,7 +7165,7 @@ async function undoLastSeat() {
         <section
   style={{
     width: "100%",
-    marginTop: 16,
+    marginTop: 10,
     background: "white",
     border: "3px solid #111827",
     borderRadius: 10,
@@ -7174,20 +7174,19 @@ async function undoLastSeat() {
 >
   <div
     style={{
-      display: "grid",
-      gridTemplateColumns: "360px minmax(0, 1fr)",
-      gap: 12,
-      alignItems: "start",
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+      alignItems: "stretch",
     }}
   >
     <div
       style={{
+        order: 2,
         border: "2px solid #cbd5e1",
         borderRadius: 10,
         padding: 10,
         background: "#f8fafc",
-        position: "sticky",
-        top: 12,
       }}
     >
       <div
@@ -7272,7 +7271,7 @@ async function undoLastSeat() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr",
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
           gap: 4,
           marginBottom: 8,
         }}
@@ -7541,7 +7540,15 @@ async function undoLastSeat() {
       </div>
     </div>
 
-    <div>
+    <div
+      style={{
+        order: 1,
+        border: "2px solid #111827",
+        borderRadius: 10,
+        background: "white",
+        padding: 10,
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -7594,7 +7601,10 @@ async function undoLastSeat() {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 8,
+          gap: 7,
+          maxHeight: 330,
+          overflowY: "auto",
+          paddingRight: 2,
         }}
       >
         {waitlist.length === 0 ? (
@@ -7617,72 +7627,75 @@ async function undoLastSeat() {
                 border: party.vip
                   ? "3px solid #d97706"
                   : "2px solid #111827",
-                borderRadius: 10,
-                padding: 10,
+                borderRadius: 9,
+                padding: 8,
                 background: waitStatusBackground(party),
               }}
             >
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "48px minmax(180px, 1.3fr) .8fr .8fr .8fr auto",
+                  display: "flex",
+                  justifyContent: "space-between",
                   gap: 8,
-                  alignItems: "center",
+                  alignItems: "flex-start",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 22,
-                    fontWeight: "bold",
-                    textAlign: "center",
-                  }}
-                >
-                  #{index + 1}
-                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <strong style={{ fontSize: 15 }}>
+                      #{index + 1} {party.vip ? "⭐ " : ""}
+                      {party.name}
+                    </strong>
 
-                <div>
-                  <strong style={{ fontSize: 16 }}>
-                    {party.vip ? "⭐ " : ""}
-                    {party.name}
-                  </strong>
-                  <div style={{ fontSize: 11, marginTop: 2 }}>
-                    {party.size} • {party.entryType || "Walk In"}
+                    <span
+                      style={{
+                        fontSize: 9,
+                        fontWeight: "bold",
+                        border: "1px solid #64748b",
+                        borderRadius: 20,
+                        padding: "2px 6px",
+                        background: "white",
+                      }}
+                    >
+                      {party.status}
+                    </span>
                   </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      fontSize: 10,
+                      marginTop: 3,
+                      color: "#334155",
+                    }}
+                  >
+                    <span><strong>{party.size}</strong></span>
+                    <span>{party.entryType || "Walk In"}</span>
+                    <span><strong>{waitMinutes(party)}m</strong> waiting</span>
+                    <span>Quote {party.quotedWait}m</span>
+                    {party.pager && <span>Pager {party.pager}</span>}
+                  </div>
+
                   {party.notes && (
-                    <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>
+                    <div
+                      style={{
+                        fontSize: 10,
+                        color: "#475569",
+                        marginTop: 3,
+                      }}
+                    >
                       {party.notes}
                     </div>
                   )}
-                </div>
-
-                <div style={{ fontSize: 11 }}>
-                  <strong>{waitMinutes(party)}m</strong>
-                  <div style={{ color: "#64748b" }}>
-                    Quoted {party.quotedWait}m
-                  </div>
-                </div>
-
-                <div style={{ fontSize: 11 }}>
-                  <div>{party.phone || "No phone"}</div>
-                  <div style={{ color: "#64748b" }}>
-                    Pager {party.pager || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: "bold",
-                      border: "1px solid #64748b",
-                      borderRadius: 20,
-                      padding: "4px 7px",
-                      background: "white",
-                    }}
-                  >
-                    {party.status}
-                  </span>
                 </div>
 
                 <div
@@ -7691,30 +7704,35 @@ async function undoLastSeat() {
                     gap: 4,
                     flexWrap: "wrap",
                     justifyContent: "flex-end",
+                    maxWidth: 190,
                   }}
                 >
-                  <button onClick={() => loadWaitPartyForEdit(party)}>
+                  <button
+                    onClick={() => loadWaitPartyForEdit(party)}
+                    style={{ fontSize: 10 }}
+                  >
                     Edit
                   </button>
 
-                  {(party.entryType === "Call Ahead" &&
-                    !party.checkedInAt) && (
-                    <button
-                      onClick={() => {
-                        setCheckInPagerId(party.id);
-                        setCheckInPagerValue(party.pager || "");
-                      }}
-                      style={{
-                        background: "#dbeafe",
-                        border: "2px solid #2563eb",
-                        borderRadius: 6,
-                        padding: "5px 8px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      Check In
-                    </button>
-                  )}
+                  {party.entryType === "Call Ahead" &&
+                    !party.checkedInAt && (
+                      <button
+                        onClick={() => {
+                          setCheckInPagerId(party.id);
+                          setCheckInPagerValue(party.pager || "");
+                        }}
+                        style={{
+                          background: "#dbeafe",
+                          border: "2px solid #2563eb",
+                          borderRadius: 6,
+                          padding: "4px 6px",
+                          fontSize: 10,
+                          fontWeight: "bold",
+                        }}
+                      >
+                        Check In
+                      </button>
+                    )}
 
                   {party.status === "Waiting" && (
                     <button
@@ -7739,12 +7757,14 @@ async function undoLastSeat() {
                           },
                         });
                       }}
+                      style={{ fontSize: 10 }}
                     >
                       Page
                     </button>
                   )}
 
-                  {(party.status === "Waiting" || party.status === "Paged") && (
+                  {(party.status === "Waiting" ||
+                    party.status === "Paged") && (
                     <button
                       onClick={async () => {
                         const updatedParty: EnriquesWaitParty = {
@@ -7771,7 +7791,8 @@ async function undoLastSeat() {
                         color: "white",
                         border: "none",
                         borderRadius: 6,
-                        padding: "5px 8px",
+                        padding: "4px 6px",
+                        fontSize: 10,
                       }}
                     >
                       Seated
@@ -7795,7 +7816,10 @@ async function undoLastSeat() {
                         payload: { id: party.id },
                       });
                     }}
-                    style={{ background: "#fee2e2" }}
+                    style={{
+                      background: "#fee2e2",
+                      fontSize: 10,
+                    }}
                   >
                     Remove
                   </button>
@@ -7805,15 +7829,16 @@ async function undoLastSeat() {
               {checkInPagerId === party.id && (
                 <div
                   style={{
-                    marginTop: 8,
-                    paddingTop: 8,
+                    marginTop: 7,
+                    paddingTop: 7,
                     borderTop: "1px solid #cbd5e1",
                     display: "flex",
-                    gap: 6,
+                    gap: 5,
                     alignItems: "center",
+                    flexWrap: "wrap",
                   }}
                 >
-                  <strong style={{ fontSize: 11 }}>
+                  <strong style={{ fontSize: 10 }}>
                     Call Ahead Check-In
                   </strong>
 
@@ -7822,11 +7847,11 @@ async function undoLastSeat() {
                     onChange={(event) =>
                       setCheckInPagerValue(event.target.value)
                     }
-                    placeholder="Add pager #"
+                    placeholder="Pager #"
                     inputMode="numeric"
                     style={{
-                      width: 120,
-                      padding: 7,
+                      width: 90,
+                      padding: 5,
                     }}
                   />
 
@@ -7862,11 +7887,12 @@ async function undoLastSeat() {
                       color: "white",
                       border: "none",
                       borderRadius: 6,
-                      padding: "6px 9px",
+                      padding: "5px 7px",
+                      fontSize: 10,
                       fontWeight: "bold",
                     }}
                   >
-                    Complete Check-In
+                    Complete
                   </button>
 
                   <button
@@ -7874,6 +7900,7 @@ async function undoLastSeat() {
                       setCheckInPagerId(null);
                       setCheckInPagerValue("");
                     }}
+                    style={{ fontSize: 10 }}
                   >
                     Cancel
                   </button>
