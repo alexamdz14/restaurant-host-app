@@ -1,4 +1,4 @@
-"use client"; 
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -5993,7 +5993,7 @@ async function undoLastSeat() {
       <div
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1.85fr) minmax(360px, .95fr)",
+        gridTemplateColumns: "minmax(0, 2.15fr) minmax(330px, .78fr)",
         gap: 12,
         alignItems: "start",
         width: "100%",
@@ -6001,6 +6001,45 @@ async function undoLastSeat() {
     >
       <div style={{ minWidth: 0 }}>
         <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 8,
+          marginBottom: 8,
+          maxWidth: 760,
+        }}
+      >
+        <div
+          style={{
+            border: "2px solid #94a3b8",
+            borderRadius: 8,
+            background: "#f8fafc",
+            padding: "7px 9px",
+            fontSize: 11,
+            lineHeight: 1.35,
+          }}
+        >
+          <strong>CASA</strong>
+          <div>Name: __________________</div>
+          <div>Party: ______ &nbsp; Server: __________</div>
+        </div>
+        <div
+          style={{
+            border: "2px solid #94a3b8",
+            borderRadius: 8,
+            background: "#f8fafc",
+            padding: "7px 9px",
+            fontSize: 11,
+            lineHeight: 1.35,
+          }}
+        >
+          <strong>SAN MIGUEL</strong>
+          <div>Name: __________________</div>
+          <div>Party: ______ &nbsp; Server: __________</div>
+        </div>
+      </div>
+
+      <div
         style={{
           width: "100%",
           overflowX: "auto",
@@ -6025,9 +6064,9 @@ async function undoLastSeat() {
 
             height: 1040,
 
-            transform: "scale(0.78)",
+            transform: "scale(0.88)",
             transformOrigin: "top left",
-            marginBottom: -225,
+            marginBottom: -125,
 
             background: "#fbfaf5",
 
@@ -7080,6 +7119,8 @@ async function undoLastSeat() {
           flexDirection: "column",
           gap: 12,
           minWidth: 0,
+          maxWidth: 430,
+          justifySelf: "end",
           alignSelf: "start",
         }}
       >
@@ -7089,7 +7130,7 @@ async function undoLastSeat() {
             border: "3px solid #111827",
             borderRadius: 10,
             padding: 12,
-            minHeight: 265,
+            minHeight: 220,
           }}
         >
           <div
