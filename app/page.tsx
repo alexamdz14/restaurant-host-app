@@ -5993,7 +5993,7 @@ async function undoLastSeat() {
       <div
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 2.15fr) minmax(330px, .78fr)",
+        gridTemplateColumns: "minmax(0, 2.32fr) minmax(315px, .72fr)",
         gap: 12,
         alignItems: "start",
         width: "100%",
@@ -6001,45 +6001,6 @@ async function undoLastSeat() {
     >
       <div style={{ minWidth: 0 }}>
         <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-          marginBottom: 8,
-          maxWidth: 760,
-        }}
-      >
-        <div
-          style={{
-            border: "2px solid #94a3b8",
-            borderRadius: 8,
-            background: "#f8fafc",
-            padding: "7px 9px",
-            fontSize: 11,
-            lineHeight: 1.35,
-          }}
-        >
-          <strong>CASA</strong>
-          <div>Name: __________________</div>
-          <div>Party: ______ &nbsp; Server: __________</div>
-        </div>
-        <div
-          style={{
-            border: "2px solid #94a3b8",
-            borderRadius: 8,
-            background: "#f8fafc",
-            padding: "7px 9px",
-            fontSize: 11,
-            lineHeight: 1.35,
-          }}
-        >
-          <strong>SAN MIGUEL</strong>
-          <div>Name: __________________</div>
-          <div>Party: ______ &nbsp; Server: __________</div>
-        </div>
-      </div>
-
-      <div
         style={{
           width: "100%",
           overflowX: "auto",
@@ -7119,7 +7080,8 @@ async function undoLastSeat() {
           flexDirection: "column",
           gap: 12,
           minWidth: 0,
-          maxWidth: 430,
+          width: "100%",
+          maxWidth: 405,
           justifySelf: "end",
           alignSelf: "start",
         }}
@@ -7130,7 +7092,7 @@ async function undoLastSeat() {
             border: "3px solid #111827",
             borderRadius: 10,
             padding: 12,
-            minHeight: 220,
+            minHeight: 205,
           }}
         >
           <div
@@ -7298,7 +7260,7 @@ async function undoLastSeat() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "1fr",
           gap: 4,
           marginBottom: 8,
         }}
