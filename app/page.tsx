@@ -5992,14 +5992,17 @@ async function undoLastSeat() {
 
       <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 2.32fr) minmax(315px, .72fr)",
-        gap: 12,
-        alignItems: "start",
+        position: "relative",
         width: "100%",
+        minHeight: 900,
       }}
     >
-      <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          minWidth: 0,
+          width: "100%",
+        }}
+      >
         <div
         style={{
           width: "100%",
@@ -7076,14 +7079,20 @@ async function undoLastSeat() {
 
       <div
         style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          width: 500,
+          maxWidth: "44vw",
           display: "flex",
           flexDirection: "column",
-          gap: 12,
+          gap: 10,
           minWidth: 0,
-          width: "100%",
-          maxWidth: 405,
-          justifySelf: "end",
-          alignSelf: "start",
+          zIndex: 80,
+          background: "rgba(255,255,255,.98)",
+          borderLeft: "3px solid #111827",
+          paddingLeft: 8,
+          boxSizing: "border-box",
         }}
       >
         <section
@@ -7092,7 +7101,9 @@ async function undoLastSeat() {
             border: "3px solid #111827",
             borderRadius: 10,
             padding: 12,
-            minHeight: 205,
+            minHeight: 235,
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
           <div
@@ -7153,6 +7164,7 @@ async function undoLastSeat() {
 
         <section
   style={{
+    width: "100%",
     marginTop: 16,
     background: "white",
     border: "3px solid #111827",
