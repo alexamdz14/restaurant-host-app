@@ -1005,6 +1005,7 @@ async function undoLastSeat() {
 }
   
   const lastLocalSaveRef = useRef(0);
+  const allDeviceSyncInFlightRef = useRef(false);
   const localFloorInteractionUntilRef = useRef(0);
   const localReservationInteractionUntilRef = useRef(0);
   const lastTableTapRef = useRef<{ id: string; at: number } | null>(null);
@@ -1373,6 +1374,8 @@ async function undoLastSeat() {
   }
 
   const RESERVATION_CLOSED_DATES: Record<string, string> = {
+    // CLOSED dates from Enrique's 2026 holiday calendar.
+    // "Required to Work" and "Open" holidays are intentionally NOT blocked.
     "2026-04-05": "Easter",
     "2026-05-10": "Mother's Day",
     "2026-05-25": "Memorial Day",
@@ -1481,22 +1484,49 @@ async function undoLastSeat() {
   }
 
   function getWeekDates(offset: number) {
-    const base = new Date();
+    const now = new Date();
+
+    // Work at local noon so DST / UTC conversion can never move the
+    // Reservation Book onto the wrong calendar date.
+    const base = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      12,
+      0,
+      0,
+      0
+    );
+
     const day = base.getDay();
-    const diffToTuesday = ((day - 2 + 7) % 7);
-    base.setDate(base.getDate() - diffToTuesday + offset * 7);
+    const diffToTuesday = (day - 2 + 7) % 7;
+
+    base.setDate(
+      base.getDate() - diffToTuesday + offset * 7
+    );
 
     return Array.from({ length: 5 }).map((_, index) => {
-      const date = new Date(base);
-      date.setDate(base.getDate() + index);
-
-      // Skip Sunday/Monday by using Tue-Sat only.
-      return date;
+      return new Date(
+        base.getFullYear(),
+        base.getMonth(),
+        base.getDate() + index,
+        12,
+        0,
+        0,
+        0
+      );
     });
   }
 
   function formatBookDate(date: Date) {
-    return date.toISOString().slice(0, 10);
+    // IMPORTANT: Reservation Book dates must stay in the iPad's LOCAL
+    // calendar day. Using toISOString() converts to UTC and can shift
+    // a Saturday into Sunday (or another adjacent date).
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   }
 
   function getSlotsForDate(dateString: string) {
@@ -1805,7 +1835,7 @@ async function undoLastSeat() {
       setReservationSpecialRequests([]);
 
       window.setTimeout(() => {
-        void pullSharedStateFromCloud(false);
+        void syncAllIpadsNow(false);
       }, 1200);
     } catch (error: any) {
       console.error("Reservation direct save failed:", error);
@@ -2288,7 +2318,7 @@ async function undoLastSeat() {
   }
 
   function getReservationForTable(tableId: string) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateKey();
 
     return reservations
       .filter(
@@ -2682,10 +2712,16 @@ async function undoLastSeat() {
           0;
 
         if (
-          Date.now() >= localFloorInteractionUntilRef.current &&
-          cloudUpdatedAt >= lastLocalSaveRef.current
+          Date.now() >= localFloorInteractionUntilRef.current
         ) {
           setTables(floorData.data.tables);
+
+          if (cloudUpdatedAt) {
+            lastLocalSaveRef.current = Math.max(
+              lastLocalSaveRef.current,
+              cloudUpdatedAt
+            );
+          }
         }
       }
 
@@ -2764,6 +2800,39 @@ async function undoLastSeat() {
       }
     } catch (error) {
       console.error("Shared-state refresh failed:", error);
+    }
+  }
+
+  async function syncAllIpadsNow(
+    showRemoteNotice = false
+  ) {
+    if (
+      typeof window === "undefined" ||
+      !window.navigator.onLine
+    ) {
+      return;
+    }
+
+    if (allDeviceSyncInFlightRef.current) {
+      return;
+    }
+
+    allDeviceSyncInFlightRef.current = true;
+
+    try {
+      // First replay anything that previously failed to reach Supabase.
+      // This is important because a queued write must not sit forever
+      // waiting for the iPad to go offline/online again.
+      await flushOfflineQueue();
+
+      // Then pull the shared cloud state so every iPad converges.
+      await pullSharedStateFromCloud(showRemoteNotice);
+
+      setLastSyncAt(Date.now());
+    } catch (error) {
+      console.error("All-iPad sync cycle failed:", error);
+    } finally {
+      allDeviceSyncInFlightRef.current = false;
     }
   }
 
@@ -3401,7 +3470,8 @@ async function undoLastSeat() {
 
   useEffect(() => {
     if (!isOnline) return;
-    flushOfflineQueue();
+
+    void syncAllIpadsNow(false);
   }, [isOnline]);
 
   useEffect(() => {
@@ -3566,42 +3636,43 @@ async function undoLastSeat() {
       "postgres_changes",
       { event: "*", schema: "public", table: "host_tables" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncAllIpadsNow(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_waitlist" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncAllIpadsNow(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_reservations" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncAllIpadsNow(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_servers" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncAllIpadsNow(true);
       }
     )
     .subscribe((status) => {
       console.log("Supabase realtime status:", status);
 
       if (status === "SUBSCRIBED") {
-        void pullSharedStateFromCloud(false);
+        void syncAllIpadsNow(false);
       }
     });
 
-  // Safety net for iPad/PWA realtime interruptions:
-  // every iPad re-checks shared state every 1.5 seconds.
+  // iPad/PWA safety net:
+  // Every iPad replays pending writes and then pulls shared state
+  // every 4 seconds, even if a Supabase realtime event is missed.
   const liveMatchTimer = window.setInterval(() => {
-    void pullSharedStateFromCloud(false);
+    void syncAllIpadsNow(false);
   }, 4000);
 
   return () => {
@@ -4233,6 +4304,17 @@ async function undoLastSeat() {
               </button>
               <button onClick={() => setReservationBookWeekOffset((v) => v + 1)}>
                 Next Week →
+              </button>
+
+              <button
+                onClick={() => void syncAllIpadsNow(true)}
+                style={{
+                  background: "#ecfdf5",
+                  border: "2px solid #16a34a",
+                  fontWeight: "bold",
+                }}
+              >
+                ↻ Sync Now
               </button>
 
               <button
