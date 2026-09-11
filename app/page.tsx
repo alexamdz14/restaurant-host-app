@@ -7164,29 +7164,36 @@ async function undoLastSeat() {
 
         <section
   style={{
+    display: "flex",
+    flexDirection: "column",
+    maxHeight: "calc(100vh - 330px)",
+    minHeight: 430,
+    overflow: "hidden",
+    boxSizing: "border-box",
     width: "100%",
-    marginTop: 10,
+    marginTop: 16,
     background: "white",
     border: "3px solid #111827",
     borderRadius: 10,
-    padding: 12,
+    padding: 8,
   }}
 >
   <div
     style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-      alignItems: "stretch",
+      display: "grid",
+      gridTemplateColumns: "360px minmax(0, 1fr)",
+      gap: 12,
+      alignItems: "start",
     }}
   >
     <div
       style={{
-        order: 2,
         border: "2px solid #cbd5e1",
         borderRadius: 10,
-        padding: 10,
+        padding: 8,
         background: "#f8fafc",
+        position: "sticky",
+        top: 12,
       }}
     >
       <div
@@ -7271,7 +7278,7 @@ async function undoLastSeat() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gridTemplateColumns: "1fr",
           gap: 4,
           marginBottom: 8,
         }}
@@ -7540,15 +7547,7 @@ async function undoLastSeat() {
       </div>
     </div>
 
-    <div
-      style={{
-        order: 1,
-        border: "2px solid #111827",
-        borderRadius: 10,
-        background: "white",
-        padding: 10,
-      }}
-    >
+    <div>
       <div
         style={{
           display: "flex",
@@ -7561,6 +7560,15 @@ async function undoLastSeat() {
       >
         <div>
           <h3 style={{ margin: 0 }}>Live Waitlist</h3>
+          <div
+            style={{
+              fontSize: 10,
+              color: "#64748b",
+              marginTop: 2,
+            }}
+          >
+            Scroll to see all waiting parties
+          </div>
           <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
             Vertical service view
           </div>
@@ -7601,15 +7609,19 @@ async function undoLastSeat() {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 7,
-          maxHeight: 330,
-          overflowY: "auto",
-          paddingRight: 2,
+          gap: 8,
         }}
       >
         {waitlist.length === 0 ? (
           <div
             style={{
+              overflowY: "auto",
+              overflowX: "hidden",
+              flex: 1,
+              minHeight: 0,
+              maxHeight: 300,
+              paddingRight: 4,
+              WebkitOverflowScrolling: "touch",
               border: "2px dashed #cbd5e1",
               borderRadius: 10,
               padding: 20,
@@ -7627,75 +7639,72 @@ async function undoLastSeat() {
                 border: party.vip
                   ? "3px solid #d97706"
                   : "2px solid #111827",
-                borderRadius: 9,
+                borderRadius: 10,
                 padding: 8,
                 background: waitStatusBackground(party),
               }}
             >
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
+                  display: "grid",
+                  gridTemplateColumns:
+                    "48px minmax(180px, 1.3fr) .8fr .8fr .8fr auto",
                   gap: 8,
-                  alignItems: "flex-start",
+                  alignItems: "center",
                 }}
               >
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <strong style={{ fontSize: 15 }}>
-                      #{index + 1} {party.vip ? "⭐ " : ""}
-                      {party.name}
-                    </strong>
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: "bold",
+                    textAlign: "center",
+                  }}
+                >
+                  #{index + 1}
+                </div>
 
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontWeight: "bold",
-                        border: "1px solid #64748b",
-                        borderRadius: 20,
-                        padding: "2px 6px",
-                        background: "white",
-                      }}
-                    >
-                      {party.status}
-                    </span>
+                <div>
+                  <strong style={{ fontSize: 16 }}>
+                    {party.vip ? "⭐ " : ""}
+                    {party.name}
+                  </strong>
+                  <div style={{ fontSize: 11, marginTop: 2 }}>
+                    {party.size} • {party.entryType || "Walk In"}
                   </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      fontSize: 10,
-                      marginTop: 3,
-                      color: "#334155",
-                    }}
-                  >
-                    <span><strong>{party.size}</strong></span>
-                    <span>{party.entryType || "Walk In"}</span>
-                    <span><strong>{waitMinutes(party)}m</strong> waiting</span>
-                    <span>Quote {party.quotedWait}m</span>
-                    {party.pager && <span>Pager {party.pager}</span>}
-                  </div>
-
                   {party.notes && (
-                    <div
-                      style={{
-                        fontSize: 10,
-                        color: "#475569",
-                        marginTop: 3,
-                      }}
-                    >
+                    <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>
                       {party.notes}
                     </div>
                   )}
+                </div>
+
+                <div style={{ fontSize: 11 }}>
+                  <strong>{waitMinutes(party)}m</strong>
+                  <div style={{ color: "#64748b" }}>
+                    Quoted {party.quotedWait}m
+                  </div>
+                </div>
+
+                <div style={{ fontSize: 11 }}>
+                  <div>{party.phone || "No phone"}</div>
+                  <div style={{ color: "#64748b" }}>
+                    Pager {party.pager || "—"}
+                  </div>
+                </div>
+
+                <div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: "bold",
+                      border: "1px solid #64748b",
+                      borderRadius: 20,
+                      padding: "4px 7px",
+                      background: "white",
+                    }}
+                  >
+                    {party.status}
+                  </span>
                 </div>
 
                 <div
@@ -7704,35 +7713,30 @@ async function undoLastSeat() {
                     gap: 4,
                     flexWrap: "wrap",
                     justifyContent: "flex-end",
-                    maxWidth: 190,
                   }}
                 >
-                  <button
-                    onClick={() => loadWaitPartyForEdit(party)}
-                    style={{ fontSize: 10 }}
-                  >
+                  <button onClick={() => loadWaitPartyForEdit(party)}>
                     Edit
                   </button>
 
-                  {party.entryType === "Call Ahead" &&
-                    !party.checkedInAt && (
-                      <button
-                        onClick={() => {
-                          setCheckInPagerId(party.id);
-                          setCheckInPagerValue(party.pager || "");
-                        }}
-                        style={{
-                          background: "#dbeafe",
-                          border: "2px solid #2563eb",
-                          borderRadius: 6,
-                          padding: "4px 6px",
-                          fontSize: 10,
-                          fontWeight: "bold",
-                        }}
-                      >
-                        Check In
-                      </button>
-                    )}
+                  {(party.entryType === "Call Ahead" &&
+                    !party.checkedInAt) && (
+                    <button
+                      onClick={() => {
+                        setCheckInPagerId(party.id);
+                        setCheckInPagerValue(party.pager || "");
+                      }}
+                      style={{
+                        background: "#dbeafe",
+                        border: "2px solid #2563eb",
+                        borderRadius: 6,
+                        padding: "5px 8px",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Check In
+                    </button>
+                  )}
 
                   {party.status === "Waiting" && (
                     <button
@@ -7757,14 +7761,12 @@ async function undoLastSeat() {
                           },
                         });
                       }}
-                      style={{ fontSize: 10 }}
                     >
                       Page
                     </button>
                   )}
 
-                  {(party.status === "Waiting" ||
-                    party.status === "Paged") && (
+                  {(party.status === "Waiting" || party.status === "Paged") && (
                     <button
                       onClick={async () => {
                         const updatedParty: EnriquesWaitParty = {
@@ -7791,8 +7793,7 @@ async function undoLastSeat() {
                         color: "white",
                         border: "none",
                         borderRadius: 6,
-                        padding: "4px 6px",
-                        fontSize: 10,
+                        padding: "5px 8px",
                       }}
                     >
                       Seated
@@ -7816,10 +7817,7 @@ async function undoLastSeat() {
                         payload: { id: party.id },
                       });
                     }}
-                    style={{
-                      background: "#fee2e2",
-                      fontSize: 10,
-                    }}
+                    style={{ background: "#fee2e2" }}
                   >
                     Remove
                   </button>
@@ -7829,16 +7827,15 @@ async function undoLastSeat() {
               {checkInPagerId === party.id && (
                 <div
                   style={{
-                    marginTop: 7,
-                    paddingTop: 7,
+                    marginTop: 8,
+                    paddingTop: 8,
                     borderTop: "1px solid #cbd5e1",
                     display: "flex",
-                    gap: 5,
+                    gap: 6,
                     alignItems: "center",
-                    flexWrap: "wrap",
                   }}
                 >
-                  <strong style={{ fontSize: 10 }}>
+                  <strong style={{ fontSize: 11 }}>
                     Call Ahead Check-In
                   </strong>
 
@@ -7847,11 +7844,11 @@ async function undoLastSeat() {
                     onChange={(event) =>
                       setCheckInPagerValue(event.target.value)
                     }
-                    placeholder="Pager #"
+                    placeholder="Add pager #"
                     inputMode="numeric"
                     style={{
-                      width: 90,
-                      padding: 5,
+                      width: 120,
+                      padding: 7,
                     }}
                   />
 
@@ -7887,12 +7884,11 @@ async function undoLastSeat() {
                       color: "white",
                       border: "none",
                       borderRadius: 6,
-                      padding: "5px 7px",
-                      fontSize: 10,
+                      padding: "6px 9px",
                       fontWeight: "bold",
                     }}
                   >
-                    Complete
+                    Complete Check-In
                   </button>
 
                   <button
@@ -7900,7 +7896,6 @@ async function undoLastSeat() {
                       setCheckInPagerId(null);
                       setCheckInPagerValue("");
                     }}
-                    style={{ fontSize: 10 }}
                   >
                     Cancel
                   </button>
