@@ -7164,413 +7164,33 @@ async function undoLastSeat() {
 
         <section
   style={{
-    display: "flex",
-    flexDirection: "column",
-    maxHeight: "calc(100vh - 330px)",
-    minHeight: 430,
-    overflow: "hidden",
-    boxSizing: "border-box",
     width: "100%",
     marginTop: 16,
     background: "white",
     border: "3px solid #111827",
     borderRadius: 10,
-    padding: 8,
+    padding: 10,
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
   }}
 >
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "360px minmax(0, 1fr)",
-      gap: 12,
-      alignItems: "start",
+  <div>
+      <div
+        style={{
+      width: "100%",
+      border: "2px solid #cbd5e1",
+      borderRadius: 10,
+      padding: 8,
+      background: "#fff",
+      boxSizing: "border-box",
     }}
-  >
-    <div
-      style={{
-        border: "2px solid #cbd5e1",
-        borderRadius: 10,
-        padding: 8,
-        background: "#f8fafc",
-        position: "sticky",
-        top: 12,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0 }}>Waitlist</h2>
-          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-            Add walk-ins or call-aheads
-          </div>
-        </div>
-        {editingWaitId && (
-          <span
-            style={{
-              background: "#dbeafe",
-              border: "2px solid #2563eb",
-              borderRadius: 20,
-              padding: "4px 8px",
-              fontSize: 10,
-              fontWeight: "bold",
-            }}
-          >
-            Editing
-          </span>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        {(["Walk In", "Call Ahead"] as const).map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setWaitEntryType(type)}
-            style={{
-              flex: 1,
-              background:
-                waitEntryType === type
-                  ? type === "Call Ahead"
-                    ? "#fef3c7"
-                    : "#dbeafe"
-                  : "white",
-              border:
-                waitEntryType === type
-                  ? "3px solid #111827"
-                  : "2px solid #cbd5e1",
-              borderRadius: 8,
-              padding: 7,
-              fontWeight: "bold",
-            }}
-          >
-            {type === "Call Ahead" ? "☎ Call Ahead" : "🚶 Walk In"}
-          </button>
-        ))}
-      </div>
-
-      <label style={{ fontSize: 11, fontWeight: "bold" }}>
-        Guest Name
-        <input
-          value={guestName}
-          onChange={(e) => setGuestName(e.target.value)}
-          placeholder="Guest name"
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: 8,
-            marginTop: 3,
-            marginBottom: 8,
-          }}
-        />
-      </label>
-
-      <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 3 }}>
-        Guest Mix
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: 4,
-          marginBottom: 8,
-        }}
-      >
-        {[
-          ["A", waitAdults, setWaitAdults],
-          ["K", waitKids, setWaitKids],
-          ["HC", waitHighchairs, setWaitHighchairs],
-          ["W", waitWheelchairs, setWaitWheelchairs],
-        ].map(([label, value, setter]) => (
-          <label
-            key={label as string}
-            style={{
-              fontSize: 9,
-              fontWeight: "bold",
-              textAlign: "center",
-            }}
-          >
-            {label as string}
-            <select
-              value={value as string}
-              onChange={(event) =>
-                (setter as (value: string) => void)(event.target.value)
-              }
-              style={{
-                width: "100%",
-                padding: 6,
-                borderRadius: 7,
-                border: "1px solid #94a3b8",
-                background: "white",
-              }}
-            >
-              {Array.from({ length: 21 }).map((_, index) => (
-                <option key={index} value={String(index)}>
-                  {index}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
-      </div>
-
-      <label style={{ fontSize: 11, fontWeight: "bold" }}>
-        Phone
-        <input
-          value={guestPhone}
-          onChange={(e) =>
-            setGuestPhone(formatWaitPhone(e.target.value))
-          }
-          placeholder="(208) 555-1234"
-          inputMode="tel"
-          maxLength={14}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: 8,
-            marginTop: 3,
-            marginBottom: 8,
-          }}
-        />
-      </label>
-
-      {waitEntryType === "Walk In" && (
-        <label style={{ fontSize: 11, fontWeight: "bold" }}>
-          Pager
-          <input
-            value={guestPager}
-            onChange={(e) => setGuestPager(e.target.value)}
-            placeholder="Pager #"
-            inputMode="numeric"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: 8,
-              marginTop: 3,
-              marginBottom: 8,
-            }}
-          />
-        </label>
-      )}
-
-      <label style={{ fontSize: 11, fontWeight: "bold" }}>
-        Quoted Wait
-        <select
-          value={quotedWait}
-          onChange={(e) => setQuotedWait(e.target.value)}
-          style={{
-            width: "100%",
-            padding: 8,
-            marginTop: 3,
-            marginBottom: 8,
-          }}
-        >
-          {[
-            "5-10",
-            "10-15",
-            "15-20",
-            "20-25",
-            "25-30",
-            "30-40",
-            "40-50",
-            "50-60",
-            "60+",
-          ].map((wait) => (
-            <option key={wait} value={wait}>
-              {wait} min
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <input
-        value={guestNotes}
-        onChange={(e) => setGuestNotes(e.target.value)}
-        placeholder="Notes / seating request"
-        style={{
-          width: "100%",
-          boxSizing: "border-box",
-          padding: 8,
-          marginBottom: 8,
-        }}
-      />
-
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setWaitVip((current) => !current)}
-          style={{
-            background: waitVip ? "#fef3c7" : "white",
-            border: waitVip
-              ? "3px solid #d97706"
-              : "2px solid #cbd5e1",
-            borderRadius: 8,
-            padding: "7px 10px",
-            fontWeight: "bold",
-          }}
-        >
-          ⭐ VIP
-        </button>
-
-        <div
-          style={{
-            border: "2px solid #111827",
-            borderRadius: 8,
-            padding: "7px 10px",
-            background: "white",
-            flex: 1,
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 9, color: "#64748b" }}>Party</div>
-          <strong>{waitGuestMix().display || "—"}</strong>
-        </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 6 }}>
-        <button
-          onClick={async () => {
-            const mix = waitGuestMix();
-
-            if (!guestName.trim() || mix.totalPeople <= 0) {
-              alert("Enter the guest name and at least one adult or kid.");
-              return;
-            }
-
-            if (editingWaitId) {
-              const currentParty = waitlist.find(
-                (party) => party.id === editingWaitId
-              );
-
-              if (!currentParty) return;
-
-              const updatedParty: EnriquesWaitParty = {
-                ...currentParty,
-                name: guestName.trim(),
-                size: mix.display,
-                adults: mix.adults,
-                kids: mix.kids,
-                highchairs: mix.highchairs,
-                wheelchairs: mix.wheelchairs,
-                phone: guestPhone.trim(),
-                pager: guestPager.trim(),
-                notes: guestNotes.trim(),
-                quotedWait: quotedWait.trim() || "15-20",
-                vip: waitVip,
-                entryType: waitEntryType,
-              };
-
-              setWaitlist((current) =>
-                current.map((party) =>
-                  party.id === editingWaitId ? updatedParty : party
-                )
-              );
-
-              await syncOrQueue({
-                type: "host_waitlist_update",
-                payload: {
-                  id: updatedParty.id,
-                  data: updatedParty,
-                },
-              });
-
-              clearWaitForm();
-              return;
-            }
-
-            const party: EnriquesWaitParty = {
-              id: Date.now(),
-              name: guestName.trim(),
-              size: mix.display,
-              adults: mix.adults,
-              kids: mix.kids,
-              highchairs: mix.highchairs,
-              wheelchairs: mix.wheelchairs,
-              phone: guestPhone.trim(),
-              pager: waitEntryType === "Walk In" ? guestPager.trim() : "",
-              notes: guestNotes.trim(),
-              quotedWait: quotedWait.trim() || "15-20",
-              vip: waitVip,
-              entryType: waitEntryType,
-              originalCallAheadAt:
-                waitEntryType === "Call Ahead" ? Date.now() : undefined,
-              status: "Waiting",
-              createdAt: Date.now(),
-            };
-
-            setWaitlist((current) => [...current, party]);
-
-            await syncOrQueue({
-              type: "host_waitlist_insert",
-              payload: {
-                id: party.id,
-                data: party,
-              },
-            });
-
-            clearWaitForm();
-          }}
-          style={{
-            flex: 1,
-            background: editingWaitId ? "#2563eb" : "#16a34a",
-            color: "white",
-            border: "none",
-            borderRadius: 8,
-            padding: "9px 12px",
-            fontWeight: "bold",
-          }}
-        >
-          {editingWaitId
-            ? "Save Changes"
-            : waitEntryType === "Call Ahead"
-              ? "+ Add Call Ahead"
-              : "+ Add Walk In"}
-        </button>
-
-        {editingWaitId && (
-          <button onClick={clearWaitForm}>Cancel</button>
-        )}
-      </div>
-    </div>
-
-    <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: 10,
-          alignItems: "center",
-          flexWrap: "wrap",
-          marginBottom: 8,
-        }}
       >
         <div>
           <h3 style={{ margin: 0 }}>Live Waitlist</h3>
-          <div
-            style={{
-              fontSize: 10,
-              color: "#64748b",
-              marginTop: 2,
-            }}
-          >
-            Scroll to see all waiting parties
-          </div>
           <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-            Vertical service view
+            Scroll to see all waiting parties
           </div>
         </div>
 
@@ -7610,18 +7230,17 @@ async function undoLastSeat() {
           display: "flex",
           flexDirection: "column",
           gap: 8,
+          maxHeight: 240,
+          minHeight: 110,
+          overflowY: "auto",
+          overflowX: "hidden",
+          paddingRight: 4,
+          WebkitOverflowScrolling: "touch",
         }}
       >
         {waitlist.length === 0 ? (
           <div
             style={{
-              overflowY: "auto",
-              overflowX: "hidden",
-              flex: 1,
-              minHeight: 0,
-              maxHeight: 300,
-              paddingRight: 4,
-              WebkitOverflowScrolling: "touch",
               border: "2px dashed #cbd5e1",
               borderRadius: 10,
               padding: 20,
@@ -7906,7 +7525,368 @@ async function undoLastSeat() {
         )}
       </div>
     </div>
-  </div>
+
+  <div
+      style={{
+      width: "100%",
+        border: "2px solid #cbd5e1",
+        borderRadius: 10,
+        padding: 10,
+        background: "#f8fafc",
+        
+        
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <div>
+          <h2 style={{ margin: 0 }}>Waitlist</h2>
+          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+            Add walk-ins or call-aheads
+          </div>
+        </div>
+        {editingWaitId && (
+          <span
+            style={{
+              background: "#dbeafe",
+              border: "2px solid #2563eb",
+              borderRadius: 20,
+              padding: "4px 8px",
+              fontSize: 10,
+              fontWeight: "bold",
+            }}
+          >
+            Editing
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {(["Walk In", "Call Ahead"] as const).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => setWaitEntryType(type)}
+            style={{
+              flex: 1,
+              background:
+                waitEntryType === type
+                  ? type === "Call Ahead"
+                    ? "#fef3c7"
+                    : "#dbeafe"
+                  : "white",
+              border:
+                waitEntryType === type
+                  ? "3px solid #111827"
+                  : "2px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 7,
+              fontWeight: "bold",
+            }}
+          >
+            {type === "Call Ahead" ? "☎ Call Ahead" : "🚶 Walk In"}
+          </button>
+        ))}
+      </div>
+
+      <label style={{ fontSize: 11, fontWeight: "bold" }}>
+        Guest Name
+        <input
+          value={guestName}
+          onChange={(e) => setGuestName(e.target.value)}
+          placeholder="Guest name"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: 8,
+            marginTop: 3,
+            marginBottom: 8,
+          }}
+        />
+      </label>
+
+      <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 3 }}>
+        Guest Mix
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, minmax(55px, 1fr))",
+          gap: 4,
+          marginBottom: 8,
+        }}
+      >
+        {[
+          ["A", waitAdults, setWaitAdults],
+          ["K", waitKids, setWaitKids],
+          ["HC", waitHighchairs, setWaitHighchairs],
+          ["W", waitWheelchairs, setWaitWheelchairs],
+        ].map(([label, value, setter]) => (
+          <label
+            key={label as string}
+            style={{
+              fontSize: 9,
+              fontWeight: "bold",
+              textAlign: "center",
+            }}
+          >
+            {label as string}
+            <select
+              value={value as string}
+              onChange={(event) =>
+                (setter as (value: string) => void)(event.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: 6,
+                borderRadius: 7,
+                border: "1px solid #94a3b8",
+                background: "white",
+              }}
+            >
+              {Array.from({ length: 21 }).map((_, index) => (
+                <option key={index} value={String(index)}>
+                  {index}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+
+      <label style={{ fontSize: 11, fontWeight: "bold" }}>
+        Phone
+        <input
+          value={guestPhone}
+          onChange={(e) =>
+            setGuestPhone(formatWaitPhone(e.target.value))
+          }
+          placeholder="(208) 555-1234"
+          inputMode="tel"
+          maxLength={14}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            padding: 8,
+            marginTop: 3,
+            marginBottom: 8,
+          }}
+        />
+      </label>
+
+      {waitEntryType === "Walk In" && (
+        <label style={{ fontSize: 11, fontWeight: "bold" }}>
+          Pager
+          <input
+            value={guestPager}
+            onChange={(e) => setGuestPager(e.target.value)}
+            placeholder="Pager #"
+            inputMode="numeric"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: 8,
+              marginTop: 3,
+              marginBottom: 8,
+            }}
+          />
+        </label>
+      )}
+
+      <label style={{ fontSize: 11, fontWeight: "bold" }}>
+        Quoted Wait
+        <select
+          value={quotedWait}
+          onChange={(e) => setQuotedWait(e.target.value)}
+          style={{
+            width: "100%",
+            padding: 8,
+            marginTop: 3,
+            marginBottom: 8,
+          }}
+        >
+          {[
+            "5-10",
+            "10-15",
+            "15-20",
+            "20-25",
+            "25-30",
+            "30-40",
+            "40-50",
+            "50-60",
+            "60+",
+          ].map((wait) => (
+            <option key={wait} value={wait}>
+              {wait} min
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <input
+        value={guestNotes}
+        onChange={(e) => setGuestNotes(e.target.value)}
+        placeholder="Notes / seating request"
+        style={{
+          width: "100%",
+          boxSizing: "border-box",
+          padding: 8,
+          marginBottom: 8,
+        }}
+      />
+
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          alignItems: "center",
+          marginBottom: 8,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setWaitVip((current) => !current)}
+          style={{
+            background: waitVip ? "#fef3c7" : "white",
+            border: waitVip
+              ? "3px solid #d97706"
+              : "2px solid #cbd5e1",
+            borderRadius: 8,
+            padding: "7px 10px",
+            fontWeight: "bold",
+          }}
+        >
+          ⭐ VIP
+        </button>
+
+        <div
+          style={{
+            border: "2px solid #111827",
+            borderRadius: 8,
+            padding: "7px 10px",
+            background: "white",
+            flex: 1,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 9, color: "#64748b" }}>Party</div>
+          <strong>{waitGuestMix().display || "—"}</strong>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 6 }}>
+        <button
+          onClick={async () => {
+            const mix = waitGuestMix();
+
+            if (!guestName.trim() || mix.totalPeople <= 0) {
+              alert("Enter the guest name and at least one adult or kid.");
+              return;
+            }
+
+            if (editingWaitId) {
+              const currentParty = waitlist.find(
+                (party) => party.id === editingWaitId
+              );
+
+              if (!currentParty) return;
+
+              const updatedParty: EnriquesWaitParty = {
+                ...currentParty,
+                name: guestName.trim(),
+                size: mix.display,
+                adults: mix.adults,
+                kids: mix.kids,
+                highchairs: mix.highchairs,
+                wheelchairs: mix.wheelchairs,
+                phone: guestPhone.trim(),
+                pager: guestPager.trim(),
+                notes: guestNotes.trim(),
+                quotedWait: quotedWait.trim() || "15-20",
+                vip: waitVip,
+                entryType: waitEntryType,
+              };
+
+              setWaitlist((current) =>
+                current.map((party) =>
+                  party.id === editingWaitId ? updatedParty : party
+                )
+              );
+
+              await syncOrQueue({
+                type: "host_waitlist_update",
+                payload: {
+                  id: updatedParty.id,
+                  data: updatedParty,
+                },
+              });
+
+              clearWaitForm();
+              return;
+            }
+
+            const party: EnriquesWaitParty = {
+              id: Date.now(),
+              name: guestName.trim(),
+              size: mix.display,
+              adults: mix.adults,
+              kids: mix.kids,
+              highchairs: mix.highchairs,
+              wheelchairs: mix.wheelchairs,
+              phone: guestPhone.trim(),
+              pager: waitEntryType === "Walk In" ? guestPager.trim() : "",
+              notes: guestNotes.trim(),
+              quotedWait: quotedWait.trim() || "15-20",
+              vip: waitVip,
+              entryType: waitEntryType,
+              originalCallAheadAt:
+                waitEntryType === "Call Ahead" ? Date.now() : undefined,
+              status: "Waiting",
+              createdAt: Date.now(),
+            };
+
+            setWaitlist((current) => [...current, party]);
+
+            await syncOrQueue({
+              type: "host_waitlist_insert",
+              payload: {
+                id: party.id,
+                data: party,
+              },
+            });
+
+            clearWaitForm();
+          }}
+          style={{
+            flex: 1,
+            background: editingWaitId ? "#2563eb" : "#16a34a",
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            padding: "9px 12px",
+            fontWeight: "bold",
+          }}
+        >
+          {editingWaitId
+            ? "Save Changes"
+            : waitEntryType === "Call Ahead"
+              ? "+ Add Call Ahead"
+              : "+ Add Walk In"}
+        </button>
+
+        {editingWaitId && (
+          <button onClick={clearWaitForm}>Cancel</button>
+        )}
+      </div>
+    </div>
 </section>
       </div>
     </div>
