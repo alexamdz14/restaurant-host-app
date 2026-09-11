@@ -1002,6 +1002,7 @@ async function undoLastSeat() {
 }
   
   const lastLocalSaveRef = useRef(0);
+  const syncHeartbeatBusyRef = useRef(false);
   const localFloorInteractionUntilRef = useRef(0);
   const localReservationInteractionUntilRef = useRef(0);
   const lastTableTapRef = useRef<{ id: string; at: number } | null>(null);
@@ -1109,9 +1110,18 @@ async function undoLastSeat() {
     return deviceId;
   }
 
+  function queueOperationIsFresh(
+    operation: OfflineOperation,
+    maxAgeMs = 12000
+  ) {
+    return Date.now() - operation.createdAt < maxAgeMs;
+  }
+
   function queueHasTypePrefix(prefix: string) {
-    return readOfflineQueue().some((operation) =>
-      operation.type.startsWith(prefix)
+    return readOfflineQueue().some(
+      (operation) =>
+        operation.type.startsWith(prefix) &&
+        queueOperationIsFresh(operation)
     );
   }
 
@@ -1119,7 +1129,8 @@ async function undoLastSeat() {
     return readOfflineQueue().some(
       (operation) =>
         operation.type === "host_tables_upsert" &&
-        operation.payload.id === id
+        operation.payload.id === id &&
+        queueOperationIsFresh(operation)
     );
   }
 
@@ -1674,7 +1685,7 @@ async function undoLastSeat() {
       setReservationSpecialRequests([]);
 
       window.setTimeout(() => {
-        void pullSharedStateFromCloud(false);
+        void syncCatchUpNow(false);
       }, 1200);
     } catch (error: any) {
       console.error("Reservation direct save failed:", error);
@@ -2366,14 +2377,6 @@ async function undoLastSeat() {
   async function syncOrQueue(
     operation: Omit<OfflineOperation, "id" | "createdAt">
   ) {
-    const browserOnline =
-      typeof window === "undefined" ? true : window.navigator.onLine;
-
-    if (!browserOnline) {
-      queueOfflineOperation(operation);
-      return { queued: true };
-    }
-
     const executable = {
       ...operation,
       id: `live-${Date.now()}-${Math.random()
@@ -2383,11 +2386,16 @@ async function undoLastSeat() {
     } as OfflineOperation;
 
     try {
+      // Do not depend on navigator.onLine here.
+      // iPad Safari / installed PWAs can report a stale online state.
       await executeOfflineOperation(executable);
       setLastSyncAt(Date.now());
       return { queued: false };
     } catch (error) {
-      console.error("Cloud save failed; queued for retry:", error);
+      console.error(
+        "Cloud save failed; saved locally and queued for retry:",
+        error
+      );
       queueOfflineOperation(operation);
       return { queued: true };
     }
@@ -2396,13 +2404,6 @@ async function undoLastSeat() {
   async function pullSharedStateFromCloud(
     showRemoteNotice = false
   ) {
-    if (
-      typeof window !== "undefined" &&
-      !window.navigator.onLine
-    ) {
-      return;
-    }
-
     try {
       const [
         { data: floorData },
@@ -2529,8 +2530,25 @@ async function undoLastSeat() {
     }
   }
 
+  async function syncCatchUpNow(
+    showRemoteNotice = false
+  ) {
+    if (syncHeartbeatBusyRef.current) return;
+
+    syncHeartbeatBusyRef.current = true;
+
+    try {
+      // Push anything this device has been holding first,
+      // then pull the latest shared state from Supabase.
+      await flushOfflineQueue();
+      await pullSharedStateFromCloud(showRemoteNotice);
+    } finally {
+      syncHeartbeatBusyRef.current = false;
+    }
+  }
+
   async function flushOfflineQueue() {
-    if (typeof window === "undefined" || !window.navigator.onLine) return;
+    if (typeof window === "undefined") return;
     if (isSyncingOfflineQueue) return;
 
     const queue = readOfflineQueue();
@@ -2550,9 +2568,12 @@ async function undoLastSeat() {
       try {
         await executeOfflineOperation(operation);
       } catch (error) {
-        console.error("Offline sync stopped at operation:", operation, error);
-        remaining.push(...queue.slice(index));
-        break;
+        console.error(
+          "Offline operation will retry later:",
+          operation,
+          error
+        );
+        remaining.push(operation);
       }
     }
 
@@ -3328,46 +3349,109 @@ async function undoLastSeat() {
       "postgres_changes",
       { event: "*", schema: "public", table: "host_tables" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncCatchUpNow(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_waitlist" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncCatchUpNow(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_reservations" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncCatchUpNow(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_servers" },
       async () => {
-        await pullSharedStateFromCloud(true);
+        await syncCatchUpNow(true);
       }
     )
     .subscribe((status) => {
       console.log("Supabase realtime status:", status);
 
       if (status === "SUBSCRIBED") {
-        void pullSharedStateFromCloud(false);
+        void syncCatchUpNow(false);
+      }
+
+      if (
+        status === "CHANNEL_ERROR" ||
+        status === "TIMED_OUT" ||
+        status === "CLOSED"
+      ) {
+        // Safari can suspend a WebSocket without a normal disconnect.
+        // The heartbeat still keeps data synchronized, and this immediate
+        // REST refresh catches the device up as soon as possible.
+        window.setTimeout(() => {
+          void syncCatchUpNow(false);
+        }, 500);
       }
     });
 
-  // Safety net for iPad/PWA realtime interruptions:
-  // every iPad re-checks shared state every 1.5 seconds.
+  // Apple-safe sync heartbeat:
+  // Supabase Realtime remains the fast path, but every 4 seconds each device
+  // also pushes queued changes and pulls the shared cloud state.
   const liveMatchTimer = window.setInterval(() => {
-    void pullSharedStateFromCloud(false);
+    void syncCatchUpNow(false);
   }, 4000);
+
+  const handleAppleResume = () => {
+    if (
+      document.visibilityState === "visible"
+    ) {
+      void syncCatchUpNow(false);
+    }
+  };
+
+  const handlePageShow = () => {
+    void syncCatchUpNow(false);
+  };
+
+  const handleFocus = () => {
+    void syncCatchUpNow(false);
+  };
+
+  const handleOnlineResume = () => {
+    void syncCatchUpNow(true);
+  };
+
+  document.addEventListener(
+    "visibilitychange",
+    handleAppleResume
+  );
+  window.addEventListener("pageshow", handlePageShow);
+  window.addEventListener("focus", handleFocus);
+  window.addEventListener(
+    "online",
+    handleOnlineResume
+  );
 
   return () => {
     window.clearInterval(liveMatchTimer);
+
+    document.removeEventListener(
+      "visibilitychange",
+      handleAppleResume
+    );
+    window.removeEventListener(
+      "pageshow",
+      handlePageShow
+    );
+    window.removeEventListener(
+      "focus",
+      handleFocus
+    );
+    window.removeEventListener(
+      "online",
+      handleOnlineResume
+    );
+
     supabase.removeChannel(channel);
   };
 
@@ -8392,6 +8476,6 @@ function Label({
 
     </div>
 
-  );
+    );
 
 }
