@@ -230,6 +230,9 @@ export default function Home() {
   >("idle");
   const [reservationSaveMessage, setReservationSaveMessage] = useState("");
 
+  const [editingReservationId, setEditingReservationId] =
+    useState<string | null>(null);
+
   const [reservationBookMode, setReservationBookMode] = useState(false);
   const [reservationBookDate, setReservationBookDate] = useState(
     new Date().toISOString().slice(0, 10)
@@ -1002,7 +1005,6 @@ async function undoLastSeat() {
 }
   
   const lastLocalSaveRef = useRef(0);
-  const syncHeartbeatBusyRef = useRef(false);
   const localFloorInteractionUntilRef = useRef(0);
   const localReservationInteractionUntilRef = useRef(0);
   const lastTableTapRef = useRef<{ id: string; at: number } | null>(null);
@@ -1110,18 +1112,9 @@ async function undoLastSeat() {
     return deviceId;
   }
 
-  function queueOperationIsFresh(
-    operation: OfflineOperation,
-    maxAgeMs = 12000
-  ) {
-    return Date.now() - operation.createdAt < maxAgeMs;
-  }
-
   function queueHasTypePrefix(prefix: string) {
-    return readOfflineQueue().some(
-      (operation) =>
-        operation.type.startsWith(prefix) &&
-        queueOperationIsFresh(operation)
+    return readOfflineQueue().some((operation) =>
+      operation.type.startsWith(prefix)
     );
   }
 
@@ -1129,8 +1122,7 @@ async function undoLastSeat() {
     return readOfflineQueue().some(
       (operation) =>
         operation.type === "host_tables_upsert" &&
-        operation.payload.id === id &&
-        queueOperationIsFresh(operation)
+        operation.payload.id === id
     );
   }
 
@@ -1380,6 +1372,114 @@ async function undoLastSeat() {
     }
   }
 
+  const RESERVATION_CLOSED_DATES: Record<string, string> = {
+    "2026-04-05": "Easter",
+    "2026-05-10": "Mother's Day",
+    "2026-05-25": "Memorial Day",
+    "2026-06-21": "Father's Day",
+    "2026-07-04": "US Independence Day",
+    "2026-09-07": "Labor Day",
+    "2026-11-26": "Thanksgiving",
+    "2026-11-27": "Black Friday",
+    "2026-12-24": "Christmas Eve",
+    "2026-12-25": "Christmas Day",
+  };
+
+  function closedReservationReason(dateString: string) {
+    if (!dateString) return null;
+
+    const date = new Date(`${dateString}T12:00:00`);
+    const day = date.getDay();
+
+    if (day === 0) return "Closed Sunday";
+    if (day === 1) return "Closed Monday";
+
+    return RESERVATION_CLOSED_DATES[dateString] || null;
+  }
+
+  function reservationDateIsAvailable(dateString: string) {
+    return !closedReservationReason(dateString);
+  }
+
+  function handleReservationDateChange(dateString: string) {
+    if (!dateString) {
+      setReservationDate("");
+      return;
+    }
+
+    const reason = closedReservationReason(dateString);
+
+    if (reason) {
+      alert(
+        `${reason}. Reservations cannot be booked for this date.`
+      );
+      return;
+    }
+
+    setReservationDate(dateString);
+  }
+
+  function clearReservationForm() {
+    setEditingReservationId(null);
+    setReservationName("");
+    setReservationTime("");
+    setReservationGuests("");
+    setReservationAdults("0");
+    setReservationKids("0");
+    setReservationHighchairs("0");
+    setReservationWheelchairs("0");
+    setReservationPhone("");
+    setReservationNotes("");
+    setReservationSpecialRequests([]);
+    setReservationSaveStatus("idle");
+    setReservationSaveMessage("");
+  }
+
+  function loadReservationForEdit(
+    reservation: ReservationRecord
+  ) {
+    setEditingReservationId(reservation.id);
+    setReservationName(reservation.name);
+    setReservationDate(reservation.date);
+    setReservationTime(reservation.time);
+    setReservationGuests(reservation.guests);
+    setReservationAdults(
+      String(
+        reservation.adults ??
+          (reservation.guests.match(/(\d+)a/)?.[1] || 0)
+      )
+    );
+    setReservationKids(
+      String(
+        reservation.kids ??
+          (reservation.guests.match(/(\d+)k/)?.[1] || 0)
+      )
+    );
+    setReservationHighchairs(
+      String(
+        reservation.highchairs ??
+          (reservation.guests.match(/(\d+)hc/)?.[1] || 0)
+      )
+    );
+    setReservationWheelchairs(
+      String(
+        reservation.wheelchairs ??
+          (reservation.guests.match(/(\d+)w/)?.[1] || 0)
+      )
+    );
+    setReservationPhone(reservation.phone || "");
+    setReservationNotes(reservation.notes || "");
+    setReservationSpecialRequests(
+      reservation.specialRequests || []
+    );
+    setReservationSaveStatus("idle");
+    setReservationSaveMessage("");
+
+    if (reservationBookMode) {
+      setReservationBookDate(reservation.date);
+    }
+  }
+
   function getWeekDates(offset: number) {
     const base = new Date();
     const day = base.getDay();
@@ -1400,6 +1500,10 @@ async function undoLastSeat() {
   }
 
   function getSlotsForDate(dateString: string) {
+    if (!reservationDateIsAvailable(dateString)) {
+      return [];
+    }
+
     const date = new Date(`${dateString}T12:00:00`);
     const day = date.getDay();
 
@@ -1468,6 +1572,13 @@ async function undoLastSeat() {
   }
 
   function selectReservationBookSlot(date: string, displayTime: string) {
+    const reason = closedReservationReason(date);
+
+    if (reason) {
+      alert(`${reason}. Reservations cannot be booked for this date.`);
+      return;
+    }
+
     setReservationBookDate(date);
     setReservationDate(date);
     setReservationTime(normalizeDisplayTimeTo24Hour(displayTime));
@@ -1547,6 +1658,15 @@ async function undoLastSeat() {
 
     if (!name || !date || !time || !guests) {
       alert("Enter reservation name, date, time, and guest count.");
+      return;
+    }
+
+    const closedReason = closedReservationReason(date);
+
+    if (closedReason) {
+      alert(
+        `${closedReason}. Reservations cannot be booked for this date.`
+      );
       return;
     }
 
@@ -1685,7 +1805,7 @@ async function undoLastSeat() {
       setReservationSpecialRequests([]);
 
       window.setTimeout(() => {
-        void syncCatchUpNow(false);
+        void pullSharedStateFromCloud(false);
       }, 1200);
     } catch (error: any) {
       console.error("Reservation direct save failed:", error);
@@ -1709,6 +1829,113 @@ async function undoLastSeat() {
 
       alert(message);
     }
+  }
+
+  async function saveEditedReservation() {
+    if (!editingReservationId) return;
+
+    const currentReservation = reservations.find(
+      (reservation) =>
+        reservation.id === editingReservationId
+    );
+
+    if (!currentReservation) {
+      setEditingReservationId(null);
+      return;
+    }
+
+    const name = reservationName.trim();
+    const date = reservationDate.trim();
+    const time = reservationTime.trim();
+    const guestMix = reservationGuestMix();
+    const fallbackGuests = reservationGuests.trim();
+    const guests = guestMix.display || fallbackGuests;
+
+    if (!name || !date || !time || !guests) {
+      alert(
+        "Enter reservation name, date, time, and guest count."
+      );
+      return;
+    }
+
+    const closedReason = closedReservationReason(date);
+
+    if (closedReason) {
+      alert(
+        `${closedReason}. Reservations cannot be booked for this date.`
+      );
+      return;
+    }
+
+    if (!isQuarterHourTime(time)) {
+      alert(
+        "Reservation times must be in 15-minute increments (:00, :15, :30, or :45)."
+      );
+      return;
+    }
+
+    if (
+      guestMix.display &&
+      guestMix.totalPeople <= 0
+    ) {
+      alert("Enter at least one adult or kid.");
+      return;
+    }
+
+    if (!reservationPhoneIsComplete(reservationPhone)) {
+      alert(
+        "Enter a complete 10-digit phone number, including area code."
+      );
+      return;
+    }
+
+    const bookedInSlot = reservations.filter(
+      (reservation) =>
+        reservation.id !== editingReservationId &&
+        reservation.date === date &&
+        reservation.time === time &&
+        reservation.status !== "Cancelled"
+    ).length;
+
+    if (bookedInSlot >= reservationSlotCapacity) {
+      const okay = confirm(
+        `This 15-minute slot already has ${reservationSlotCapacity} reservations. Save this change anyway?`
+      );
+
+      if (!okay) return;
+    }
+
+    setReservationSaveStatus("saving");
+    setReservationSaveMessage("Saving reservation changes...");
+
+    await updateReservation(editingReservationId, {
+      name,
+      date,
+      time,
+      guests,
+      adults: guestMix.display
+        ? guestMix.adults
+        : currentReservation.adults,
+      kids: guestMix.display
+        ? guestMix.kids
+        : currentReservation.kids,
+      highchairs: guestMix.display
+        ? guestMix.highchairs
+        : currentReservation.highchairs,
+      wheelchairs: guestMix.display
+        ? guestMix.wheelchairs
+        : currentReservation.wheelchairs,
+      phone: reservationPhone.trim(),
+      notes: reservationNotes.trim(),
+      specialRequests: [...reservationSpecialRequests],
+    });
+
+    setReservationSaveStatus("saved");
+    setReservationSaveMessage(
+      `Updated: ${name} • ${date} • ${time}`
+    );
+
+    clearReservationForm();
   }
 
   async function updateReservation(
@@ -2377,6 +2604,14 @@ async function undoLastSeat() {
   async function syncOrQueue(
     operation: Omit<OfflineOperation, "id" | "createdAt">
   ) {
+    const browserOnline =
+      typeof window === "undefined" ? true : window.navigator.onLine;
+
+    if (!browserOnline) {
+      queueOfflineOperation(operation);
+      return { queued: true };
+    }
+
     const executable = {
       ...operation,
       id: `live-${Date.now()}-${Math.random()
@@ -2386,16 +2621,11 @@ async function undoLastSeat() {
     } as OfflineOperation;
 
     try {
-      // Do not depend on navigator.onLine here.
-      // iPad Safari / installed PWAs can report a stale online state.
       await executeOfflineOperation(executable);
       setLastSyncAt(Date.now());
       return { queued: false };
     } catch (error) {
-      console.error(
-        "Cloud save failed; saved locally and queued for retry:",
-        error
-      );
+      console.error("Cloud save failed; queued for retry:", error);
       queueOfflineOperation(operation);
       return { queued: true };
     }
@@ -2404,6 +2634,13 @@ async function undoLastSeat() {
   async function pullSharedStateFromCloud(
     showRemoteNotice = false
   ) {
+    if (
+      typeof window !== "undefined" &&
+      !window.navigator.onLine
+    ) {
+      return;
+    }
+
     try {
       const [
         { data: floorData },
@@ -2530,25 +2767,8 @@ async function undoLastSeat() {
     }
   }
 
-  async function syncCatchUpNow(
-    showRemoteNotice = false
-  ) {
-    if (syncHeartbeatBusyRef.current) return;
-
-    syncHeartbeatBusyRef.current = true;
-
-    try {
-      // Push anything this device has been holding first,
-      // then pull the latest shared state from Supabase.
-      await flushOfflineQueue();
-      await pullSharedStateFromCloud(showRemoteNotice);
-    } finally {
-      syncHeartbeatBusyRef.current = false;
-    }
-  }
-
   async function flushOfflineQueue() {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !window.navigator.onLine) return;
     if (isSyncingOfflineQueue) return;
 
     const queue = readOfflineQueue();
@@ -2568,12 +2788,9 @@ async function undoLastSeat() {
       try {
         await executeOfflineOperation(operation);
       } catch (error) {
-        console.error(
-          "Offline operation will retry later:",
-          operation,
-          error
-        );
-        remaining.push(operation);
+        console.error("Offline sync stopped at operation:", operation, error);
+        remaining.push(...queue.slice(index));
+        break;
       }
     }
 
@@ -3349,109 +3566,46 @@ async function undoLastSeat() {
       "postgres_changes",
       { event: "*", schema: "public", table: "host_tables" },
       async () => {
-        await syncCatchUpNow(true);
+        await pullSharedStateFromCloud(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_waitlist" },
       async () => {
-        await syncCatchUpNow(true);
+        await pullSharedStateFromCloud(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_reservations" },
       async () => {
-        await syncCatchUpNow(true);
+        await pullSharedStateFromCloud(true);
       }
     )
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "host_servers" },
       async () => {
-        await syncCatchUpNow(true);
+        await pullSharedStateFromCloud(true);
       }
     )
     .subscribe((status) => {
       console.log("Supabase realtime status:", status);
 
       if (status === "SUBSCRIBED") {
-        void syncCatchUpNow(false);
-      }
-
-      if (
-        status === "CHANNEL_ERROR" ||
-        status === "TIMED_OUT" ||
-        status === "CLOSED"
-      ) {
-        // Safari can suspend a WebSocket without a normal disconnect.
-        // The heartbeat still keeps data synchronized, and this immediate
-        // REST refresh catches the device up as soon as possible.
-        window.setTimeout(() => {
-          void syncCatchUpNow(false);
-        }, 500);
+        void pullSharedStateFromCloud(false);
       }
     });
 
-  // Apple-safe sync heartbeat:
-  // Supabase Realtime remains the fast path, but every 4 seconds each device
-  // also pushes queued changes and pulls the shared cloud state.
+  // Safety net for iPad/PWA realtime interruptions:
+  // every iPad re-checks shared state every 1.5 seconds.
   const liveMatchTimer = window.setInterval(() => {
-    void syncCatchUpNow(false);
+    void pullSharedStateFromCloud(false);
   }, 4000);
-
-  const handleAppleResume = () => {
-    if (
-      document.visibilityState === "visible"
-    ) {
-      void syncCatchUpNow(false);
-    }
-  };
-
-  const handlePageShow = () => {
-    void syncCatchUpNow(false);
-  };
-
-  const handleFocus = () => {
-    void syncCatchUpNow(false);
-  };
-
-  const handleOnlineResume = () => {
-    void syncCatchUpNow(true);
-  };
-
-  document.addEventListener(
-    "visibilitychange",
-    handleAppleResume
-  );
-  window.addEventListener("pageshow", handlePageShow);
-  window.addEventListener("focus", handleFocus);
-  window.addEventListener(
-    "online",
-    handleOnlineResume
-  );
 
   return () => {
     window.clearInterval(liveMatchTimer);
-
-    document.removeEventListener(
-      "visibilitychange",
-      handleAppleResume
-    );
-    window.removeEventListener(
-      "pageshow",
-      handlePageShow
-    );
-    window.removeEventListener(
-      "focus",
-      handleFocus
-    );
-    window.removeEventListener(
-      "online",
-      handleOnlineResume
-    );
-
     supabase.removeChannel(channel);
   };
 
@@ -4195,6 +4349,9 @@ async function undoLastSeat() {
               >
                 Reservation times are locked to 15-minute increments:
                 :00, :15, :30, and :45.
+                <br />
+                Sundays and Mondays are closed. Holiday closures are blocked
+                automatically.
               </div>
             </div>
           )}
@@ -4241,6 +4398,30 @@ async function undoLastSeat() {
                       overflowY: "auto",
                     }}
                   >
+                    {!reservationDateIsAvailable(dateString) ? (
+                      <div
+                        style={{
+                          padding: 18,
+                          textAlign: "center",
+                          background: "#fee2e2",
+                          color: "#991b1b",
+                          fontWeight: "bold",
+                          minHeight: 100,
+                        }}
+                      >
+                        CLOSED
+                        <div
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "normal",
+                            marginTop: 4,
+                          }}
+                        >
+                          {closedReservationReason(dateString)}
+                        </div>
+                      </div>
+                    ) : (
+                    <>
                     {slots.map((displayTime) => {
                       const slotReservations = reservationsForSlot(
                         dateString,
@@ -4324,6 +4505,33 @@ async function undoLastSeat() {
                                     {reservation.name} • {reservation.guests}
                                   </strong>
 
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: 3,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                  <button
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      loadReservationForEdit(reservation);
+                                    }}
+                                    title="Edit reservation"
+                                    style={{
+                                      border: "none",
+                                      background: "#dbeafe",
+                                      color: "#1e40af",
+                                      borderRadius: 5,
+                                      padding: "2px 5px",
+                                      fontSize: 10,
+                                      fontWeight: "bold",
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+
                                   <button
                                     onClick={(event) => {
                                       event.stopPropagation();
@@ -4344,6 +4552,7 @@ async function undoLastSeat() {
                                   >
                                     Delete
                                   </button>
+                                  </div>
                                 </div>
                                 {(
                                   reservation.adults !== undefined ||
@@ -4382,6 +4591,8 @@ async function undoLastSeat() {
                         </div>
                       );
                     })}
+                    </>
+                    )}
                   </div>
                 </div>
               );
@@ -4398,7 +4609,9 @@ async function undoLastSeat() {
             }}
           >
             <h2 style={{ marginTop: 0, marginBottom: 8 }}>
-              Add Reservation
+              {editingReservationId
+                ? "Edit Reservation"
+                : "Add Reservation"}
             </h2>
 
             <div
@@ -4422,7 +4635,7 @@ async function undoLastSeat() {
                 type="date"
                 value={reservationDate}
                 onChange={(event) =>
-                  setReservationDate(event.target.value)
+                  handleReservationDateChange(event.target.value)
                 }
                 style={{ padding: 9 }}
               />
@@ -4603,9 +4816,15 @@ async function undoLastSeat() {
                 style={{ flex: 1, padding: 9 }}
               />
               <button
-                onClick={addReservation}
+                onClick={
+                  editingReservationId
+                    ? saveEditedReservation
+                    : addReservation
+                }
                 style={{
-                  background: "#2563eb",
+                  background: editingReservationId
+                    ? "#16a34a"
+                    : "#2563eb",
                   color: "white",
                   border: "none",
                   borderRadius: 8,
@@ -4613,8 +4832,23 @@ async function undoLastSeat() {
                   fontWeight: "bold",
                 }}
               >
-                Add Reservation
+                {editingReservationId
+                  ? "Save Changes"
+                  : "Add Reservation"}
               </button>
+
+              {editingReservationId && (
+                <button
+                  onClick={clearReservationForm}
+                  style={{
+                    borderRadius: 8,
+                    padding: "9px 12px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
             </div>
 
             {reservationSaveStatus !== "idle" && (
@@ -5525,7 +5759,9 @@ async function undoLastSeat() {
             <input
               type="date"
               value={reservationDate}
-              onChange={(event) => setReservationDate(event.target.value)}
+              onChange={(event) =>
+                handleReservationDateChange(event.target.value)
+              }
               style={{ padding: 8 }}
             />
             <input
@@ -5621,6 +5857,19 @@ async function undoLastSeat() {
                   </div>
 
                   <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    <button
+                      onClick={() =>
+                        loadReservationForEdit(reservation)
+                      }
+                      style={{
+                        fontSize: 10,
+                        background: "#dbeafe",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Edit
+                    </button>
+
                     {(["Booked", "Arrived", "Seated", "No Show"] as const).map(
                       (status) => (
                         <button
@@ -5825,13 +6074,30 @@ async function undoLastSeat() {
                             : ""}
                         </div>
                       </div>
-                      <button
-                        onClick={() =>
-                          deleteReservation(reservation.id)
-                        }
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 4,
+                        }}
                       >
-                        Remove
-                      </button>
+                        <button
+                          onClick={() =>
+                            loadReservationForEdit(reservation)
+                          }
+                          style={{
+                            background: "#dbeafe",
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() =>
+                            deleteReservation(reservation.id)
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
 
                     <div
@@ -7525,6 +7791,17 @@ async function undoLastSeat() {
                         marginTop: 4,
                       }}
                     >
+                      <button
+                        onClick={() =>
+                          loadReservationForEdit(reservation)
+                        }
+                        style={{
+                          fontSize: 8,
+                          background: "#dbeafe",
+                        }}
+                      >
+                        Edit
+                      </button>
                       {reservation.status === "Booked" && (
                         <button
                           onClick={() =>
@@ -8476,6 +8753,6 @@ function Label({
 
     </div>
 
-    );
+  );
 
 }
