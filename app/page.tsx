@@ -106,6 +106,7 @@ const RECOVERY_SNAPSHOTS_KEY = "enriques-os-recovery-snapshots-v1";
 const MAX_RECOVERY_SNAPSHOTS = 8;
 const AUTO_SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000;
 const DEVICE_ID_KEY = "enriques-os-device-id-v1";
+const RESERVATION_MEMORY_KEY = "enriques-os-reservation-memory-v1";
 
 type RecoverySnapshot = LocalBackup & {
   id: string;
@@ -1215,6 +1216,83 @@ async function undoLastSeat() {
     );
   }
 
+  function reservationCloudId(id: string) {
+    const digits = String(id).replace(/\D/g, "");
+    const parsed = Number.parseInt(digits, 10);
+
+    return Number.isSafeInteger(parsed) && parsed > 0
+      ? parsed
+      : Date.now();
+  }
+
+  function readReservationMemory(): ReservationRecord[] {
+    if (typeof window === "undefined") return [];
+
+    try {
+      const raw = window.localStorage.getItem(
+        RESERVATION_MEMORY_KEY
+      );
+      return raw
+        ? (JSON.parse(raw) as ReservationRecord[])
+        : [];
+    } catch (error) {
+      console.error("Could not read reservation memory:", error);
+      return [];
+    }
+  }
+
+  function writeReservationMemory(items: ReservationRecord[]) {
+    if (typeof window === "undefined") return;
+
+    try {
+      window.localStorage.setItem(
+        RESERVATION_MEMORY_KEY,
+        JSON.stringify(items)
+      );
+    } catch (error) {
+      console.error("Could not save reservation memory:", error);
+    }
+  }
+
+  function localDateKey(date = new Date()) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+  }
+
+  function podiumReservations() {
+    const today = localDateKey();
+
+    return reservations
+      .filter(
+        (reservation) =>
+          reservation.date === today &&
+          reservation.status !== "Cancelled" &&
+          reservation.status !== "No Show"
+      )
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }
+
+  function displayReservationTime(time: string) {
+    const [hourText, minuteText] = time.split(":");
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+
+    if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+      return time;
+    }
+
+    const d = new Date();
+    d.setHours(hour, minute, 0, 0);
+
+    return d.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  }
+
   function reservationBookStorageKey() {
     return "enriques-os-reservation-book-mode-v1";
   }
@@ -1495,7 +1573,7 @@ async function undoLastSeat() {
     }
 
     const reservation: ReservationRecord = {
-      id: `reservation-${Date.now()}`,
+      id: String(Date.now()),
       date,
       time,
       name,
@@ -1516,18 +1594,27 @@ async function undoLastSeat() {
     setReservationSaveMessage("Saving reservation...");
 
     // Show immediately in the book so the user gets instant feedback.
-    setReservations((current) =>
-      [...current.filter((item) => item.id !== reservation.id), reservation]
-        .sort((a, b) =>
-          `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
+    setReservations((current) => {
+      const next = [
+        ...current.filter(
+          (item) => item.id !== reservation.id
+        ),
+        reservation,
+      ].sort((a, b) =>
+        `${a.date} ${a.time}`.localeCompare(
+          `${b.date} ${b.time}`
         )
-    );
+      );
+
+      writeReservationMemory(next);
+      return next;
+    });
 
     localReservationInteractionUntilRef.current =
       Date.now() + 10000;
 
     const cloudRow = {
-      id: reservation.id,
+      id: reservationCloudId(reservation.id),
       data: {
         ...reservation,
         syncDeviceId:
@@ -1556,7 +1643,7 @@ async function undoLastSeat() {
         await supabase
           .from("host_reservations")
           .select("id, data")
-          .eq("id", reservation.id)
+          .eq("id", reservationCloudId(reservation.id))
           .maybeSingle();
 
       if (verifyError) {
@@ -1628,17 +1715,22 @@ async function undoLastSeat() {
       ...updates,
     };
 
-    setReservations((current) =>
-      current
+    setReservations((current) => {
+      const next = current
         .map((reservation) =>
           reservation.id === reservationId
             ? updatedReservation
             : reservation
         )
         .sort((a, b) =>
-          `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
-        )
-    );
+          `${a.date} ${a.time}`.localeCompare(
+            `${b.date} ${b.time}`
+          )
+        );
+
+      writeReservationMemory(next);
+      return next;
+    });
 
     const updateResult = await syncOrQueue({
       type: "host_reservations_update",
@@ -1688,9 +1780,13 @@ async function undoLastSeat() {
 
     if (!okay) return;
 
-    setReservations((current) =>
-      current.filter((item) => item.id !== reservationId)
-    );
+    setReservations((current) => {
+      const next = current.filter(
+        (item) => item.id !== reservationId
+      );
+      writeReservationMemory(next);
+      return next;
+    });
 
     const deleteResult = await syncOrQueue({
       type: "host_reservations_delete",
@@ -1960,7 +2056,8 @@ async function undoLastSeat() {
       .filter(
         (reservation) =>
           reservation.date === today &&
-          reservation.status !== "Cancelled" &&
+          (reservation.status === "Booked" ||
+            reservation.status === "Arrived") &&
           reservation.tableIds.includes(tableId)
       )
       .sort((a, b) => a.time.localeCompare(b.time))[0];
@@ -2216,6 +2313,7 @@ async function undoLastSeat() {
     if (operation.type === "host_reservations_insert") {
       const row = {
         ...operation.payload,
+        id: reservationCloudId(operation.payload.id),
         data: {
           ...operation.payload.data,
           syncDeviceId:
@@ -2243,7 +2341,7 @@ async function undoLastSeat() {
             syncUpdatedAt: operation.createdAt,
           },
         })
-        .eq("id", operation.payload.id);
+        .eq("id", reservationCloudId(operation.payload.id));
       if (error) throw error;
       return;
     }
@@ -2252,7 +2350,7 @@ async function undoLastSeat() {
       const { error } = await supabase
         .from("host_reservations")
         .delete()
-        .eq("id", operation.payload.id);
+        .eq("id", reservationCloudId(operation.payload.id));
       if (error) throw error;
       return;
     }
@@ -2397,16 +2495,30 @@ async function undoLastSeat() {
         !queueHasTypePrefix("host_reservations") &&
         Date.now() >= localReservationInteractionUntilRef.current
       ) {
-        setReservations(
-          reservationData
-            .map((row) => row.data as ReservationRecord)
-            .filter(Boolean)
-            .sort((a, b) =>
-              `${a.date} ${a.time}`.localeCompare(
-                `${b.date} ${b.time}`
-              )
-            )
+        const nextReservations = reservationData
+          .map((row) => {
+            const data =
+              row.data as ReservationRecord | null;
+
+            if (!data) return null;
+
+            return {
+              ...data,
+              id: data.id
+                ? String(data.id)
+                : String(row.id),
+            } as ReservationRecord;
+          })
+          .filter(Boolean) as ReservationRecord[];
+
+        nextReservations.sort((a, b) =>
+          `${a.date} ${a.time}`.localeCompare(
+            `${b.date} ${b.time}`
+          )
         );
+
+        setReservations(nextReservations);
+        writeReservationMemory(nextReservations);
       }
 
       if (showRemoteNotice) {
@@ -2963,6 +3075,17 @@ async function undoLastSeat() {
     setPendingSyncCount(readOfflineQueue().length);
     setRecoverySnapshots(readRecoverySnapshots());
 
+    const rememberedReservations = readReservationMemory();
+    if (rememberedReservations.length) {
+      setReservations(
+        rememberedReservations.sort((a, b) =>
+          `${a.date} ${a.time}`.localeCompare(
+            `${b.date} ${b.time}`
+          )
+        )
+      );
+    }
+
     const rawBackup = window.localStorage.getItem(LOCAL_BACKUP_KEY);
 
     if (rawBackup) {
@@ -3150,14 +3273,35 @@ async function undoLastSeat() {
         .order("created_at", { ascending: true });
 
     if (!reservationError && reservationData) {
-      setReservations(
-        reservationData
-          .map((row) => row.data as ReservationRecord)
-          .filter(Boolean)
-          .sort((a, b) =>
-            `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)
-          )
+      const cloudReservations = reservationData
+        .map((row) => {
+          const data =
+            row.data as ReservationRecord | null;
+
+          if (!data) return null;
+
+          return {
+            ...data,
+            id: data.id
+              ? String(data.id)
+              : String(row.id),
+          } as ReservationRecord;
+        })
+        .filter(Boolean) as ReservationRecord[];
+
+      cloudReservations.sort((a, b) =>
+        `${a.date} ${a.time}`.localeCompare(
+          `${b.date} ${b.time}`
+        )
       );
+
+      setReservations(cloudReservations);
+      writeReservationMemory(cloudReservations);
+    } else if (reservationError) {
+      const remembered = readReservationMemory();
+      if (remembered.length) {
+        setReservations(remembered);
+      }
     }
 
     const { data: shiftData, error: shiftError } = await supabase
@@ -3604,7 +3748,7 @@ async function undoLastSeat() {
       return;
     }
 
-    if (headHostMode && plannerSelectedReservationId) {
+    if (plannerSelectedReservationId) {
       await togglePlannerReservationTableFromFloor(tableId);
       return;
     }
@@ -6889,6 +7033,15 @@ async function undoLastSeat() {
 
                 borderRadius: table.seats === "Couch" ? 16 : 8,
 
+                outline:
+                  getReservationForTable(table.id)
+                    ? getReservationForTable(table.id)?.id ===
+                      plannerSelectedReservationId
+                      ? "5px solid #dc2626"
+                      : "4px solid #f97316"
+                    : "none",
+                outlineOffset: 2,
+
                 zIndex: 5,
 
                 display: "flex",
@@ -7100,8 +7253,7 @@ async function undoLastSeat() {
             background: "white",
             border: "3px solid #111827",
             borderRadius: 10,
-            padding: 12,
-            minHeight: 235,
+            padding: 10,
             width: "100%",
             boxSizing: "border-box",
           }}
@@ -7112,19 +7264,13 @@ async function undoLastSeat() {
               justifyContent: "space-between",
               alignItems: "center",
               gap: 8,
-              marginBottom: 10,
+              marginBottom: 8,
             }}
           >
             <div>
               <h2 style={{ margin: 0 }}>📅 Reservation Timeline</h2>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "#64748b",
-                  marginTop: 2,
-                }}
-              >
-                Upcoming reservations for the podium
+              <div style={{ fontSize: 10, color: "#64748b" }}>
+                Today • tap Plan, then tap reserved tables on the floor
               </div>
             </div>
 
@@ -7134,760 +7280,986 @@ async function undoLastSeat() {
                 background: "#2563eb",
                 color: "white",
                 border: "none",
-                borderRadius: 8,
-                padding: "7px 10px",
+                borderRadius: 7,
+                padding: "6px 9px",
                 fontWeight: "bold",
+                fontSize: 11,
               }}
             >
               Open Book
             </button>
           </div>
 
+          {plannerSelectedReservationId && (
+            <div
+              style={{
+                background: "#fff7ed",
+                border: "2px solid #f97316",
+                borderRadius: 7,
+                padding: 6,
+                marginBottom: 7,
+                fontSize: 10,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>
+                Planning:{" "}
+                <strong>
+                  {reservations.find(
+                    (item) =>
+                      item.id === plannerSelectedReservationId
+                  )?.name || "Reservation"}
+                </strong>
+                {" — "}tap tables on the floor
+              </span>
+              <button
+                onClick={() =>
+                  setPlannerSelectedReservationId(null)
+                }
+              >
+                Done
+              </button>
+            </div>
+          )}
+
           <div
             style={{
-              border: "2px dashed #cbd5e1",
-              borderRadius: 8,
-              background: "#f8fafc",
-              padding: 18,
-              textAlign: "center",
-              color: "#64748b",
-              fontSize: 12,
-              lineHeight: 1.5,
+              maxHeight: 245,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              display: "flex",
+              flexDirection: "column",
+              gap: 5,
+              paddingRight: 2,
             }}
           >
-            Phase 1 layout preview area.
-            <br />
-            Phase 2 will populate this with the live reservation timeline and
-            reserved-table highlighting.
+            {podiumReservations().length === 0 ? (
+              <div
+                style={{
+                  border: "2px dashed #cbd5e1",
+                  borderRadius: 7,
+                  padding: 12,
+                  textAlign: "center",
+                  color: "#64748b",
+                  fontSize: 10,
+                }}
+              >
+                No reservations for today.
+              </div>
+            ) : (
+              podiumReservations().map((reservation) => {
+                const planning =
+                  plannerSelectedReservationId ===
+                  reservation.id;
+
+                return (
+                  <div
+                    key={reservation.id}
+                    style={{
+                      border: planning
+                        ? "3px solid #f97316"
+                        : "1px solid #cbd5e1",
+                      borderRadius: 7,
+                      padding: 6,
+                      background:
+                        reservation.status === "Arrived"
+                          ? "#ecfdf5"
+                          : reservation.status === "Seated"
+                            ? "#eff6ff"
+                            : "white",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "64px minmax(0,1fr) 44px",
+                        gap: 5,
+                        alignItems: "center",
+                      }}
+                    >
+                      <strong style={{ fontSize: 10 }}>
+                        {displayReservationTime(
+                          reservation.time
+                        )}
+                      </strong>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {reservation.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 8,
+                            color: "#64748b",
+                          }}
+                        >
+                          {reservation.guests} •{" "}
+                          {reservation.status}
+                          {reservation.tableIds.length
+                            ? ` • T ${reservation.tableIds.join(
+                                ", "
+                              )}`
+                            : " • No tables"}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          setPlannerSelectedReservationId(
+                            planning
+                              ? null
+                              : reservation.id
+                          )
+                        }
+                        style={{
+                          fontSize: 8,
+                          padding: "4px 3px",
+                          background: planning
+                            ? "#ffedd5"
+                            : "white",
+                        }}
+                      >
+                        {planning ? "Done" : "Plan"}
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 3,
+                        marginTop: 4,
+                      }}
+                    >
+                      {reservation.status === "Booked" && (
+                        <button
+                          onClick={() =>
+                            updateReservation(
+                              reservation.id,
+                              { status: "Arrived" }
+                            )
+                          }
+                          style={{
+                            fontSize: 8,
+                            background: "#dcfce7",
+                          }}
+                        >
+                          Arrived
+                        </button>
+                      )}
+
+                      {(reservation.status === "Booked" ||
+                        reservation.status === "Arrived") && (
+                        <button
+                          onClick={() =>
+                            updateReservation(
+                              reservation.id,
+                              { status: "Seated" }
+                            )
+                          }
+                          style={{
+                            fontSize: 8,
+                            background: "#dbeafe",
+                          }}
+                        >
+                          Seated
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() =>
+                          updateReservation(
+                            reservation.id,
+                            { status: "No Show" }
+                          )
+                        }
+                        style={{
+                          fontSize: 8,
+                          background: "#fee2e2",
+                        }}
+                      >
+                        No Show
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 8,
+              color: "#64748b",
+            }}
+          >
+            Orange outline = reserved. Marking Seated releases the reserved outline.
           </div>
         </section>
 
         <section
-  style={{
-    width: "100%",
-    marginTop: 16,
-    background: "white",
-    border: "3px solid #111827",
-    borderRadius: 10,
-    padding: 10,
-    boxSizing: "border-box",
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  }}
->
-  <div>
-      <div
-        style={{
-      width: "100%",
-      border: "2px solid #cbd5e1",
-      borderRadius: 10,
-      padding: 8,
-      background: "#fff",
-      boxSizing: "border-box",
-    }}
-      >
-        <div>
-          <h3 style={{ margin: 0 }}>Live Waitlist</h3>
-          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-            Scroll to see all waiting parties
-          </div>
-        </div>
-
-        <div
           style={{
-            display: "flex",
-            gap: 6,
-            flexWrap: "wrap",
-            fontSize: 11,
+            width: "100%",
+            background: "white",
+            border: "3px solid #111827",
+            borderRadius: 10,
+            padding: 8,
+            boxSizing: "border-box",
           }}
         >
-          <span
-            style={{
-              border: "1px solid #94a3b8",
-              borderRadius: 20,
-              padding: "4px 7px",
-              background: "#f8fafc",
-            }}
-          >
-            {waitlist.filter((party) => party.status === "Waiting").length} Waiting
-          </span>
-          <span
-            style={{
-              border: "1px solid #94a3b8",
-              borderRadius: 20,
-              padding: "4px 7px",
-              background: "#fef3c7",
-            }}
-          >
-            {waitlist.filter((party) => party.status === "Paged").length} Paged
-          </span>
-        </div>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          maxHeight: 240,
-          minHeight: 110,
-          overflowY: "auto",
-          overflowX: "hidden",
-          paddingRight: 4,
-          WebkitOverflowScrolling: "touch",
-        }}
-      >
-        {waitlist.length === 0 ? (
           <div
             style={{
-              border: "2px dashed #cbd5e1",
-              borderRadius: 10,
-              padding: 20,
-              color: "#64748b",
-              textAlign: "center",
+              border: "2px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 7,
+              background: "#f8fafc",
+              marginBottom: 8,
             }}
           >
-            No parties on the waitlist.
-          </div>
-        ) : (
-          waitlist.map((party, index) => (
             <div
-              key={party.id}
               style={{
-                border: party.vip
-                  ? "3px solid #d97706"
-                  : "2px solid #111827",
-                borderRadius: 10,
-                padding: 8,
-                background: waitStatusBackground(party),
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 5,
               }}
             >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "48px minmax(180px, 1.3fr) .8fr .8fr .8fr auto",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
+              <div>
+                <h3 style={{ margin: 0, fontSize: 15 }}>
+                  Live Waitlist
+                </h3>
+                <div style={{ fontSize: 8, color: "#64748b" }}>
+                  Scroll here to see all waiting parties
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 3 }}>
+                <span
+                  style={{
+                    fontSize: 8,
+                    border: "1px solid #94a3b8",
+                    borderRadius: 12,
+                    padding: "2px 5px",
+                    background: "white",
+                  }}
+                >
+                  {waitlist.filter(
+                    (p) => p.status === "Waiting"
+                  ).length}{" "}
+                  Waiting
+                </span>
+                <span
+                  style={{
+                    fontSize: 8,
+                    border: "1px solid #d97706",
+                    borderRadius: 12,
+                    padding: "2px 5px",
+                    background: "#fffbeb",
+                  }}
+                >
+                  {waitlist.filter(
+                    (p) => p.status === "Paged"
+                  ).length}{" "}
+                  Paged
+                </span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                maxHeight: 190,
+                minHeight: 78,
+                overflowY: "auto",
+                WebkitOverflowScrolling: "touch",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                paddingRight: 2,
+              }}
+            >
+              {waitlist.length === 0 ? (
                 <div
                   style={{
-                    fontSize: 22,
+                    border: "1px dashed #cbd5e1",
+                    borderRadius: 7,
+                    padding: 11,
+                    textAlign: "center",
+                    color: "#64748b",
+                    fontSize: 10,
+                  }}
+                >
+                  No parties waiting.
+                </div>
+              ) : (
+                waitlist.map((party, index) => (
+                  <div
+                    key={party.id}
+                    style={{
+                      border: party.vip
+                        ? "2px solid #d97706"
+                        : "1px solid #94a3b8",
+                      borderRadius: 7,
+                      padding: 5,
+                      background:
+                        waitStatusBackground(party),
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "25px minmax(0,1fr) 54px 48px",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <strong style={{ fontSize: 13 }}>
+                        #{index + 1}
+                      </strong>
+
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: "bold",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {party.vip ? "⭐ " : ""}
+                          {party.name}
+                        </div>
+                        <div style={{ fontSize: 8 }}>
+                          {party.size} •{" "}
+                          {party.entryType || "Walk In"}
+                          {party.pager
+                            ? ` • P${party.pager}`
+                            : ""}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: 8,
+                          textAlign: "center",
+                        }}
+                      >
+                        <strong>
+                          {waitMinutes(party)}m
+                        </strong>
+                        <div>
+                          q {party.quotedWait}m
+                        </div>
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: 7,
+                          fontWeight: "bold",
+                          border: "1px solid #64748b",
+                          borderRadius: 10,
+                          padding: "2px 3px",
+                          textAlign: "center",
+                          background: "white",
+                        }}
+                      >
+                        {party.status}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 3,
+                        marginTop: 4,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <button
+                        onClick={() =>
+                          loadWaitPartyForEdit(party)
+                        }
+                        style={{ fontSize: 8 }}
+                      >
+                        Edit
+                      </button>
+
+                      {party.entryType === "Call Ahead" &&
+                        !party.checkedInAt && (
+                          <button
+                            onClick={() => {
+                              setCheckInPagerId(party.id);
+                              setCheckInPagerValue(
+                                party.pager || ""
+                              );
+                            }}
+                            style={{
+                              fontSize: 8,
+                              background: "#dbeafe",
+                            }}
+                          >
+                            Check In
+                          </button>
+                        )}
+
+                      {party.status === "Waiting" && (
+                        <button
+                          onClick={async () => {
+                            const updatedParty: EnriquesWaitParty = {
+                              ...party,
+                              status: "Paged",
+                              pagedAt: Date.now(),
+                            };
+
+                            setWaitlist((current) =>
+                              current.map((item) =>
+                                item.id === party.id
+                                  ? updatedParty
+                                  : item
+                              )
+                            );
+
+                            await syncOrQueue({
+                              type: "host_waitlist_update",
+                              payload: {
+                                id: party.id,
+                                data: updatedParty,
+                              },
+                            });
+                          }}
+                          style={{ fontSize: 8 }}
+                        >
+                          Page
+                        </button>
+                      )}
+
+                      {(party.status === "Waiting" ||
+                        party.status === "Paged") && (
+                          <button
+                            onClick={async () => {
+                              const updatedParty: EnriquesWaitParty = {
+                                ...party,
+                                status: "Seated",
+                              };
+
+                              setWaitlist((current) =>
+                                current.map((item) =>
+                                  item.id === party.id
+                                    ? updatedParty
+                                    : item
+                                )
+                              );
+
+                              await syncOrQueue({
+                                type: "host_waitlist_update",
+                                payload: {
+                                  id: party.id,
+                                  data: updatedParty,
+                                },
+                              });
+                            }}
+                            style={{
+                              fontSize: 8,
+                              background: "#16a34a",
+                              color: "white",
+                            }}
+                          >
+                            Seated
+                          </button>
+                        )}
+
+                      <button
+                        onClick={async () => {
+                          if (
+                            !confirm(
+                              `Remove ${party.name} from the waitlist?`
+                            )
+                          ) {
+                            return;
+                          }
+
+                          setWaitlist((current) =>
+                            current.filter(
+                              (item) =>
+                                item.id !== party.id
+                            )
+                          );
+
+                          await syncOrQueue({
+                            type: "host_waitlist_delete",
+                            payload: {
+                              id: party.id,
+                            },
+                          });
+                        }}
+                        style={{
+                          fontSize: 8,
+                          background: "#fee2e2",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+                    {checkInPagerId === party.id && (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 4,
+                          marginTop: 4,
+                        }}
+                      >
+                        <input
+                          value={checkInPagerValue}
+                          onChange={(event) =>
+                            setCheckInPagerValue(
+                              event.target.value
+                            )
+                          }
+                          placeholder="Pager #"
+                          inputMode="numeric"
+                          style={{
+                            width: 80,
+                            padding: 4,
+                            fontSize: 9,
+                          }}
+                        />
+                        <button
+                          onClick={async () => {
+                            const updatedParty: EnriquesWaitParty = {
+                              ...party,
+                              pager:
+                                checkInPagerValue.trim(),
+                              checkedInAt: Date.now(),
+                              createdAt: Date.now(),
+                              status: "Waiting",
+                            };
+
+                            setWaitlist((current) =>
+                              current.map((item) =>
+                                item.id === party.id
+                                  ? updatedParty
+                                  : item
+                              )
+                            );
+
+                            await syncOrQueue({
+                              type: "host_waitlist_update",
+                              payload: {
+                                id: party.id,
+                                data: updatedParty,
+                              },
+                            });
+
+                            setCheckInPagerId(null);
+                            setCheckInPagerValue("");
+                          }}
+                          style={{ fontSize: 8 }}
+                        >
+                          Save Pager
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div
+            style={{
+              border: "2px solid #cbd5e1",
+              borderRadius: 8,
+              padding: 7,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 5,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 15 }}>
+                {editingWaitId
+                  ? "Edit Wait Party"
+                  : "Add to Waitlist"}
+              </h3>
+
+              {editingWaitId && (
+                <button
+                  onClick={clearWaitForm}
+                  style={{ fontSize: 8 }}
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 4,
+                marginBottom: 5,
+              }}
+            >
+              {(["Walk In", "Call Ahead"] as const).map(
+                (type) => (
+                  <button
+                    key={type}
+                    onClick={() =>
+                      setWaitEntryType(type)
+                    }
+                    style={{
+                      padding: 5,
+                      fontSize: 9,
+                      fontWeight: "bold",
+                      background:
+                        waitEntryType === type
+                          ? type === "Call Ahead"
+                            ? "#fef3c7"
+                            : "#dbeafe"
+                          : "white",
+                      border:
+                        waitEntryType === type
+                          ? "2px solid #111827"
+                          : "1px solid #cbd5e1",
+                      borderRadius: 6,
+                    }}
+                  >
+                    {type === "Call Ahead"
+                      ? "☎ Call Ahead"
+                      : "🚶 Walk In"}
+                  </button>
+                )
+              )}
+            </div>
+
+            <input
+              value={guestName}
+              onChange={(e) =>
+                setGuestName(e.target.value)
+              }
+              placeholder="Guest name"
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: 6,
+                marginBottom: 5,
+              }}
+            />
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(4, minmax(0,1fr))",
+                gap: 3,
+                marginBottom: 5,
+              }}
+            >
+              {[
+                ["A", waitAdults, setWaitAdults],
+                ["K", waitKids, setWaitKids],
+                ["HC", waitHighchairs, setWaitHighchairs],
+                ["W", waitWheelchairs, setWaitWheelchairs],
+              ].map(([label, value, setter]) => (
+                <label
+                  key={label as string}
+                  style={{
+                    fontSize: 7,
                     fontWeight: "bold",
                     textAlign: "center",
                   }}
                 >
-                  #{index + 1}
-                </div>
-
-                <div>
-                  <strong style={{ fontSize: 16 }}>
-                    {party.vip ? "⭐ " : ""}
-                    {party.name}
-                  </strong>
-                  <div style={{ fontSize: 11, marginTop: 2 }}>
-                    {party.size} • {party.entryType || "Walk In"}
-                  </div>
-                  {party.notes && (
-                    <div style={{ fontSize: 10, color: "#475569", marginTop: 2 }}>
-                      {party.notes}
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ fontSize: 11 }}>
-                  <strong>{waitMinutes(party)}m</strong>
-                  <div style={{ color: "#64748b" }}>
-                    Quoted {party.quotedWait}m
-                  </div>
-                </div>
-
-                <div style={{ fontSize: 11 }}>
-                  <div>{party.phone || "No phone"}</div>
-                  <div style={{ color: "#64748b" }}>
-                    Pager {party.pager || "—"}
-                  </div>
-                </div>
-
-                <div>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: "bold",
-                      border: "1px solid #64748b",
-                      borderRadius: 20,
-                      padding: "4px 7px",
-                      background: "white",
-                    }}
-                  >
-                    {party.status}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 4,
-                    flexWrap: "wrap",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <button onClick={() => loadWaitPartyForEdit(party)}>
-                    Edit
-                  </button>
-
-                  {(party.entryType === "Call Ahead" &&
-                    !party.checkedInAt) && (
-                    <button
-                      onClick={() => {
-                        setCheckInPagerId(party.id);
-                        setCheckInPagerValue(party.pager || "");
-                      }}
-                      style={{
-                        background: "#dbeafe",
-                        border: "2px solid #2563eb",
-                        borderRadius: 6,
-                        padding: "5px 8px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      Check In
-                    </button>
-                  )}
-
-                  {party.status === "Waiting" && (
-                    <button
-                      onClick={async () => {
-                        const updatedParty: EnriquesWaitParty = {
-                          ...party,
-                          status: "Paged",
-                          pagedAt: Date.now(),
-                        };
-
-                        setWaitlist((current) =>
-                          current.map((item) =>
-                            item.id === party.id ? updatedParty : item
-                          )
-                        );
-
-                        await syncOrQueue({
-                          type: "host_waitlist_update",
-                          payload: {
-                            id: party.id,
-                            data: updatedParty,
-                          },
-                        });
-                      }}
-                    >
-                      Page
-                    </button>
-                  )}
-
-                  {(party.status === "Waiting" || party.status === "Paged") && (
-                    <button
-                      onClick={async () => {
-                        const updatedParty: EnriquesWaitParty = {
-                          ...party,
-                          status: "Seated",
-                        };
-
-                        setWaitlist((current) =>
-                          current.map((item) =>
-                            item.id === party.id ? updatedParty : item
-                          )
-                        );
-
-                        await syncOrQueue({
-                          type: "host_waitlist_update",
-                          payload: {
-                            id: party.id,
-                            data: updatedParty,
-                          },
-                        });
-                      }}
-                      style={{
-                        background: "#16a34a",
-                        color: "white",
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "5px 8px",
-                      }}
-                    >
-                      Seated
-                    </button>
-                  )}
-
-                  <button
-                    onClick={async () => {
-                      const okay = confirm(
-                        `Remove ${party.name} from the waitlist?`
-                      );
-
-                      if (!okay) return;
-
-                      setWaitlist((current) =>
-                        current.filter((item) => item.id !== party.id)
-                      );
-
-                      await syncOrQueue({
-                        type: "host_waitlist_delete",
-                        payload: { id: party.id },
-                      });
-                    }}
-                    style={{ background: "#fee2e2" }}
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-
-              {checkInPagerId === party.id && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    paddingTop: 8,
-                    borderTop: "1px solid #cbd5e1",
-                    display: "flex",
-                    gap: 6,
-                    alignItems: "center",
-                  }}
-                >
-                  <strong style={{ fontSize: 11 }}>
-                    Call Ahead Check-In
-                  </strong>
-
-                  <input
-                    value={checkInPagerValue}
+                  {label as string}
+                  <select
+                    value={value as string}
                     onChange={(event) =>
-                      setCheckInPagerValue(event.target.value)
+                      (
+                        setter as (
+                          value: string
+                        ) => void
+                      )(event.target.value)
                     }
-                    placeholder="Add pager #"
-                    inputMode="numeric"
                     style={{
-                      width: 120,
-                      padding: 7,
-                    }}
-                  />
-
-                  <button
-                    onClick={async () => {
-                      const updatedParty: EnriquesWaitParty = {
-                        ...party,
-                        pager: checkInPagerValue.trim(),
-                        checkedInAt: Date.now(),
-                        createdAt: Date.now(),
-                        status: "Waiting",
-                      };
-
-                      setWaitlist((current) =>
-                        current.map((item) =>
-                          item.id === party.id ? updatedParty : item
-                        )
-                      );
-
-                      await syncOrQueue({
-                        type: "host_waitlist_update",
-                        payload: {
-                          id: party.id,
-                          data: updatedParty,
-                        },
-                      });
-
-                      setCheckInPagerId(null);
-                      setCheckInPagerValue("");
-                    }}
-                    style={{
-                      background: "#2563eb",
-                      color: "white",
-                      border: "none",
-                      borderRadius: 6,
-                      padding: "6px 9px",
-                      fontWeight: "bold",
+                      width: "100%",
+                      padding: 4,
                     }}
                   >
-                    Complete Check-In
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setCheckInPagerId(null);
-                      setCheckInPagerValue("");
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
+                    {Array.from({
+                      length: 21,
+                    }).map((_, index) => (
+                      <option
+                        key={index}
+                        value={String(index)}
+                      >
+                        {index}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
             </div>
-          ))
-        )}
-      </div>
-    </div>
 
-  <div
-      style={{
-      width: "100%",
-        border: "2px solid #cbd5e1",
-        borderRadius: 10,
-        padding: 10,
-        background: "#f8fafc",
-        
-        
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
-        <div>
-          <h2 style={{ margin: 0 }}>Waitlist</h2>
-          <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
-            Add walk-ins or call-aheads
-          </div>
-        </div>
-        {editingWaitId && (
-          <span
-            style={{
-              background: "#dbeafe",
-              border: "2px solid #2563eb",
-              borderRadius: 20,
-              padding: "4px 8px",
-              fontSize: 10,
-              fontWeight: "bold",
-            }}
-          >
-            Editing
-          </span>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-        {(["Walk In", "Call Ahead"] as const).map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setWaitEntryType(type)}
-            style={{
-              flex: 1,
-              background:
-                waitEntryType === type
-                  ? type === "Call Ahead"
-                    ? "#fef3c7"
-                    : "#dbeafe"
-                  : "white",
-              border:
-                waitEntryType === type
-                  ? "3px solid #111827"
-                  : "2px solid #cbd5e1",
-              borderRadius: 8,
-              padding: 7,
-              fontWeight: "bold",
-            }}
-          >
-            {type === "Call Ahead" ? "☎ Call Ahead" : "🚶 Walk In"}
-          </button>
-        ))}
-      </div>
-
-      <label style={{ fontSize: 11, fontWeight: "bold" }}>
-        Guest Name
-        <input
-          value={guestName}
-          onChange={(e) => setGuestName(e.target.value)}
-          placeholder="Guest name"
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: 8,
-            marginTop: 3,
-            marginBottom: 8,
-          }}
-        />
-      </label>
-
-      <div style={{ fontSize: 11, fontWeight: "bold", marginBottom: 3 }}>
-        Guest Mix
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(55px, 1fr))",
-          gap: 4,
-          marginBottom: 8,
-        }}
-      >
-        {[
-          ["A", waitAdults, setWaitAdults],
-          ["K", waitKids, setWaitKids],
-          ["HC", waitHighchairs, setWaitHighchairs],
-          ["W", waitWheelchairs, setWaitWheelchairs],
-        ].map(([label, value, setter]) => (
-          <label
-            key={label as string}
-            style={{
-              fontSize: 9,
-              fontWeight: "bold",
-              textAlign: "center",
-            }}
-          >
-            {label as string}
-            <select
-              value={value as string}
-              onChange={(event) =>
-                (setter as (value: string) => void)(event.target.value)
-              }
+            <div
               style={{
-                width: "100%",
-                padding: 6,
-                borderRadius: 7,
-                border: "1px solid #94a3b8",
-                background: "white",
+                display: "grid",
+                gridTemplateColumns: "1.25fr .75fr",
+                gap: 4,
+                marginBottom: 5,
               }}
             >
-              {Array.from({ length: 21 }).map((_, index) => (
-                <option key={index} value={String(index)}>
-                  {index}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
-      </div>
+              <input
+                value={guestPhone}
+                onChange={(e) =>
+                  setGuestPhone(
+                    formatWaitPhone(e.target.value)
+                  )
+                }
+                placeholder="Phone"
+                inputMode="tel"
+                style={{ padding: 6 }}
+              />
+              <input
+                value={guestPager}
+                onChange={(e) =>
+                  setGuestPager(e.target.value)
+                }
+                placeholder="Pager #"
+                inputMode="numeric"
+                disabled={
+                  waitEntryType === "Call Ahead"
+                }
+                style={{ padding: 6 }}
+              />
+            </div>
 
-      <label style={{ fontSize: 11, fontWeight: "bold" }}>
-        Phone
-        <input
-          value={guestPhone}
-          onChange={(e) =>
-            setGuestPhone(formatWaitPhone(e.target.value))
-          }
-          placeholder="(208) 555-1234"
-          inputMode="tel"
-          maxLength={14}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: 8,
-            marginTop: 3,
-            marginBottom: 8,
-          }}
-        />
-      </label>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: ".8fr 1.2fr",
+                gap: 4,
+                marginBottom: 5,
+              }}
+            >
+              <select
+                value={quotedWait}
+                onChange={(e) =>
+                  setQuotedWait(e.target.value)
+                }
+                style={{ padding: 6 }}
+              >
+                {[
+                  "5-10",
+                  "10-15",
+                  "15-20",
+                  "20-25",
+                  "25-30",
+                  "30-40",
+                  "40-50",
+                  "50-60",
+                  "60+",
+                ].map((wait) => (
+                  <option key={wait} value={wait}>
+                    {wait} min
+                  </option>
+                ))}
+              </select>
+              <input
+                value={guestNotes}
+                onChange={(e) =>
+                  setGuestNotes(e.target.value)
+                }
+                placeholder="Notes / seating request"
+                style={{ padding: 6 }}
+              />
+            </div>
 
-      {waitEntryType === "Walk In" && (
-        <label style={{ fontSize: 11, fontWeight: "bold" }}>
-          Pager
-          <input
-            value={guestPager}
-            onChange={(e) => setGuestPager(e.target.value)}
-            placeholder="Pager #"
-            inputMode="numeric"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              padding: 8,
-              marginTop: 3,
-              marginBottom: 8,
-            }}
-          />
-        </label>
-      )}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "66px 1fr",
+                gap: 4,
+                marginBottom: 5,
+              }}
+            >
+              <button
+                onClick={() =>
+                  setWaitVip((current) => !current)
+                }
+                style={{
+                  fontSize: 9,
+                  background: waitVip
+                    ? "#fef3c7"
+                    : "white",
+                }}
+              >
+                ⭐ VIP
+              </button>
+              <div
+                style={{
+                  border: "1px solid #111827",
+                  borderRadius: 6,
+                  padding: 5,
+                  textAlign: "center",
+                  fontSize: 8,
+                }}
+              >
+                Party:{" "}
+                <strong>
+                  {waitGuestMix().display || "—"}
+                </strong>
+              </div>
+            </div>
 
-      <label style={{ fontSize: 11, fontWeight: "bold" }}>
-        Quoted Wait
-        <select
-          value={quotedWait}
-          onChange={(e) => setQuotedWait(e.target.value)}
-          style={{
-            width: "100%",
-            padding: 8,
-            marginTop: 3,
-            marginBottom: 8,
-          }}
-        >
-          {[
-            "5-10",
-            "10-15",
-            "15-20",
-            "20-25",
-            "25-30",
-            "30-40",
-            "40-50",
-            "50-60",
-            "60+",
-          ].map((wait) => (
-            <option key={wait} value={wait}>
-              {wait} min
-            </option>
-          ))}
-        </select>
-      </label>
+            <button
+              onClick={async () => {
+                const mix = waitGuestMix();
 
-      <input
-        value={guestNotes}
-        onChange={(e) => setGuestNotes(e.target.value)}
-        placeholder="Notes / seating request"
-        style={{
-          width: "100%",
-          boxSizing: "border-box",
-          padding: 8,
-          marginBottom: 8,
-        }}
-      />
+                if (
+                  !guestName.trim() ||
+                  mix.totalPeople <= 0
+                ) {
+                  alert(
+                    "Enter the guest name and at least one adult or kid."
+                  );
+                  return;
+                }
 
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setWaitVip((current) => !current)}
-          style={{
-            background: waitVip ? "#fef3c7" : "white",
-            border: waitVip
-              ? "3px solid #d97706"
-              : "2px solid #cbd5e1",
-            borderRadius: 8,
-            padding: "7px 10px",
-            fontWeight: "bold",
-          }}
-        >
-          ⭐ VIP
-        </button>
+                if (editingWaitId) {
+                  const currentParty =
+                    waitlist.find(
+                      (party) =>
+                        party.id === editingWaitId
+                    );
 
-        <div
-          style={{
-            border: "2px solid #111827",
-            borderRadius: 8,
-            padding: "7px 10px",
-            background: "white",
-            flex: 1,
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 9, color: "#64748b" }}>Party</div>
-          <strong>{waitGuestMix().display || "—"}</strong>
-        </div>
-      </div>
+                  if (!currentParty) return;
 
-      <div style={{ display: "flex", gap: 6 }}>
-        <button
-          onClick={async () => {
-            const mix = waitGuestMix();
+                  const updatedParty: EnriquesWaitParty = {
+                    ...currentParty,
+                    name: guestName.trim(),
+                    size: mix.display,
+                    adults: mix.adults,
+                    kids: mix.kids,
+                    highchairs:
+                      mix.highchairs,
+                    wheelchairs:
+                      mix.wheelchairs,
+                    phone: guestPhone.trim(),
+                    pager: guestPager.trim(),
+                    notes: guestNotes.trim(),
+                    quotedWait:
+                      quotedWait.trim() ||
+                      "15-20",
+                    vip: waitVip,
+                    entryType: waitEntryType,
+                  };
 
-            if (!guestName.trim() || mix.totalPeople <= 0) {
-              alert("Enter the guest name and at least one adult or kid.");
-              return;
-            }
+                  setWaitlist((current) =>
+                    current.map((party) =>
+                      party.id === editingWaitId
+                        ? updatedParty
+                        : party
+                    )
+                  );
 
-            if (editingWaitId) {
-              const currentParty = waitlist.find(
-                (party) => party.id === editingWaitId
-              );
+                  await syncOrQueue({
+                    type:
+                      "host_waitlist_update",
+                    payload: {
+                      id: updatedParty.id,
+                      data: updatedParty,
+                    },
+                  });
 
-              if (!currentParty) return;
+                  clearWaitForm();
+                  return;
+                }
 
-              const updatedParty: EnriquesWaitParty = {
-                ...currentParty,
-                name: guestName.trim(),
-                size: mix.display,
-                adults: mix.adults,
-                kids: mix.kids,
-                highchairs: mix.highchairs,
-                wheelchairs: mix.wheelchairs,
-                phone: guestPhone.trim(),
-                pager: guestPager.trim(),
-                notes: guestNotes.trim(),
-                quotedWait: quotedWait.trim() || "15-20",
-                vip: waitVip,
-                entryType: waitEntryType,
-              };
+                const party: EnriquesWaitParty = {
+                  id: Date.now(),
+                  name: guestName.trim(),
+                  size: mix.display,
+                  adults: mix.adults,
+                  kids: mix.kids,
+                  highchairs: mix.highchairs,
+                  wheelchairs:
+                    mix.wheelchairs,
+                  phone: guestPhone.trim(),
+                  pager:
+                    waitEntryType ===
+                    "Walk In"
+                      ? guestPager.trim()
+                      : "",
+                  notes: guestNotes.trim(),
+                  quotedWait:
+                    quotedWait.trim() ||
+                    "15-20",
+                  vip: waitVip,
+                  entryType: waitEntryType,
+                  originalCallAheadAt:
+                    waitEntryType ===
+                    "Call Ahead"
+                      ? Date.now()
+                      : undefined,
+                  status: "Waiting",
+                  createdAt: Date.now(),
+                };
 
-              setWaitlist((current) =>
-                current.map((party) =>
-                  party.id === editingWaitId ? updatedParty : party
-                )
-              );
+                setWaitlist((current) => [
+                  ...current,
+                  party,
+                ]);
 
-              await syncOrQueue({
-                type: "host_waitlist_update",
-                payload: {
-                  id: updatedParty.id,
-                  data: updatedParty,
-                },
-              });
+                await syncOrQueue({
+                  type:
+                    "host_waitlist_insert",
+                  payload: {
+                    id: party.id,
+                    data: party,
+                  },
+                });
 
-              clearWaitForm();
-              return;
-            }
-
-            const party: EnriquesWaitParty = {
-              id: Date.now(),
-              name: guestName.trim(),
-              size: mix.display,
-              adults: mix.adults,
-              kids: mix.kids,
-              highchairs: mix.highchairs,
-              wheelchairs: mix.wheelchairs,
-              phone: guestPhone.trim(),
-              pager: waitEntryType === "Walk In" ? guestPager.trim() : "",
-              notes: guestNotes.trim(),
-              quotedWait: quotedWait.trim() || "15-20",
-              vip: waitVip,
-              entryType: waitEntryType,
-              originalCallAheadAt:
-                waitEntryType === "Call Ahead" ? Date.now() : undefined,
-              status: "Waiting",
-              createdAt: Date.now(),
-            };
-
-            setWaitlist((current) => [...current, party]);
-
-            await syncOrQueue({
-              type: "host_waitlist_insert",
-              payload: {
-                id: party.id,
-                data: party,
-              },
-            });
-
-            clearWaitForm();
-          }}
-          style={{
-            flex: 1,
-            background: editingWaitId ? "#2563eb" : "#16a34a",
-            color: "white",
-            border: "none",
-            borderRadius: 8,
-            padding: "9px 12px",
-            fontWeight: "bold",
-          }}
-        >
-          {editingWaitId
-            ? "Save Changes"
-            : waitEntryType === "Call Ahead"
-              ? "+ Add Call Ahead"
-              : "+ Add Walk In"}
-        </button>
-
-        {editingWaitId && (
-          <button onClick={clearWaitForm}>Cancel</button>
-        )}
-      </div>
-    </div>
-</section>
+                clearWaitForm();
+              }}
+              style={{
+                width: "100%",
+                background: editingWaitId
+                  ? "#2563eb"
+                  : "#16a34a",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                padding: 7,
+                fontWeight: "bold",
+                fontSize: 10,
+              }}
+            >
+              {editingWaitId
+                ? "Save Changes"
+                : waitEntryType ===
+                    "Call Ahead"
+                  ? "+ Add Call Ahead"
+                  : "+ Add Walk In"}
+            </button>
+          </div>
+        </section>
       </div>
     </div>
 
